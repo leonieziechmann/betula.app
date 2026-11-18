@@ -44,6 +44,10 @@ pub struct Texts {
     pub created: fn(&str) -> String,
     pub opened: fn(&str) -> String,
     pub deleted: fn(&str) -> String,
+    /// Deleted with Betula Sync ended; Sync could not be ended, and the profile stays (the value is
+    /// why, `problem_text`).
+    pub deleted_ended: fn(&str) -> String,
+    pub not_ended: fn(&str) -> String,
     pub cleared: &'static str,
 
     // ---- „Daten" ----
@@ -74,6 +78,16 @@ pub struct Texts {
     pub delete_question: fn(&str) -> String,
     pub delete_after: &'static str,
     pub delete_yes: &'static str,
+    /// A synced profile (owner, 2026-11-18: „wenn man ein profil löscht soll man auch gefragt
+    /// werden ob Betula sync … beendet werden soll. Mit dem Hinweis, dass dann auch die daten vom
+    /// server gelöscht werden"): what follows, the two answers and their lines, and the row's line
+    /// while Sync ends (the value is the profile's name).
+    pub delete_after_synced: &'static str,
+    pub delete_here: &'static str,
+    pub delete_here_line: &'static str,
+    pub delete_end: &'static str,
+    pub delete_end_line: &'static str,
+    pub delete_ending: fn(&str) -> String,
 
     // ---- the sidebar: the profiles and „Profil hinzufügen" ----
     pub add_profile: &'static str,
@@ -122,7 +136,7 @@ fn module_en(n: usize) -> &'static str {
 
 pub const DE: Texts = Texts {
     title: "Profil",
-    description: "Die Profile von Betula: Merkliste, Stundenplan und Studium getrennt für mehrere Profile, alles nur im eigenen Browser, ohne Konto.",
+    description: "Die Profile von Betula: Merkliste, Stundenplan und Studium getrennt für mehrere Profile, lokal auf deinem Gerät.",
     server_title: "Deine Profile liegen in deinem Browser",
     server_hint: "Welche Profile es gibt und was sie enthalten, weiß nur dein Browser. Mit JavaScript siehst du sie hier und kannst sie verwalten.",
     profiles: "Profile",
@@ -155,6 +169,8 @@ pub const DE: Texts = Texts {
     created: |name| format!("„{name}“ angelegt: Merkliste, Stundenplan und Studium sind noch leer."),
     opened: |name| format!("„{name}“ aus der Datei angelegt."),
     deleted: |name| format!("„{name}“ gelöscht."),
+    deleted_ended: |name| format!("„{name}“ gelöscht und Sync beendet: Auch seine Daten auf dem Server sind gelöscht."),
+    not_ended: |why| format!("Sync ließ sich nicht beenden, das Profil ist noch da. {why}"),
     cleared: "Profil geleert.",
 
     data_heading: "Daten",
@@ -178,6 +194,12 @@ pub const DE: Texts = Texts {
     delete_question: |name| format!("„{name}“ mit allem, was es enthält, löschen?"),
     delete_after: "Es verschwindet aus diesem Browser; synchronisiert, behalten es die anderen Geräte. Direkt danach holt „Rückgängig“ es zurück.",
     delete_yes: "Löschen",
+    delete_after_synced: "Es verschwindet aus diesem Browser. Beendest du dabei Betula Sync, werden auch seine Daten auf dem Server gelöscht; die anderen Geräte behalten ihre Kopie, ohne Sync. „Rückgängig“ holt es direkt danach zurück, auf diesem Gerät dann ohne Sync.",
+    delete_here: "Nur auf diesem Gerät löschen",
+    delete_here_line: "Die anderen Geräte synchronisieren weiter",
+    delete_end: "Löschen und Sync beenden",
+    delete_end_line: "Löscht auch die Daten auf dem Server",
+    delete_ending: |name| format!("Sync wird beendet, dann verschwindet „{name}“ …"),
 
     add_profile: "Profil hinzufügen",
     add_empty: "Leer anlegen",
@@ -200,13 +222,13 @@ pub const DE: Texts = Texts {
     file_newer: "Diese Sicherung stammt aus einer neueren Version von Betula. Lade die Seite neu und versuche es noch einmal.",
     file_too_large: "Diese Datei ist zu groß für eine Sicherung.",
     file_full: |max| format!("Es gibt schon {max} Profile. Lösche eines, dann lässt sich die Datei laden."),
-    storage_hint: "Profile liegen nur in diesem Browser: kein Konto, nichts auf dem Server. Ein anderes Gerät hat seine eigenen; eine Sicherung als Datei bringt ein Profil hinüber.",
-    storage_hint_sync: "Profile liegen in diesem Browser, ohne Konto. Auf den Server kommt ein Profil nur mit Betula Sync, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben.",
+    storage_hint: "Profile liegen nur in diesem Browser, lokal auf deinem Gerät: Nichts davon ist auf dem Server. Ein anderes Gerät hat seine eigenen; eine Sicherung als Datei bringt ein Profil hinüber.",
+    storage_hint_sync: "Profile liegen in diesem Browser, lokal auf deinem Gerät. Auf den Server kommt ein Profil nur mit Betula Sync, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben.",
 };
 
 pub const EN: Texts = Texts {
     title: "Profile",
-    description: "Betula's profiles: saved modules, timetable and studies kept apart for several profiles, all only in your own browser, without an account.",
+    description: "Betula's profiles: saved modules, timetable and studies kept apart for several profiles, locally on your device.",
     server_title: "Your profiles are kept in your browser",
     server_hint: "Only your browser knows which profiles there are and what they hold. With JavaScript you see them here and can manage them.",
     profiles: "Profiles",
@@ -239,6 +261,8 @@ pub const EN: Texts = Texts {
     created: |name| format!("“{name}” created: its saved modules, timetable and studies are empty for now."),
     opened: |name| format!("“{name}” created from the file."),
     deleted: |name| format!("“{name}” deleted."),
+    deleted_ended: |name| format!("“{name}” deleted and Sync ended: its data on the server is deleted too."),
+    not_ended: |why| format!("Sync could not be ended; the profile is still here. {why}"),
     cleared: "Profile emptied.",
 
     data_heading: "Data",
@@ -262,6 +286,12 @@ pub const EN: Texts = Texts {
     delete_question: |name| format!("Delete “{name}” with everything it holds?"),
     delete_after: "It goes from this browser; synced, the other devices keep it. Right after, “Undo” brings it back.",
     delete_yes: "Delete",
+    delete_after_synced: "It goes from this browser. If you end Betula Sync with it, its data on the server is deleted too; the other devices keep their copy, without sync. Right after, “Undo” brings it back, on this device without sync.",
+    delete_here: "Delete on this device only",
+    delete_here_line: "The other devices go on syncing",
+    delete_end: "Delete and end Sync",
+    delete_end_line: "Also deletes the data on the server",
+    delete_ending: |name| format!("Ending Sync, then “{name}” goes …"),
 
     add_profile: "Add profile",
     add_empty: "Create an empty one",
@@ -284,6 +314,6 @@ pub const EN: Texts = Texts {
     file_newer: "This backup comes from a newer version of Betula. Reload the page and try again.",
     file_too_large: "This file is too large to be a backup.",
     file_full: |max| format!("There are {max} profiles already. Delete one, then the file can be loaded."),
-    storage_hint: "Profiles are kept only in this browser: no account, nothing on the server. Another device has its own; a backup file takes a profile there.",
-    storage_hint_sync: "Profiles are kept in this browser, without an account. A profile reaches the server only with Betula Sync, encrypted with a key only your devices have.",
+    storage_hint: "Profiles are kept only in this browser, locally on your device: none of it is on the server. Another device has its own; a backup file takes a profile there.",
+    storage_hint_sync: "Profiles are kept in this browser, locally on your device. A profile reaches the server only with Betula Sync, encrypted with a key only your devices have.",
 };

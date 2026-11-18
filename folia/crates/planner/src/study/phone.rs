@@ -37,6 +37,7 @@ use folia_shell::tabs::{Area, TabAgain};
 use super::overview::{Bar, Info};
 use super::pager::{plan_path, Dots, Pager, Pages};
 use super::side::{AllPrograms, MineCard, StorageHint, ViewWays};
+use super::transcript::TranscriptWay;
 use super::{n, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -71,6 +72,11 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     // page on another tab, pressed while the row rests at a semester behind it, is not this page's,
     // and the tab comes back as it was left.
     let again = TabAgain::expect();
+    // The row comes to its top itself (the overview from its top as it turns there, the window up
+    // at the overview): the tab tapped again does not glide the window besides it.
+    if let Some(again) = again {
+        again.takes_its_top(Area::Programs);
+    }
     let front = folia_design::stage::front();
     Effect::new(move |before: Option<(u32, u32)>| {
         let now = (again.map_or(0, |again| again.count(Area::Programs)), back.map_or(0, TopBack::presses));
@@ -101,7 +107,7 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
             </section>
             <PlanBox ctx/>
             <div class="st-rest">
-                <nav class="st-ways"><AllPrograms line=true/></nav>
+                <nav class="st-ways"><TranscriptWay ctx line=true id="st-transcript-phone"/><AllPrograms line=true/></nav>
                 <StorageHint/>
             </div>
         </div>

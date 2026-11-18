@@ -28,6 +28,7 @@ use folia_calendar::live::feed_path;
 use folia_calendar::share::SharedPlan;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 use folia_design::haptic::TapTick;
+use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_plans::shares::{Share, ShareTo};
 use folia_stores::sync::share::{live_path, once_path, ShareProblem, ONCE_TTL};
@@ -137,6 +138,12 @@ fn absolute(path: &str, t: &'static i18n::Texts) -> String {
     format!("{origin}{}", t.path(path))
 }
 
+/// The letter a share's avatar shows for its name, in the list „Geteilt" and in the field „Für wen":
+/// the first, as a capital. None for a name of nothing but spaces.
+fn initial(name: &str) -> Option<String> {
+    name.trim().chars().next().map(|first| first.to_uppercase().collect())
+}
+
 /// The dialog, while `ctx.sharing` names a calendar.
 #[component]
 pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
@@ -241,6 +248,12 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
     };
 
     // ---- making it
+    // The link made, the focus goes to „Link kopieren" („Adresse kopieren"): where it was, the
+    // button that made it, the dialog's foot says „Fertig" now, and a second Enter closed the dialog
+    // before the link was copied.
+    let to_copy = || request_animation_frame(|| {
+        nav::focus_selector(".sh-dialog[open] #sh-copy");
+    });
     let create = move || {
         let c = choice.get_untracked();
         let s = key.get_untracked();
@@ -262,7 +275,10 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                 }),
             };
             match result {
-                Some(result) => made.set(Some(result)),
+                Some(result) => {
+                    made.set(Some(result));
+                    to_copy();
+                }
                 None => problem.set(Some(d.note_nothing)),
             }
             return;
@@ -286,7 +302,9 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                 Ok(done) => {
                     let url = absolute(&done.path, t);
                     let ways = (c.tab == ShareTab::App).then(|| site().map(|(origin, host)| ways_of(&origin, &host, &done.path, &s.label(t.locale), t.locale))).flatten();
-                    let _ = made.try_set(Some(Made { url, choice: c, until: done.until, left_out: done.left_out, ways: ways.map(|w| (w.apple, w.google, w.outlook)), id: Some(done.share.id) }));
+                    if made.try_set(Some(Made { url, choice: c, until: done.until, left_out: done.left_out, ways: ways.map(|w| (w.apple, w.google, w.outlook)), id: Some(done.share.id) })).is_none() {
+                        to_copy();
+                    }
                 }
                 Err(why) => {
                     let _ = problem.try_set(Some(problem_text(why, t)));
@@ -312,7 +330,9 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
             }
         });
     };
-    let primary = move |_| {
+    // „Link erstellen" („Profil speichern und Link erstellen", „Adresse erstellen" …): its button, or
+    // Enter in „Für wen".
+    let primary = move || {
         if working.get_untracked() || saving.get_untracked() {
             return;
         }
@@ -361,9 +381,9 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                 } else {
                     d.row_everyone.to_string()
                 };
-                let avatar = match (share.to, share.name.chars().next()) {
+                let avatar = match (share.to, initial(&share.name)) {
                     (ShareTo::App, _) => "K".to_string(),
-                    (_, Some(first)) => first.to_uppercase().collect(),
+                    (_, Some(first)) => first,
                     (_, None) if share.once => "1×".to_string(),
                     (_, None) => "↗".to_string(),
                 };
@@ -406,9 +426,10 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
         }
         .into_any()
     };
+    // An option of a group: the one chosen is the group's stop of Tab, ← → choose (`nav::radio_key`).
     let option = move |title: &'static str, text: &'static str, on: Signal<bool>, sync_mark: bool, pick: Callback<()>| {
         view! {
-            <button type="button" class="sh-opt" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| pick.run(())>
+            <button type="button" class="sh-opt" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } tabindex=move || if on.get() { "0" } else { "-1" } on:click=move |_| pick.run(())>
                 <b>{title}{move || (sync_mark && offered && !synced.get()).then(|| view! { <i class="sh-tag">{d.with_sync}</i> })}</b>
                 <span>{text}</span>
             </button>
@@ -420,9 +441,9 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
         let (_, _, own_count, note_count) = facts.get();
         let tabs = (!own_calendar).then(|| {
             view! {
-                <div class="seg sh-seg" role="radiogroup">
-                    <button type="button" role="radio" aria-checked=move || if choice.get().tab == ShareTab::People { "true" } else { "false" } on:click=move |_| choice.update(|c| { c.tab = ShareTab::People; })>{d.people}</button>
-                    <button type="button" role="radio" aria-checked=move || if choice.get().tab == ShareTab::App { "true" } else { "false" } on:click=move |_| choice.update(|c| { c.tab = ShareTab::App; })>{d.app}</button>
+                <div class="seg sh-seg" role="radiogroup" on:keydown=move |ev| { nav::radio_key(&ev); }>
+                    <button type="button" role="radio" aria-checked=move || if choice.get().tab == ShareTab::People { "true" } else { "false" } tabindex=move || if choice.get().tab == ShareTab::People { "0" } else { "-1" } on:click=move |_| choice.update(|c| { c.tab = ShareTab::People; })>{d.people}</button>
+                    <button type="button" role="radio" aria-checked=move || if choice.get().tab == ShareTab::App { "true" } else { "false" } tabindex=move || if choice.get().tab == ShareTab::App { "0" } else { "-1" } on:click=move |_| choice.update(|c| { c.tab = ShareTab::App; })>{d.app}</button>
                 </div>
             }
         });
@@ -434,16 +455,16 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
             let (stays_text, copy_text) = if c.tab == ShareTab::People { (d.stays_people, d.copy_people) } else { (d.stays_app, d.copy_app) };
             view! {
                 <section class="sh-grp">
-                    <h3 class="sh-label">{d.how}</h3>
-                    <div class="sh-opts" role="radiogroup">
+                    <h3 class="sh-label" id="sh-how">{d.how}</h3>
+                    <div class="sh-opts" role="radiogroup" aria-labelledby="sh-how" on:keydown=move |ev| { nav::radio_key(&ev); }>
                         {option(d.stays, stays_text, live, true, Callback::new(move |()| choice.update(|c| c.live = true)))}
                         {option(d.copy, copy_text, copy, false, Callback::new(move |()| choice.update(|c| c.live = false)))}
                     </div>
                 </section>
                 {(c.tab == ShareTab::People).then(|| view! {
                     <section class="sh-grp">
-                        <h3 class="sh-label">{d.who_opens}</h3>
-                        <div class="sh-opts" role="radiogroup">
+                        <h3 class="sh-label" id="sh-who-opens">{d.who_opens}</h3>
+                        <div class="sh-opts" role="radiogroup" aria-labelledby="sh-who-opens" on:keydown=move |ev| { nav::radio_key(&ev); }>
                             {option(d.one, d.one_hint, once, true, Callback::new(move |()| choice.update(|c| c.once = true)))}
                             {option(d.everyone, d.everyone_hint, all, false, Callback::new(move |()| choice.update(|c| c.once = false)))}
                         </div>
@@ -499,11 +520,31 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                 {along_note}
             </section>
         };
+        // „Für wen": a field of Betula's, the avatar of the row it names in „Geteilt" at its start;
+        // Enter makes the link, as „Link erstellen" does (the phone's keyboard says „Los").
         let for_whom = (c.tab == ShareTab::People && c.needs_sync()).then(|| {
             view! {
-                <section class="sh-grp">
+                <section class="sh-grp sh-name" class:named=move || who.with(|who| initial(who).is_some())>
                     <label class="sh-label" for="sh-who">{d.for_whom}</label>
-                    <input id="sh-who" class="sh-input" type="text" autocomplete="off" maxlength=folia_plans::shares::MAX_SHARE_NAME placeholder=d.for_whom_placeholder prop:value=move || who.get() on:input=move |ev| who.set(event_target_value(&ev))/>
+                    <input
+                        id="sh-who"
+                        type="text"
+                        autocomplete="off"
+                        autocapitalize="words"
+                        spellcheck="false"
+                        enterkeyhint="go"
+                        maxlength=folia_plans::shares::MAX_SHARE_NAME
+                        placeholder=d.for_whom_placeholder
+                        prop:value=move || who.get()
+                        on:input=move |ev| who.set(event_target_value(&ev))
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "Enter" && !ev.is_composing() {
+                                ev.prevent_default();
+                                primary();
+                            }
+                        }
+                    />
+                    <span class="sh-av" aria-hidden="true">{move || who.with(|who| initial(who)).map_or_else(|| view! { <Icon name="user-round"/> }.into_any(), IntoAny::into_any)}</span>
                     <small class="sh-hint">{d.for_whom_hint}</small>
                 </section>
             }
@@ -536,14 +577,14 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
         let url = made.url.clone();
         let buttons = match made.ways.clone() {
             Some((apple, google, outlook)) => view! {
-                <button class="mini primary" type="button" data-action="copy-text" data-text=url.clone()><Icon name="copy"/><span>{d.copy_address}</span></button>
+                <button class="mini primary" type="button" id="sh-copy" data-action="copy-text" data-text=url.clone()><Icon name="copy"/><span>{d.copy_address}</span></button>
                 <a class="mini" href=google target="_blank" rel="external noopener">"Google"</a>
                 <a class="mini" href=apple rel="external">"Apple"</a>
                 <a class="mini" href=outlook target="_blank" rel="external noopener">"Outlook"</a>
             }
             .into_any(),
             None => view! {
-                <button class="mini primary" type="button" data-action="copy-text" data-text=url.clone()><Icon name="copy"/><span>{d.copy_link}</span></button>
+                <button class="mini primary" type="button" id="sh-copy" data-action="copy-text" data-text=url.clone()><Icon name="copy"/><span>{d.copy_link}</span></button>
                 <button class="mini" type="button" data-action="share-link" data-text=url.clone()><Icon name="share-2"/><span>{d.share_more}</span></button>
             }
             .into_any(),
@@ -610,7 +651,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                 } else {
                     view! {
                         <button class="mini" type="button" on:click=move |_| close.run(())>{d.cancel}</button>
-                        <button class="mini primary" type="button" id="sh-make" aria-busy=move || (working.get() || saving.get()).then_some("true") on:click=primary>{primary_label}</button>
+                        <button class="mini primary" type="button" id="sh-make" aria-busy=move || (working.get() || saving.get()).then_some("true") on:click=move |_| primary()>{primary_label}</button>
                     }
                     .into_any()
                 }}

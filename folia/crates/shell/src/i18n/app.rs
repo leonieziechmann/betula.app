@@ -51,6 +51,7 @@ pub struct Texts {
     pub sync_offline: &'static str,
     pub sync_private: &'static str,
     pub sync_starting: &'static str,
+    pub sync_ending: &'static str,
     pub sync_ended: &'static str,
     pub sync_failed: &'static str,
     /// The menu's row of the settings every profile shares: its name, light, dark or the
@@ -138,6 +139,7 @@ pub const DE: Texts = Texts {
     sync_offline: "Synchron · gerade offline",
     sync_private: "Nur auf diesem Gerät",
     sync_starting: "Wird eingerichtet …",
+    sync_ending: "Sync wird beendet …",
     sync_ended: "Sync beendet",
     sync_failed: "Sync gestört",
     preferences: "Darstellung, Sprache und Vibration",
@@ -215,6 +217,7 @@ pub const EN: Texts = Texts {
     sync_offline: "In sync · offline right now",
     sync_private: "On this device only",
     sync_starting: "Setting up …",
+    sync_ending: "Ending Sync …",
     sync_ended: "Sync ended",
     sync_failed: "Sync interrupted",
     preferences: "Appearance, language and vibration",

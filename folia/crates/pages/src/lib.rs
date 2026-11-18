@@ -7,6 +7,7 @@
 
 pub mod ask;
 pub mod graph;
+pub mod transcript;
 
 #[cfg(test)]
 mod tests;

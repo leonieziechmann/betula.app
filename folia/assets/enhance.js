@@ -3388,7 +3388,9 @@
     rising = 0;
     for (const type of STOP_RISING) removeEventListener(type, stopRising, true);
   };
-  function toTop(button) {
+  // `button`: „Nach oben", or nothing for the tab tapped again (below); `gliding`: false where the
+  // page is at its top at once.
+  function toTop(button, gliding = true) {
     const page = pageScroller();
     if (!page) return;
     stopRising();
@@ -3396,14 +3398,14 @@
     const put = (y) => { if (page === document.scrollingElement) window.scrollTo(0, y); else page.scrollTop = y; };
     // A keyboard goes on from the start of the page, where „Zum Inhalt springen" leads, and not
     // from the button, which is gone at the top.
-    if (button.matches(":focus-visible")) {
+    if (button?.matches(":focus-visible")) {
       const content = document.getElementById("content");
       content?.setAttribute("tabindex", "-1");
       content?.addEventListener("blur", () => content.removeAttribute("tabindex"), { once: true });
       content?.focus({ preventScroll: true });
     }
     const from = Math.min(page.scrollTop, shownOf(page));
-    if (glide() === "instant") { put(0); return; }
+    if (!gliding || glide() === "instant") { put(0); return; }
     put(from);
     const start = performance.now();
     const step = (now) => {
@@ -3415,6 +3417,11 @@
     rising = requestAnimationFrame(step);
     for (const type of STOP_RISING) addEventListener(type, stopRising, { capture: true, passive: true });
   }
+  // The tab of the page in front tapped again (chrome.rs `NavItems`, tabs.rs `to_top`; owner,
+  // 2026-11-18: „Und ganz noch oben gescrollt"): the page to its top as „Nach oben" takes it there,
+  // gliding where it stays what it is (`detail.glide`: another `page` of the list, the same view),
+  // and at once where the tab led to where its area starts and that page is built now.
+  addEventListener("betula:tab-again", (e) => toTop(null, e.detail?.glide === true));
 
   // ---- the navigation's keys ----
   // Every tab of the navigation is a digit away (owner, 2026-10-16: „wenn man ctrl/alt drückt

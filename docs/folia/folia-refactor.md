@@ -476,6 +476,7 @@ UI base       folia-shell · folia-stores · folia-data
               folia-design
 domain        folia-pages (the loaders, what each page shows, the messages to the worker)
               folia-query · folia-timetable · folia-plans · folia-semantic
+              folia-transcript
               folia-routes
               folia-search
 base          folia-calendar
@@ -509,6 +510,7 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 | `folia-plans` | `catalog::{studyplan, plan, variants}`, the area logic of `catalog::pages` | the rows of a study plan and their areas, the study directions, the Stundenplan's stored documents and the import of a Regelstudienplan |
 | `folia-pages` | the loaders and data types of `catalog::pages`, `catalog::graph` | one loader per page and what each page shows (`CatalogData`, `ModuleData` …): the façade the worker and the site call; the messages between the UI and the worker (§6.3: a request per loader, its answer the loader's data); the layout of the program map, which the server makes once per snapshot |
 | `folia-semantic` | exists | the semantic search |
+| `folia-transcript` | new (2026-11-18) | the BTU's Notenübersicht read from its PDF (its objects, RC4, DEFLATE, fonts, the table), without dependencies, natively and as the Web Worker that reads a file in the browser; the matching of its rows with the catalog's modules |
 
 **Data:**
 

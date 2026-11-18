@@ -6,7 +6,8 @@
 // (order of marking in sections by its time, numbers, the order at the heads of the columns with
 // „Gemerkt" over the bookmarks, halves of the year, the search at the head searching the list and
 // never the address, with its line into the whole catalog, preview, a mark taken away stays on the
-// page dimmed, the menu of the whole list: copying it, the link for another device, emptying with
+// page dimmed, the menu of the whole list: copying it, „Teilen …“ and its link (no „Link für ein
+// anderes Gerät“ any more: Betula Sync brings the list there), emptying with
 // „Rückgängig" in the note at the bottom); collections („Sammlungen", step 2): made in the sidebar,
 // a view of the list with an address of its own, a name there never twice, a module put into one
 // from its switch's arrow with a note in Markdown, at its row and under its switches, deleted and
@@ -280,17 +281,23 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // Each module a line of a message: its number, title, credits and the link to its page.
   check(copied.split("\n").length === 3 && marked.every((id) => copied.includes(`/catalog/module/${id}`)) && copied.split("\n").every((line) => /^\d{5} .+ · (\d+(,\d+)? LP · )?https?:\/\/\S+\/catalog\/module\/\d{5}$/.test(line)), `copied: ${JSON.stringify(copied)}`);
 
-  // A list travels to another device in the fragment of a link, which no browser sends anywhere:
-  // the other device asks before it adds anything, and the answer takes the ids out of the address.
+  // A list travels in the fragment of a link, which no browser sends anywhere: the fixed copy for
+  // everybody of „Teilen …“ (with Betula Sync on the site too the choice a private profile opens
+  // with). The other browser asks before it adds anything, and the answer takes the ids out of the
+  // address. The menu has no „Link für ein anderes Gerät“ any more (Folia 1.105.2: Betula Sync
+  // brings the list to one's own devices).
   const carried = await stored(page);
   await listMenu();
-  check(await page.evaluate(() => Boolean(document.querySelector('.view-menu .st-pop-item:has(small)')?.textContent.includes("Link für ein anderes Gerät"))), "the link for another device lost its line in the menu");
-  await step("copy the link for another device", () => page.click('.view-menu .st-pop-item:has-text("Link für ein anderes Gerät")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Link kopiert"));
+  check(await page.evaluate(() => [...document.querySelectorAll(".view-menu .st-pop-item")].every((item) => !item.textContent.includes("anderes Gerät"))), "the menu of the whole list still has the link for another device");
+  await step("„Teilen …“ of the whole list", () => page.click('.view-menu .st-pop-item:has-text("Teilen …")'), () => Boolean(document.querySelector(".sh-dialog[open] #sh-make")) && !document.querySelector(".view-menu"));
+  await step("its link", () => page.click(".sh-dialog[open] #sh-make"), () => Boolean(document.querySelector(".sh-dialog[open] .sh-link")));
+  await step("copy the link", () => page.click('.sh-dialog[open] .sh-acts [data-action="copy-text"]'), () => Boolean(document.querySelector('.sh-dialog[open] .sh-acts [data-action="copy-text"].said')));
   const link = await page.evaluate(() => navigator.clipboard.readText());
+  await step("the dialog closes", () => page.keyboard.press("Escape"), () => !document.querySelector(".sh-dialog[open]"));
   // The list as a code (pack/): characters an address carries as they are, the last two check the
   // rest, and the last one is a letter or a digit. Shorter than the ids one by one.
   const code = link.slice(`${base}/bookmarks#m=`.length);
-  check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && code.length < carried.join(",").length, `the link for another device: ${link}`);
+  check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && code.length < carried.join(",").length, `the link of the whole list: ${link}`);
   {
     const elsewhere = await browser.newContext({ viewport: { width: 1500, height: 900 } });
     await elsewhere.addInitScript(ON_PAGE);

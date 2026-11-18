@@ -133,8 +133,8 @@ The profile page says „direkt verbunden" or „über Betula weitergeleitet".
 | „Nur dieses Gerät trennen" | its record of the devices deleted, what waits goes out, then `leave`; the copy stays, private |
 | the devices (2026-11-09) | each device writes a record of itself into the profile, `D\|<device id>`: slot, kind, model (Chrome's `userAgentData`), browser, system, since, last seen (`folia_stores::sync::devices`, `Writer::put`; no store projects it, and a build without the list keeps it as it is); on every welcome where it is not as it is, and once an hour while connected. Phloem's presence by slot says who is online, the live way how. The leader keeps them for every tab (`betula.sync.p<id>.devices`, `.slots`) |
 | „Entfernen" of another device | its record marked removed: it stands in no list, and the device that finds its own record so leaves (as „Nur dieses Gerät trennen") the next time it is online. Phloem cannot take a slot from a device that never comes back: for a lost device „Sync beenden" and a new start shut it out |
-| „Sync beenden" | `DELETE /sync/v1/space`: gone at once; every device is private again with its copy, the others hear `gone` |
-| a profile deleted | leaves its space for this device alone; the others keep it |
+| „Sync beenden" | `DELETE /sync/v1/space`: gone at once; every device is private again with its copy, the others hear `gone`. Meanwhile the state says „Sync wird beendet …" (`State::Ending`, Folia 1.102.3; „Wird eingerichtet …" until then) |
+| a profile deleted | the question asks which way (owner, 2026-11-18: „wenn man ein profil löscht soll man auch gefragt werden ob Betula sync … beendet werden soll. Mit dem Hinweis, dass dann auch die daten vom server gelöscht werden"; Folia 1.102.3). „Nur auf diesem Gerät löschen": it leaves its space for this device alone; the others keep it. „Löschen und Sync beenden": „Sync beenden" first (`Sync::stop_then`), then the profile goes; where the space does not go (offline, the service away), the profile stays synced and the note at the head of the page says why, for the key would go with it and the server's copy stay. „Rückgängig" brings the profile back either way, private |
 | „Profil leeren", „Rückgängig" | sync like any change |
 
 While devices connect, a bar shows the way, and then the success of concept A of
@@ -150,7 +150,7 @@ profile there. It ends only then: after 8 s without, a line under the bar says t
 here yet and Betula keeps trying (until Folia 1.90.0 the bar ended after 8 s all the same, and
 said „Verbunden" for a profile that never came). `Connected` then: a tick, „Verbunden" (from the setup „Alles eingerichtet" with what
 was set up), what is on now in three rows (on both devices, in line at once and offline, sealed
-without an account), that more devices are connected on the profile page („Gerät verbinden"), and
+for the visitor alone), that more devices are connected on the profile page („Gerät verbinden"), and
 „Fertig".
 
 Every way of connecting ends on the start page (owner, 2026-11-09: „dass man wieder bei der main
@@ -189,6 +189,22 @@ of „Alle") or one collection (its menu's „Teilen …"):
 | the shares in force | lines `s` of the collections' store (`collections::ListShare`), records `C\|s\|<id>`: renewed by the leader when the marks, the collections or the notes change; a collection deleted takes its shares along, and their parts go |
 | following | „Als Liste folgen": a line `f` of the collections' store (`collections::Followed`, records `C\|f\|<id>`), a list of its own under „Geteilt mit dir" beside the collections, under a number of theirs (`?collection=<n>`), named as the sharer names it until it is renamed; the page lists its modules with the sharer's collections and notes, the rows' marks are the visitor's, „Alle übernehmen" takes everything (`Shelf::adopt`). Watched and fetched as a calendar's part; a part that is gone leaves the list with its last state, „Behalten" and „Löschen" |
 
+Both dialogs answer the keyboard as the rest of Betula does (owner, 2026-11-18: „das Verhalten mit
+einer Tastatur richtig buggy"; Folia 1.105.2): in an option group („Wie", „Wer den Link öffnen
+kann", the Stundenplan's „Mit Personen" and „In Kalender-App") ← and → choose, Pos1 and Ende the
+first and the last, and the option chosen is the group's one stop of Tab (`folia_design::nav::
+radio_key`, as enhance.js's `radioKey` in a mode); Enter in „Für wen" makes the link as the
+dialog's button does, and the phone's keyboard says „Los" there (`enterkeyhint="go"`): with the
+screen's keyboard up the dialog's foot waits for it to go, so until then the field had no way on.
+The link made, the focus goes to „Link kopieren" („Adresse kopieren"): it stayed on the button that
+had made it, which says „Fertig" then, and a second Enter closed the dialog before the link was
+copied. „Für wen" is a field as Betula's others are (owner, the same day: „das Textfeld unten ein
+fail mach das mal ordentlich im Betula styling"; until then the browser's own box, white in the dark
+too): the line's colour around it, the accent's while it is typed in, at its start the avatar of the
+row it names in „Geteilt" — its initial, a person while it is empty —, on a phone 46 px tall and in
+16 px. With the screen's keyboard up it comes up to the top of the dialog under its label, in a long
+dialog too (`folia_design::keyboard`, docs/folia/frontend.md „The screen's keyboard").
+
 The start page's setup ends with it (owner, 2026-11-08: „Mach das mal als step in die einführung
 mit rein. So als letzten schritt. So dass man es gleich auch auf dem handy hat";
 `folia/crates/home/src/home/devices.rs`, docs/folia/frontend.md „The start page"): after
@@ -226,7 +242,8 @@ again, as after „Sync beenden" on another device.
   the address `/pair` for the laptop, its code opened by the phone, the digits alike on both, a
   private profile switched on on the way, a code that opens once; „Profil vom Handy holen" in the
   profile page's dialog answered by a synced phone; the scanner of `/sync` with a camera that films
-  a code.
+  a code; a synced profile deleted with „Löschen und Sync beenden", the other device private
+  again with its copy.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
   (Folia with `FOLIA_SYNC_PARTS` naming it).
 - `folia/e2e/rebuild.mjs` (locally, with `PHLOEM_LOSE` and `PHLOEM_START`): Phloem's database

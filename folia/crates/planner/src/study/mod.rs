@@ -52,6 +52,7 @@ mod regular;
 mod setup;
 mod side;
 mod size;
+mod transcript;
 
 use std::collections::BTreeSet;
 
@@ -74,7 +75,7 @@ use folia_shell::frame::Frame;
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
-use folia_shell::tabs::Area;
+use folia_shell::tabs::{Area, TabAgain};
 use folia_stores::myprogram::MyProgram;
 // What the study is worked out from, as the start page works it out too (`folia_stores::study`).
 pub(super) use folia_stores::study::{assumed_start, chosen, input_of, rows_of, Setup};
@@ -192,6 +193,10 @@ pub(super) enum Dialog {
     CountFor { semester: SemesterKey, id: String },
     /// „Umfang …" of a placeholder of a semester (`size.rs`).
     Size { semester: SemesterKey, pid: u32 },
+    /// What a Notenübersicht was read as, and what taking it over does (`transcript.rs`): in the
+    /// browser alone.
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    Transcript(Box<transcript::Reading>),
 }
 
 /// The rows selected in a semester (`Item::key`), for what is done to several at once (owner,
@@ -273,6 +278,8 @@ pub(super) struct StudyCtx {
     /// soll so sein, dass die nav bar noch funktioniert und oben auch noch die suchleiste ist").
     /// Not kept: a reload shows the page as it is.
     pub full: RwSignal<bool>,
+    /// A Notenübersicht is being read (`transcript.rs`).
+    pub reading: RwSignal<bool>,
 }
 
 /// The last change that „Rückgängig" takes back: what its note says, the plan before it, and its
@@ -281,11 +288,18 @@ pub(super) struct StudyCtx {
 pub struct Undo {
     pub note: String,
     pub before: PlanDoc,
+    /// „Mein Studiengang" before it, where the change set it too (a Notenübersicht taken over).
+    pub mine: Option<MineDoc>,
     pub turn: u32,
 }
 
 /// The turn of the next change with a note.
 static UNDO_TURNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// A new change's turn.
+pub(super) fn next_turn() -> u32 {
+    UNDO_TURNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
 
 impl StudyCtx {
     /// Changes the plan after the next frame (R21), then runs `then`: `change` gets the plan and
@@ -313,8 +327,7 @@ impl StudyCtx {
                 (*doc != before).then_some(before)
             });
             if let (Some(note), Some(before)) = (note, before) {
-                let turn = UNDO_TURNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                undo.try_set(Some(Undo { note, before, turn }));
+                undo.try_set(Some(Undo { note, before, mine: None, turn: next_turn() }));
             }
             then();
         });
@@ -535,6 +548,7 @@ pub fn StudyPage() -> impl IntoView {
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
         full: RwSignal::new(false),
+        reading: RwSignal::new(false),
     };
     // While the workbench is open, „Einplanen" elsewhere aims at its semester and subgroup
     // (`Planning::bench`); its end ends that.
@@ -593,6 +607,32 @@ pub fn StudyPage() -> impl IntoView {
         if !front.get() && ctx.view_back.get_untracked() {
             ctx.view_back.set(false);
         }
+    });
+    // The tab of „Studium" tapped again while the page is in front (`TabAgain`; owner, 2026-11-18:
+    // „dass sich dann die standard Ansicht davon öffnet. Also bei mein Studium zum Beispiel die mein
+    // Studium page"): the page as it starts, the address with the tab at `/study`. The workbench
+    // ends (what it planned stays planned, as with its ×), and what lies over the page goes: the
+    // menu, the dialog, the rows selected, the Gesamtplan's full screen. On a desktop the current
+    // semester comes into focus; a phone's row goes to the overview (`phone.rs`), whose semester
+    // stays where the row left it.
+    let again = TabAgain::expect();
+    Effect::new(move |before: Option<u32>| {
+        let now = again.map_or(0, |again| again.count(Area::Programs));
+        if before.is_some_and(|before| before != now) && front.get_untracked() {
+            if ctx.bench.with_untracked(Option::is_some) {
+                bench::leave(ctx);
+            }
+            ctx.menu.set(None);
+            ctx.dialog.set(None);
+            ctx.selection.set(Selection::default());
+            if ctx.full.get_untracked() {
+                grid::full(ctx, false);
+            }
+            if !ctx.phone.get_untracked() {
+                ctx.focus.set(None);
+            }
+        }
+        now
     });
     // What lies over the page (folia_shell::nav): the menu, the rows selected, the dialog. On a
     // phone whose browser has `CloseWatcher` (Android) Back closes the newest, as Esc does
@@ -801,6 +841,9 @@ fn UndoView(ctx: StudyCtx, turn: u32) -> impl IntoView {
     let restore = move |_| {
         let (Some(plan), Some(undo)) = (ctx.plan, ctx.undo.get_untracked().filter(|undo| undo.turn == turn)) else { return };
         done.set(true);
+        if let (Some(mine), Some(before)) = (ctx.mine, undo.mine) {
+            mine.put(before);
+        }
         plan.update_after_paint(move |doc| *doc = undo.before);
     };
     view! {

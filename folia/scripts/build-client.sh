@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds the browser app into site/pkg (served by Folia under /pkg) with the data worker: its
-# script (folia/crates/worker/js/data-worker.js) and its own bundle (folia-worker, no Leptos), and
+# script (folia/crates/worker/js/data-worker.js) and its own bundle (folia-worker, no Leptos), the
+# reader of a Notenübersicht (folia/crates/transcript: transcript-worker.js, transcript.wasm), and
 # the Web Worker of the semantic search next to them (scripts/build-semantic.sh).
 # Needs the wasm32-unknown-unknown target and wasm-bindgen-cli 0.2.128 (on PATH, in
 # $WASM_BINDGEN, or the copy Trunk keeps in its cache); in the cloud .claude/hooks/prebuild.sh
@@ -51,6 +52,14 @@ mkdir -p site/pkg
 # The data worker: its script and its bundle, which answers the pages' questions from the catalog.
 "$WB" --target web --no-typescript ${BINDGEN_FLAGS[@]+"${BINDGEN_FLAGS[@]}"} --out-dir site/pkg --out-name folia_worker "$TARGET_DIR/wasm32-unknown-unknown/$PROFILE/folia_worker.wasm"
 cp crates/worker/js/data-worker.js site/pkg/data-worker.js
+# The reader of a Notenübersicht (folia/crates/transcript, feature `worker`): a Web Worker of its
+# own, which „Mein Studium" starts for one file and ends once it has answered; no wasm-bindgen, as
+# the semantic search's. Size first for both builds (it is small, and built in seconds), without the
+# names of its functions, as the bundle that ships; in a directory of its own, as a cdylib.
+CARGO_ENCODED_RUSTFLAGS="-Cstrip=symbols" cargo rustc -p folia-transcript --lib --features worker --crate-type cdylib \
+  --target wasm32-unknown-unknown --profile wasm-release --target-dir "$TARGET_DIR/transcript"
+cp "$TARGET_DIR/transcript/wasm32-unknown-unknown/wasm-release/folia_transcript.wasm" site/pkg/transcript.wasm
+cp crates/transcript/js/worker.js site/pkg/transcript-worker.js
 
 # The semantic search's worker: release builds only, for both (it has no dev build of its own).
 bash scripts/build-semantic.sh >/dev/null

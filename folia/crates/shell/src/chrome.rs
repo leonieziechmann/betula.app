@@ -35,17 +35,31 @@ pub fn FollowTabs() -> impl IntoView {
     }
 }
 
-/// Where the tab of `area` leads, seen from `path` (the app's path): where its area was left, else
-/// where it starts (`Tabs`); the catalog's first entry of a session is the catalog of „Mein
-/// Studiengang" (`mine`). „Studium" is „Mein Studium" in the app; without it (the server's page, no
-/// JavaScript) there is nothing to plan, and the tab is the overview of the programs. Tracked: the
-/// tab's link follows it, and the tabs built at the start are built there (`stage`).
+/// Where the tab of `area` leads, seen from `path` (the app's path): from another area where its
+/// area was left, else where it starts (`tab_home`), and in its own area where it starts (`Tabs`).
+/// „Studium" is „Mein Studium" in the app; without it (the server's page, no JavaScript) there is
+/// nothing to plan, and the tab is the overview of the programs. Tracked: the tab's link follows
+/// it, and the tabs built at the start are built there (`stage`).
 pub fn tab_target(tabs: Option<Tabs>, mine: Option<MineResolved>, area: Area, path: &str) -> String {
     match (tabs, area) {
         (_, Area::Programs) if !APP => url::PROGRAMS.to_string(),
-        (Some(tabs), Area::Catalog) => tabs.href_with_root(area, path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
-        (Some(tabs), _) => tabs.href(area, path),
-        (None, _) => area.root().to_string(),
+        (Some(tabs), _) => tabs.href_with_root(area, path, &tab_home(mine, area)),
+        (None, _) => tab_home(mine, area),
+    }
+}
+
+/// Where `area` starts, its view as it opens without anything remembered: where its tab leads on
+/// the first entry of a session and, tapped again in its own area, always (owner, 2026-11-18:
+/// „dass sich dann die standard Ansicht davon öffnet. Also bei mein Studium zum Beispiel die mein
+/// Studium page. Beim Modulkatalog für Standard Filter von Studiengang, bei der landing Page etc.").
+/// The catalog's is the catalog of „Mein Studiengang", while its PO is in the snapshot (A.10), else
+/// the whole catalog; „Studium"'s „Mein Studium" in the app; every other area's its list without a
+/// filter, a view or a module beside it (`Area::root`). Tracked.
+pub fn tab_home(mine: Option<MineResolved>, area: Area) -> String {
+    match area {
+        Area::Catalog => mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href),
+        Area::Programs if !APP => url::PROGRAMS.to_string(),
+        area => area.root().to_string(),
     }
 }
 
@@ -91,29 +105,53 @@ pub fn NavItems() -> impl IntoView {
     if let Some(pending) = pending {
         expose_stands(move |area| untrack(|| pending.stands(&crate::nav::tab_top(area, &target(area)))));
     }
-    // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
-    // goes back to where it starts (`TabAgain`). On a phone the tab is a stack of its own: the
-    // history becomes Start and the tab's stack as it was left, and in its own tab back to its
-    // first page (`nav::tab`). Elsewhere the tab's page goes back through the history where it is
-    // the step before (folia/design/zurueck/konzept.html), else it is a step of its own.
+    // A tab tapped (not the end of a swipe along the bar, enhance.js). On a phone the tab is a
+    // stack of its own: the history becomes Start and the tab's stack as it was left (`nav::tab`).
+    // Elsewhere the tab's page goes back through the history where it is the step before
+    // (folia/design/zurueck/konzept.html), else it is a step of its own.
+    // The tab of the area the app is in, tapped again, leads to where the area starts (`tab_home`;
+    // owner, 2026-11-18: „dass sich dann die standard Ansicht davon öffnet … Und ganz noch oben
+    // gescrollt"): its page goes back to where it starts (`TabAgain`), a list there comes back to
+    // no row (`Tabs::afresh`), and it starts at its top; on a phone its stack becomes that page,
+    // with Start under it (`nav::again`). Where the app is there already (another `page` of the
+    // list, a fragment), nothing is a step, and the page glides to its top as „Nach oben" does.
     let again = TabAgain::expect();
+    let (pathname, search) = (location.pathname, location.search);
     let tap = move |area: Area| {
         move |ev: leptos::ev::MouseEvent| {
             let plain = ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key());
             if !plain || ev.default_prevented() {
                 return;
             }
-            let here = untrack(|| current(area)).is_some();
-            if let Some(pending) = pending.filter(|_| APP) {
+            let Some(pending) = pending.filter(|_| APP) else { return };
+            if untrack(|| current(area)).is_none() {
                 let to = untrack(|| target(area));
                 if crate::nav::tab(pending, area, &to) || pending.back_if_before(&to) {
                     ev.prevent_default();
                 }
+                return;
             }
-            if here {
-                if let Some(again) = again {
-                    again.tapped(area);
-                }
+            ev.prevent_default();
+            let home = untrack(|| tab_home(mine, area));
+            let (path, query) = Pending::shown_of(Some(pending), pathname, search);
+            let (home_path, home_query) = home.split_once('?').unwrap_or((home.as_str(), ""));
+            let step = crate::pending::change(&path, &query, home_path, home_query, crate::nav::phone()).is_some();
+            if let Some(tabs) = tabs.filter(|_| step) {
+                tabs.afresh(&home);
+            }
+            // A phone writes the tab's stack in place; elsewhere the step goes back where that page
+            // is the step before, else it is a step of its own.
+            let written = crate::nav::again(pending, area, &home, step);
+            if step && !written && !pending.back_if_before(&home) {
+                pending.go(&home, NavigateOptions::default());
+            }
+            if let Some(again) = again {
+                again.tapped(area);
+            }
+            // Where the page stays what it is: up from where it is, unless the page takes itself
+            // there (`TabAgain::takes_its_top`). Else once the app is there (`Tabs::follow`).
+            if !step && !again.is_some_and(|again| again.keeps_its_top(area)) {
+                crate::tabs::to_top(true);
             }
         }
     };
@@ -752,6 +790,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
                 SyncState::Offline => ("on", t.app.sync_offline.to_string()),
                 SyncState::Private => ("off", t.app.sync_private.to_string()),
                 SyncState::Starting => ("wait", t.app.sync_starting.to_string()),
+                SyncState::Ending => ("wait", t.app.sync_ending.to_string()),
                 SyncState::Ended => ("off", t.app.sync_ended.to_string()),
                 SyncState::Failed(_) => ("warn", t.app.sync_failed.to_string()),
             };

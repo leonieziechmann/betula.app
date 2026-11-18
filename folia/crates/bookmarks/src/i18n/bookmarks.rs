@@ -28,7 +28,7 @@ pub struct Texts {
     pub discard: &'static str,
     /// A collection's link (folia/design/merken/oberflaeche.html, „Weitergeben und Ankommen"):
     /// „Für Lena · 3 Module aus einem Link." (its name, how many), „1 davon schon gemerkt." (how
-    /// many of how many), „Die Sammlung gibt es schon."; the link for another device: „46 Module in 4
+    /// many of how many), „Die Sammlung gibt es schon."; the link of the whole Merkliste: „46 Module in 4
     /// Sammlungen aus einem Link." and „12 davon neu.".
     pub from_link_named: fn(&str, usize) -> String,
     pub already_marked: fn(usize, usize) -> String,
@@ -167,10 +167,6 @@ pub struct Texts {
     // ---- the menu of the whole list (oberflaeche.html: „„Alle“ hat ein Menü wie eine Sammlung") ----
     /// The list as text, for a note or a message.
     pub copy_text: &'static str,
-    /// The link for another device: its tooltip, its label and the line under it.
-    pub transfer_title: &'static str,
-    pub transfer: &'static str,
-    pub transfer_hint: &'static str,
     /// Emptying the list: the question and its answers, the entry.
     pub clear_question: fn(usize) -> String,
     pub clear_yes: &'static str,
@@ -219,7 +215,7 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     title: "Merkliste",
-    description: "Module der BTU Cottbus-Senftenberg merken und wiederfinden. Die Merkliste liegt nur im eigenen Browser: kein Konto, keine Daten auf dem Server.",
+    description: "Module der BTU Cottbus-Senftenberg merken, in Sammlungen ordnen und wiederfinden. Die Merkliste gehört zu deinem Profil und liegt auf deinem Gerät.",
 
     broken_link: "Der Link ist beschädigt.",
     broken_link_hint: "Die Merkliste darin lässt sich nicht lesen: Vielleicht fehlt beim Kopieren ein Stück, oder ein Zeichen ist falsch abgetippt.",
@@ -332,9 +328,6 @@ pub const DE: Texts = Texts {
     order: "Ordnung",
 
     copy_text: "Als Text kopieren",
-    transfer_title: "Der Link trägt die Merkliste hinter dem #: dieser Teil einer Adresse wird nie an einen Server gesendet",
-    transfer: "Link für ein anderes Gerät",
-    transfer_hint: "Kopieren und dort öffnen",
     clear_question: |n| if n == 1 { "Den Merker entfernen?".to_string() } else { format!("Alle {n} Merker entfernen?") },
     clear_yes: "Leeren",
     cancel: "Abbrechen",
@@ -374,7 +367,7 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     title: "Saved modules",
-    description: "Save modules of BTU Cottbus-Senftenberg and find them again. Your saved modules stay in your own browser: no account, no data on the server.",
+    description: "Save modules of BTU Cottbus-Senftenberg, sort them into collections and find them again. Your saved modules belong to your profile and are kept on your device.",
 
     broken_link: "The link is damaged.",
     broken_link_hint: "The saved modules in it cannot be read: perhaps a piece went missing when it was copied, or a character was mistyped.",
@@ -487,9 +480,6 @@ pub const EN: Texts = Texts {
     order: "Order",
 
     copy_text: "Copy as text",
-    transfer_title: "The link carries your saved modules after the #: this part of an address is never sent to a server",
-    transfer: "Link for another device",
-    transfer_hint: "Copy it and open it there",
     clear_question: |n| if n == 1 { "Remove the saved module?".to_string() } else { format!("Remove all {n} saved modules?") },
     clear_yes: "Clear",
     cancel: "Cancel",

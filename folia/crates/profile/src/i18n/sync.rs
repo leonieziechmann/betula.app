@@ -19,6 +19,8 @@ pub struct Texts {
     pub cancel: &'static str,
     /// While it is switched on, or a profile comes from another device.
     pub starting: &'static str,
+    /// While „Sync beenden" asks the server to delete the profile's copy.
+    pub ending: &'static str,
     /// A synced profile, online with how many other devices of it; offline.
     /// Other devices online, of them connected directly, of them through Betula's relay.
     pub online: fn(usize, usize, usize) -> String,
@@ -167,13 +169,14 @@ pub const DE: Texts = Texts {
     explain_heading: "Was der Server dann aufbewahrt",
     explain_points: &[
         "Deine Änderungen, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben. Der Server kann sie nicht öffnen und weiß nicht, was drinsteht.",
-        "Wie groß sie sind und wann sie kamen, dazu zufällige Kennungen für das Profil und jedes Gerät. Mehr nicht: kein Name, kein Konto, keine E-Mail-Adresse.",
+        "Wie groß sie sind und wann sie kamen, dazu zufällige Kennungen für das Profil und jedes Gerät. Mehr nicht: kein Name, keine E-Mail-Adresse, kein Passwort.",
         "Wird das Profil 13 Monate lang nicht abgerufen oder beendest du Sync, ist alles auf dem Server weg. Deine Geräte behalten ihre Kopie.",
     ],
     explain_code: "Danach kannst du dir einen Wiederherstellungscode zeigen lassen. Ohne ihn ist die Kopie auf dem Server verloren, wenn alle deine Geräte weg sind; mit ihm holst du das Profil auf jedes neue Gerät.",
     explain_yes: "Einschalten und Code zeigen",
     cancel: "Abbrechen",
     starting: "Wird eingerichtet …",
+    ending: "Sync wird beendet …",
     online: |others, direct, relayed| {
         let devices = match others {
             0 => return "Synchronisiert · gerade kein anderes Gerät online".to_string(),
@@ -253,7 +256,7 @@ pub const DE: Texts = Texts {
     device_remove_yes: "Entfernen",
 
     other_heading: "Profil von einem anderen Gerät",
-    other_lead: "Öffne dort „Weiteres Gerät verbinden“ und scanne den Code, oder gib hier den Wiederherstellungscode ein. Das Profil kommt als neues Profil dazu.",
+    other_lead: "Öffne dort „Gerät verbinden“ und scanne den Code, oder gib hier den Wiederherstellungscode ein. Das Profil kommt als neues Profil dazu.",
     code_field: "Wiederherstellungscode",
     code_placeholder: "XXXX-XXXX-…",
     recover: "Profil holen",
@@ -296,13 +299,14 @@ pub const EN: Texts = Texts {
     explain_heading: "What the server then keeps",
     explain_points: &[
         "Your changes, encrypted with a key only your devices have. The server cannot open them and does not know what is in them.",
-        "How large they are and when they came, and random ids for the profile and each device. Nothing more: no name, no account, no e-mail address.",
+        "How large they are and when they came, and random ids for the profile and each device. Nothing more: no name, no e-mail address, no password.",
         "If the profile is not fetched for 13 months, or you end Sync, everything on the server is gone. Your devices keep their copy.",
     ],
     explain_code: "Afterwards you can show a recovery code. Without it the copy on the server is lost when all your devices are gone; with it you get the profile onto any new device.",
     explain_yes: "Turn on and show the code",
     cancel: "Cancel",
     starting: "Setting up …",
+    ending: "Ending Sync …",
     online: |others, direct, relayed| {
         let devices = match others {
             0 => return "Synced · no other device online right now".to_string(),
@@ -383,7 +387,7 @@ pub const EN: Texts = Texts {
     device_remove_yes: "Remove",
 
     other_heading: "Profile from another device",
-    other_lead: "Open “Connect another device” there and scan the code, or enter the recovery code here. The profile is added as a new profile.",
+    other_lead: "Open “Connect a device” there and scan the code, or enter the recovery code here. The profile is added as a new profile.",
     code_field: "Recovery code",
     code_placeholder: "XXXX-XXXX-…",
     recover: "Get profile",

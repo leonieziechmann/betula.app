@@ -4,7 +4,8 @@
 // and no switch of the languages in the rail; the page's head counts what the profile keeps (none of
 // it a link); a new profile („Profil hinzufügen", „Leer anlegen") is empty and the active one, its marks under its own key while the first profile's stay under the
 // plain one; a switch in the sidebar brings a profile's marks back (the rail counts them),
-// renaming, „Profil leeren" and deleting with „Rückgängig"; another tab of the same browser follows
+// renaming, „Profil leeren" and deleting with „Rückgängig" (the page up at the note that says it,
+// on a wide screen and on a phone); another tab of the same browser follows
 // a switch, and the Merkliste open there shows the other profile's list; the menu of the profiles
 // at the rail's way (a mouse resting on it: the profiles, „Neues Profil“, the way to the page and
 // „Geräte" where the site offers Betula Sync, the other language, the legal pages; a profile chosen;
@@ -256,9 +257,20 @@ const mark = async (page, id) => {
   await page.setInputFiles('.pf-add input[type="file"]', garbage);
   await page.waitForFunction(() => onPage(".pf-refused")?.textContent.includes("keine Sicherung"), null, { timeout: 8000 }).catch(() => problems.push("a file that is no backup is not refused"));
 
-  // Deleting the active profile, and „Rückgängig".
-  await step("„Löschen“ asks first", () => page.click("#pf-delete >> visible=true"), () => document.activeElement?.id === "pf-delete-yes");
+  // Deleting the active profile, and „Rückgängig". The page goes up from the Gefahrenzone to the
+  // note that says it, which lights up (owner, 2026-11-18: „Es braucht unbedingt Bestätigung dass
+  // man ein profil gelöscht hat … und dann den scroll nach ganz oben").
+  // A window too low for the page, so that the frame's scroll area is down at the Gefahrenzone.
+  await page.setViewportSize({ width: 1500, height: 560 });
+  await page.evaluate(() => { const area = onPage("#pf-delete").closest("#page-scroll"); area.scrollTop = area.scrollHeight; });
+  await step("„Löschen“ asks first", () => page.click("#pf-delete >> visible=true"), () => document.activeElement?.id === "pf-delete-yes" && onPage("#pf-delete").closest("#page-scroll").scrollTop > 0);
   await step("the profile deleted", () => page.click("#pf-delete-yes >> visible=true"), (name) => onPage(".pf-head h2")?.textContent === name && allOnPage(".pf-list .pf-item").length === 2, NAME);
+  await page.waitForFunction(() => {
+    const note = onPage(".pf-note");
+    const top = note?.getBoundingClientRect().top ?? -1;
+    return (note?.closest("#page-scroll")?.scrollTop ?? -1) === 0 && scrollY === 0 && top >= 0 && top < innerHeight && /gelöscht/.test(note.textContent) && note.classList.contains("pf-flash");
+  }, null, { timeout: 3000 }).catch(() => problems.push("after deleting, the page does not go up to the note that says so, lit up"));
+  await page.setViewportSize({ width: 1500, height: 900 });
   check((await kept(page, "betula.p3.bookmarks.v1")) === null && !/^profile\t3\t/m.test(await kept(page, LIST)), "the deleted profile left something behind");
   await step("„Rückgängig“ brings it back, active", () => page.click("#pf-undo >> visible=true"), (name) => onPage(".pf-head h2")?.textContent === `${name} (2)` && allOnPage(".pf-list .pf-item").length === 3, NAME);
   check(JSON.stringify(ids(await kept(page, "betula.p3.bookmarks.v1"))) === JSON.stringify([catalog[2]]), "„Rückgängig“ did not bring the deleted profile's marks back");
@@ -347,6 +359,15 @@ const mark = async (page, id) => {
   await page.waitForTimeout(300);
   const back = await page.evaluate(() => ({ y: Math.round(scrollY), at: navigation.currentEntry.index, forward: navigation.canGoForward }));
   check(Math.abs(back.y - left.y) < 4 && back.at === left.at && back.forward, `phone: the arrow did not go back to the list as it was left (scrolled ${left.y}, at ${left.at}): ${JSON.stringify(back)}`);
+  // Deleting on a phone: the window goes up from the Gefahrenzone to the note that says it.
+  await step("phone: the profile page again", async () => { await page.tap(".topbar .top-profile >> visible=true"); await page.waitForSelector('.profile-menu a[href="/profile"] >> visible=true', { timeout: 3000 }); await page.tap('.profile-menu a[href="/profile"] >> visible=true'); }, () => location.pathname === "/profile" && onPage(".pf-head h2")?.textContent === "Mobil");
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await step("phone: „Löschen“ asks first", () => page.tap("#pf-delete >> visible=true"), () => document.activeElement?.id === "pf-delete-yes" && scrollY > 0);
+  await step("phone: the profile deleted", () => page.tap("#pf-delete-yes >> visible=true"), () => onPage(".pf-head h2")?.textContent !== "Mobil" && allOnPage(".pf-list .pf-item").length === 2);
+  await page.waitForFunction(() => {
+    const top = onPage(".pf-note")?.getBoundingClientRect().top ?? -1;
+    return scrollY === 0 && top >= 0 && top < innerHeight && onPage(".pf-note").classList.contains("pf-flash");
+  }, null, { timeout: 3000 }).catch(() => problems.push("phone: after deleting, the window does not go up to the note that says so, lit up"));
   await context.close();
 }
 

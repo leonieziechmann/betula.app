@@ -194,9 +194,9 @@ pub const DE: Texts = Texts {
     note_nothing: "Hier ist noch nichts gemerkt: Ein fester Link braucht mindestens ein Modul. Was aktuell bleibt, geht auch leer.",
 
     needs_sync: "Dafür speichert Betula dein Profil mit Betula Sync.",
-    needs_sync_hint: "Verschlüsselt und ohne Konto: Der Server bewahrt Profil und geteilte Liste auf und kann beides nicht öffnen. Deine anderen Geräte kannst du später verbinden.",
+    needs_sync_hint: "Verschlüsselt: Der Server bewahrt Profil und geteilte Liste auf und kann beides nicht öffnen; den Schlüssel haben nur deine Geräte. Deine anderen Geräte kannst du später verbinden.",
     offer: "Mit Betula Sync bleibt die Liste bei den anderen aktuell",
-    offer_hint: "Und du kannst sie jederzeit zurücknehmen. Das Profil wird verschlüsselt gespeichert, ohne Konto.",
+    offer_hint: "Und du kannst sie jederzeit zurücknehmen. Das Profil wird verschlüsselt gespeichert; den Schlüssel haben nur deine Geräte.",
     save_profile: "Profil speichern",
     saving: "Wird gespeichert …",
     save_failed: "Das Profil ließ sich gerade nicht speichern. Prüf deine Verbindung und versuch es gleich noch einmal; alles bleibt auf diesem Gerät.",
@@ -340,9 +340,9 @@ pub const EN: Texts = Texts {
     note_nothing: "Nothing is saved here yet: a fixed link needs at least one module. What stays current works empty too.",
 
     needs_sync: "For this, Betula saves your profile with Betula Sync.",
-    needs_sync_hint: "Encrypted and without an account: the server keeps the profile and the shared list and can open neither. You can connect your other devices later.",
+    needs_sync_hint: "Encrypted: the server keeps the profile and the shared list and can open neither; only your devices have the key. You can connect your other devices later.",
     offer: "With Betula Sync the list stays current for the others",
-    offer_hint: "And you can take it back any time. The profile is saved encrypted, without an account.",
+    offer_hint: "And you can take it back any time. The profile is saved encrypted; only your devices have the key.",
     save_profile: "Save profile",
     saving: "Saving …",
     save_failed: "The profile could not be saved just now. Check your connection and try again in a moment; everything stays on this device.",
