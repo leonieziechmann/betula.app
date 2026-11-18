@@ -382,7 +382,17 @@ pub fn reveal_in_list(entry_id: &str, center: bool) {
     {
         use wasm_bindgen::JsCast;
         let entry = crate::stage::by_id(entry_id);
-        let Some(entry) = entry.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
+        if let Some(entry) = entry.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) {
+            reveal_entry(&entry, center);
+        }
+    }
+}
+
+/// As `reveal_in_list`, for an entry at hand. The list is the entry's offset parent (positioned).
+#[allow(unused_variables)]
+pub fn reveal_entry(entry: &leptos::web_sys::HtmlElement, center: bool) {
+    #[cfg(feature = "csr")]
+    {
         let Some(list) = entry.parent_element() else { return };
         let (top, height, view) = (entry.offset_top(), entry.offset_height(), list.client_height());
         if center {
@@ -391,6 +401,41 @@ pub fn reveal_in_list(entry_id: &str, center: bool) {
             list.set_scroll_top((top - 4).max(0));
         } else if top + height > list.scroll_top() + view {
             list.set_scroll_top(top + height - view + 4);
+        }
+    }
+}
+
+/// Says on a list that scrolls whether more of it lies above or below what is seen
+/// (`data-more`: `above`, `below` or `both`; none where all of it is seen), for a fade at that edge
+/// (app.css). Call it once the list is there and on each of its scrolls.
+#[allow(unused_variables)]
+pub fn mark_more(list: &leptos::web_sys::Element) {
+    #[cfg(feature = "csr")]
+    {
+        let (top, view, all) = (list.scroll_top(), list.client_height(), list.scroll_height());
+        let more = match (top > 1, top + view < all - 1) {
+            (true, true) => Some("both"),
+            (true, false) => Some("above"),
+            (false, true) => Some("below"),
+            (false, false) => None,
+        };
+        if list.get_attribute("data-more").as_deref() != more {
+            let _ = match more {
+                Some(more) => list.set_attribute("data-more", more),
+                None => list.remove_attribute("data-more"),
+            };
+        }
+    }
+}
+
+/// `mark_more` on the list that scrolled (`on:scroll=nav::more_on_scroll`).
+#[allow(unused_variables)]
+pub fn more_on_scroll(ev: leptos::ev::Event) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        if let Some(list) = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
+            mark_more(&list);
         }
     }
 }
