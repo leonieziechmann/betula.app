@@ -1,7 +1,7 @@
 // Checks the Merkliste from elsewhere (folia/design/merken/konzept.html, „Von überall"; its step 4).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node everywhere.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // The Merkliste's tab, right clicked: a menu of its views, each with how many it holds, which leads
-// to one. The catalog's „Gemerkt": its views under the chip with their numbers, the address naming a
+// to one, and the marked modules in the catalog. The catalog's „Gemerkt": its views under the chip with their numbers, the address naming a
 // collection by its number alone, the list that collection's modules. „Mein Studium": the
 // Wahlpflicht says how many marked modules count in a choice and lists the marked one first, with
 // the bookmark; the workbench of „Module hinzufügen" says of a marked module of the plan that it is
@@ -109,9 +109,9 @@ requests.length = 0;
 // ---------- the Merkliste's tab ----------
 await go("/catalog");
 const way = (text) => `.tab-menu a.tab-menu-way:has-text("${text}")`;
-await step("the tab's menu", () => page.click('.rail a[data-area="bookmarks"]', { button: "right" }), () => document.querySelectorAll(".tab-menu .tab-menu-way").length === 4);
+await step("the tab's menu", () => page.click('.rail a[data-area="bookmarks"]', { button: "right" }), () => document.querySelectorAll(".tab-menu .tab-menu-way").length === 5);
 const menu = await page.evaluate(() => [...document.querySelectorAll(".tab-menu .tab-menu-way")].map((a) => `${a.innerText.replace(/\s+/g, " ").trim()} ${a.getAttribute("href")}`));
-check(JSON.stringify(menu) === JSON.stringify(["Alle gemerkten 6 /bookmarks", "Ohne Sammlung 3 /bookmarks?collection=none", `${KANDIDATEN} 2 /bookmarks?collection=1`, `${LENA} 1 /bookmarks?collection=2`]), `the tab's menu: ${JSON.stringify(menu)}`);
+check(JSON.stringify(menu) === JSON.stringify(["Alle gemerkten 6 /bookmarks", "Ohne Sammlung 3 /bookmarks?collection=none", `${KANDIDATEN} 2 /bookmarks?collection=1`, `${LENA} 1 /bookmarks?collection=2`, "Im Katalog zeigen /catalog?marked=only"]), `the tab's menu: ${JSON.stringify(menu)}`);
 check(await page.evaluate(() => location.pathname === "/catalog"), "the right click went somewhere");
 await step("a collection by the tab", () => page.click(way(KANDIDATEN)), () => location.pathname === "/bookmarks" && location.search === "?collection=1" && allOnPage("#rows a.row").length === 2 && !document.querySelector(".tab-menu"));
 check(same(await page.evaluate(() => [...allOnPage("#rows a.row")].map((row) => row.dataset.id)), [wp, ti]), "the collection by the tab lists other modules");

@@ -2650,11 +2650,14 @@
   // special aktion kommt. Bei mein Studium währe das dann eine auswahl von Regelstudienplan,
   // Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch mit [Rechts]klick funktionieren. Bei
   // dem katalog könnte sich dann gleich der katalog mit offenem Filter öffnen (das wäre aber mobile
-  // only weil auf dem pc ist der ja eh immer offen)"). A finger that stays on a tab of the bar for
-  // TAB_HOLD ms without moving, or a right click (or the menu key) on a tab of the bar or the rail:
-  // a tab the app marked `data-hold="menu"` gets its menu from the app (`betula:tab-menu` on the
-  // tab, folia/crates/shell/src/chrome.rs `TabMenu`); the catalog's (`data-hold="filters"`) opens
-  // the catalog's list with its filters, on a phone only. The way to the profile page
+  // only weil auf dem pc ist der ja eh immer offen)"; every tab since 2026-11-18: „alle Einträge in
+  // der navbar eine rclick und long press action/context menu. Also am pc immer context menu und
+  // beim handy kann beides sein je nachdem was besser passt"). A finger that stays on a tab of the
+  // bar for TAB_HOLD ms without moving, or a right click (or the menu key) on a tab of the bar or
+  // the rail: a tab the app marked `data-hold="menu"` gets its menu from the app (`betula:tab-menu`
+  // on the tab, folia/crates/shell/src/chrome.rs `TabMenu`); the catalog's
+  // (`data-hold="filters"`) opens the catalog's list with its filters on a phone, and its menu on a
+  // wide screen, where the filters are always there. The way to the profile page
   // (`data-hold="profiles"`, chrome.rs `ProfileButton`; owner, 2026-10-14: „Beim Handy long hold")
   // is held the same way, the box at a phone's head with a finger, the rail's with a right click,
   // and gets the menu of the profiles (`betula:profile-menu`, chrome.rs `ProfileMenu`; a tap on the
@@ -2691,8 +2694,8 @@
         tab.dispatchEvent(new Event("betula:profile-menu", { bubbles: true }));
         return true;
       case "filters":
-        if (!phone()) return false;
-        catalogFilters(tab);
+        if (phone()) catalogFilters(tab);
+        else tab.dispatchEvent(new Event("betula:tab-menu", { bubbles: true }));
         return true;
       default:
         return false;
