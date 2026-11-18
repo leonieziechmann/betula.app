@@ -3,9 +3,10 @@
 //! while it happens and once it is done (`syncdone.rs`).
 
 pub struct Texts {
-    /// What to do with the link; how long it opens (minutes left, 0: less than one); gone; a new
-    /// one.
+    /// What to do with the link, and under it, smaller, that it opens once for whoever has it; how
+    /// long it opens (minutes left, 0: less than one); gone; a new one.
     pub pair_how: &'static str,
+    pub pair_once: &'static str,
     pub pair_left: fn(u64) -> String,
     pub pair_gone: &'static str,
     pub pair_new: &'static str,
@@ -51,7 +52,8 @@ pub struct Texts {
 }
 
 pub const DE: Texts = Texts {
-    pair_how: "Scanne den Code mit der Kamera des anderen Geräts oder öffne den Link dort. Er gilt einmal: Wer ihn hat, bekommt dieses Profil.",
+    pair_how: "Scanne den Code mit der Kamera des anderen Geräts oder öffne den Link dort.",
+    pair_once: "Er gilt einmal: Wer ihn hat, bekommt dieses Profil.",
     pair_left: |minutes| match minutes {
         0 => "Noch weniger als eine Minute gültig".to_string(),
         1 => "Noch 1 Minute gültig".to_string(),
@@ -93,7 +95,8 @@ pub const DE: Texts = Texts {
 };
 
 pub const EN: Texts = Texts {
-    pair_how: "Scan the code with the camera of the other device, or open the link there. It works once: whoever has it gets this profile.",
+    pair_how: "Scan the code with the camera of the other device, or open the link there.",
+    pair_once: "It works once: whoever has it gets this profile.",
     pair_left: |minutes| match minutes {
         0 => "Valid for less than a minute".to_string(),
         1 => "Valid for 1 more minute".to_string(),
