@@ -41,7 +41,7 @@ use folia_widgets::syncpair::{copy, now_ms, PairLink, PairWait, COPIED_MS};
 
 pub use folia_widgets::syncpair::problem_text;
 
-use crate::confirm::{Confirm, Question};
+use crate::confirm::{Answer, Confirm, Question};
 use crate::i18n;
 use crate::profile::ActionRow;
 
@@ -122,7 +122,7 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
     let leaving = RwSignal::new(None::<Question>);
     let ask = move |at: &'static str| {
         let (title, hint, yes, icon, yes_id) = if at == LEAVE_ID { (s.leave_question, s.leave_after, s.leave_yes, "x", LEAVE_YES_ID) } else { (s.stop_question, s.stop_after, s.stop_yes, "trash-2", STOP_YES_ID) };
-        leaving.set(Some(Question { at: at.to_string(), title: title.to_string(), hint: hint.to_string(), yes: yes.to_string(), icon, yes_id }));
+        leaving.set(Some(Question::one(at, title, hint, Answer::new(yes, icon, yes_id))));
     };
     // Another profile, or a state that changes: what was open belonged to the one before.
     Effect::new(move |before: Option<(u16, bool)>| {
@@ -144,6 +144,7 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
         let (dot, said) = match state.get() {
             State::Private => return None,
             State::Starting => ("wait", s.starting.to_string()),
+            State::Ending => ("wait", s.ending.to_string()),
             State::Online { devices, direct, relayed } => ("on", (s.online)(devices, direct, relayed)),
             State::Offline => ("off", s.offline.to_string()),
             State::Ended => ("off", s.ended.to_string()),
@@ -192,7 +193,7 @@ pub fn SyncPart(#[prop(into)] empty: Signal<bool>) -> impl IntoView {
         State::Private => Shape::Private,
         State::Ended => Shape::Ended,
         State::Failed(_) => Shape::Failed,
-        State::Starting => Shape::Starting,
+        State::Starting | State::Ending => Shape::Starting,
         State::Online { .. } | State::Offline => Shape::Synced,
     });
     // The recovery code, shown under its row.
@@ -322,14 +323,7 @@ fn DeviceList(sync: Sync, id: Memo<u16>) -> impl IntoView {
             view! {
                 <button class="linkish pf-device-remove" type="button" id=button.clone() aria-label=(s.device_remove_label)(&shown) aria-haspopup="dialog" aria-expanded=move || if asked.get() { "true" } else { "false" } on:click=move |_| {
                     removing.set_value(Some(key.clone()));
-                    asking.set(Some(Question {
-                        at: button.clone(),
-                        title: (s.device_remove_question)(&shown),
-                        hint: s.device_remove_hint.to_string(),
-                        yes: s.device_remove_yes.to_string(),
-                        icon: "x",
-                        yes_id: "pf-device-remove-yes",
-                    }));
+                    asking.set(Some(Question::one(button.clone(), (s.device_remove_question)(&shown), s.device_remove_hint, Answer::new(s.device_remove_yes, "x", "pf-device-remove-yes"))));
                 }>{s.device_remove}</button>
             }
         });

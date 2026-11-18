@@ -6217,14 +6217,17 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   with the credits, collections and notes, saved plans; none is a link, the rail has the ways. Then
   Betula Sync (below, `#devices`), „Daten“ („Als Datei sichern“) and the „Gefahrenzone“: „Profil
   leeren“ and „Profil löschen“, each a row with its icon on a tile and a button of one width with
-  the same icon (the only profile is emptied, and says so before), as Betula Sync's actions are
+  the same icon (the only profile is emptied, and says so before; a synced one is deleted on this
+  device alone or with Betula Sync ended, its data on the server deleted, which the question asks
+  since Folia 1.102.2, owner 2026-11-18), as Betula Sync's actions are
   since Folia 1.97.2 (132 px, 116 px on a phone: the longest German word, „Verbinden“ and
   „Speichern“; a longer one makes its button wider). Every question before something
   that takes away („Profil leeren“, „Profil löschen“, „Entfernen“ of a device, „Nur dieses Gerät
   trennen“, „Sync beenden“) is a menu at its button since 2026-11-09 (`folia_profile::confirm`,
   app.css `.st-pop`, a sheet from below on a phone; owner: „(kontext) menus verwenden, um das
   löschen zu bestätigen. Das andere verschiebt das layout“): what is asked, what follows, the answer
-  with the focus, „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
+  with the focus (where there are two ways, two answers, each with a line that sets it apart, the
+  first with the focus), „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
   button, and nothing on the page moves. A
   profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. The
   language lives in the profile's menu since 2026-10-14 (owner: „allgemein kann man die

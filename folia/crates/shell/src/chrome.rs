@@ -752,6 +752,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
                 SyncState::Offline => ("on", t.app.sync_offline.to_string()),
                 SyncState::Private => ("off", t.app.sync_private.to_string()),
                 SyncState::Starting => ("wait", t.app.sync_starting.to_string()),
+                SyncState::Ending => ("wait", t.app.sync_ending.to_string()),
                 SyncState::Ended => ("off", t.app.sync_ended.to_string()),
                 SyncState::Failed(_) => ("warn", t.app.sync_failed.to_string()),
             };

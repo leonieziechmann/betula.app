@@ -20,7 +20,9 @@
 // the three devices, this one first, the others online, and „Entfernen" makes the third one leave
 // with its copy; a new computer shows
 // a code that a phone opens (as the camera app does) and sends the profile to, the digits alike on
-// both; „Sync beenden" makes every browser private again with its copy; the scanner of /sync (a
+// both; „Sync beenden" makes every browser private again with its copy; a synced profile deleted
+// asks whether Sync ends with it, and „Löschen und Sync beenden" deletes it and leaves the other
+// device private with its copy; the scanner of /sync (a
 // camera that films a code) sends a private profile, switched on for it; the setup's last step on
 // a phone leads to that scanner („Code scannen"), whose „Fertig" ends the setup on the day. Privacy: no request or
 // frame carries a module's number, the note or the profile key in the clear, nothing reaches
@@ -320,6 +322,27 @@ check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after 
   await sawBar("D", d.page);
   await d.page.click(".ob-finish >> visible=true").catch(() => problems.push("D: no „Fertig“"));
   await until("D: the day with its note after „Fertig“", d.page, () => !onPage(".ob") && /^Eingerichtet und verbundenInformatik/.test(document.querySelector(".wait-note.setup-note")?.textContent ?? ""), null, 8000);
+
+  // ---- „Profil löschen" of a synced profile asks whether Sync ends with it (owner, 2026-11-18):
+  // E, with a second profile, deletes the synced one with „Löschen und Sync beenden", and D is
+  // private again with its copy ----
+  await go(e.page, "/profile");
+  await e.page.click("#pf-add >> visible=true").catch(() => problems.push("E: no „Profil hinzufügen“"));
+  await e.page.click("#pf-new >> visible=true").catch(() => problems.push("E: no „Leer anlegen“"));
+  await e.page.press("#pf-new-name >> visible=true", "Enter").catch(() => problems.push("E: no name for the new profile"));
+  await until("E: a second profile", e.page, () => allOnPage(".pf-list .pf-item").length === 2 && /^active\t2$/m.test(localStorage.getItem("betula.profiles.v1") || ""), null, 5000);
+  await e.page.click('.pf-list .pf-item[aria-checked="false"] >> visible=true').catch(() => problems.push("E: no way back to the synced profile"));
+  await until("E: the synced profile again", e.page, () => /^active\t1$/m.test(localStorage.getItem("betula.profiles.v1") || "") && Boolean(onPage("#pf-sync-stop")), null, 5000);
+  await e.page.click("#pf-delete >> visible=true").catch(() => problems.push("E: no „Profil löschen“"));
+  await until("E: „Löschen“ of a synced profile asks whether Sync ends", e.page, () => document.activeElement?.id === "pf-delete-yes"
+    && /^Nur auf diesem Gerät löschen/.test(onPage("#pf-delete-yes")?.textContent ?? "")
+    && /^Löschen und Sync beendenLöscht auch die Daten auf dem Server$/.test(onPage("#pf-delete-end")?.textContent ?? "")
+    && /Daten auf dem Server/.test(onPage("#pf-confirm-hint")?.textContent ?? ""), null, 5000);
+  await e.page.click("#pf-delete-end >> visible=true").catch(() => problems.push("E: no „Löschen und Sync beenden“"));
+  await until("E: the profile deleted, and Sync ended", e.page, () => allOnPage(".pf-list .pf-item").length === 1 && !localStorage.getItem("betula.sync.p1.v1") && localStorage.getItem("betula.myprogram.v1") === null
+    && /gelöscht und Sync beendet/.test(onPage(".pf-note")?.textContent ?? ""), null, 10000);
+  await until("D: ended with it", d.page, () => !localStorage.getItem("betula.sync.p1.v1") && Object.keys(localStorage).some((k) => /^betula\.sync\.p\d+\.ended$/.test(k)), null, 10000);
+  check(/^program\t079-82-2008$/m.test(await d.page.evaluate(() => localStorage.getItem("betula.myprogram.v1") || "")), "D: the study is gone after E ended Sync with deleting");
 }
 
 // ---- on a phone: the laptop opens /pair, and the phone scans its code ----
