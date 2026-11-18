@@ -231,6 +231,10 @@ fn every_query_runs_against_the_snapshot() {
     assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));
     let ids = queries::module_ids(&db).unwrap();
     assert!(ids.len() >= page.total as usize && ids.contains(&module.id));
+    // What a Notenübersicht's rows are matched with: every module, its titles.
+    let titles = queries::module_titles(&db).unwrap();
+    assert_eq!(titles.len(), ids.len());
+    assert!(titles.iter().any(|title| title.id == module.id && title.title == module.title));
     // The semantic search's vectors, as Radix computed them: 384 values of 4 bits (two a byte, the
     // nibble value + 8), of unit length up to their rounding, of modules the catalog has. A
     // snapshot of a Radix without a model has none.

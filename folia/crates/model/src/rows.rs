@@ -71,6 +71,31 @@ impl FromRow for Semester {
     }
 }
 
+/// A module's titles and credits (`v_module`): what a row of a Notenübersicht is matched with
+/// (`folia_transcript::matching`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModuleTitle {
+    pub id: String,
+    pub title: String,
+    pub title_de: Option<String>,
+    pub title_en: Option<String>,
+    pub credits: Option<f64>,
+    pub offer_status: Code<OfferStatus>,
+}
+
+impl FromRow for ModuleTitle {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            id: row.text("id")?,
+            title: row.text("title")?,
+            title_de: row.opt_text("title_de")?,
+            title_en: row.opt_text("title_en")?,
+            credits: row.opt_real("credits")?,
+            offer_status: Code::parse(&row.text("offer_status")?),
+        })
+    }
+}
+
 /// `v_department`
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Department {

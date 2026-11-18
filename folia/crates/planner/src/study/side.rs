@@ -2,7 +2,8 @@
 //! degree, the PO and the study direction, the Fachsemester now and the Studienbeginn; a click
 //! changes them), the views of the study (owner, 2026-10-14, concept A „Ansichten": „Semester",
 //! „Gesamtplan", „Regelstudienplan", „Wahlpflicht", each with a word of where it stands), the ways
-//! to the program's regulations (a view too, `documents.rs`) and to all programs, how the plan
+//! to the program's regulations (a view too, `documents.rs`) and to all programs, the way that fills
+//! the study from a Notenübersicht (`transcript.rs`), how the plan
 //! reads (the parts of the bar where the bar is, with the semesters), and where all of it lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
 //! Studium Sidebar ist noch sehr redundant und nicht platz effizient … Zum Stundenplan kann weg der
 //! link ist direkt daneben in der Navbar"). A phone has all of it on its overview instead
@@ -29,6 +30,7 @@ use folia_shell::pending::Pending;
 use folia_stores::myprogram::{po_of, program_name, ProgramPlans};
 
 use super::card::{Ids, Kept, Part, StudyCard};
+use super::transcript::TranscriptWay;
 use super::focus::{Glyph, Status};
 use super::dialog::DialogHead;
 use super::{chosen, input_of, n, rows_of, Dialog, Plans, Ready, Setup, StudyCtx, View};
@@ -57,6 +59,7 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
                 <div class="fgroup">
                     <p class="flabel label">{v.program_group}</p>
                     <nav class="st-ways" aria-label=s.ways>
+                        <TranscriptWay ctx id="st-transcript"/>
                         <DocumentsWay ctx/>
                         <AllPrograms line=false/>
                     </nav>

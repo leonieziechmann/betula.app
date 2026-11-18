@@ -24,7 +24,9 @@
 //!   finder compares in `pages/catalog`, `assets/enhance.js`, `assets/boot.js`, `assets/sw.js`; the
 //!   semantic search's model, `folia/crates/server/src/semantic.rs`); the shares and follows a
 //!   profile keeps (`folia_plans::shares`, `collections::ListShare`, `Followed`) and the browser's
-//!   key and state of Betula Sync (`folia_stores::sync`);
+//!   key and state of Betula Sync (`folia_stores::sync`); the Notenübersicht read in a worker of
+//!   its own and taken into „Mein Studium" (`folia/crates/transcript`,
+//!   `folia/crates/planner/src/study/transcript.rs`);
 //! - „Betula Sync": what Phloem keeps of a space (its sealed entries and snapshot, sizes and times,
 //!   the random ids of the space and its devices with their slots, the hash of the token, a parcel
 //!   for ten minutes; docs/phloem/protocol.md, `phloem/internal/store/migrations`), that it holds

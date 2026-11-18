@@ -26,6 +26,7 @@ members = [
     "crates/sync",
     "crates/test-support",
     "crates/timetable",
+    "crates/transcript",
     "crates/widgets",
     "crates/worker",
 ]
@@ -58,6 +59,7 @@ default-members = [
     "crates/sync",
     "crates/test-support",
     "crates/timetable",
+    "crates/transcript",
     "crates/widgets",
 ]
 resolver = "2"

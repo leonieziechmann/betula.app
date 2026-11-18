@@ -1,0 +1,31 @@
+[package]
+name = "folia-transcript"
+version = "0.1.0"
+edition = "2021"
+description = "The BTU's Notenübersicht read in the browser: its PDF, without dependencies, into the modules it lists and their status"
+
+[lib]
+name = "folia_transcript"
+
+# The command line that prints what a Notenübersicht is read as (examples/read.rs), to look at a
+# file of one's own without a browser. Not in src/bin/, which the repository's .gitignore leaves out.
+[[example]]
+name = "read"
+
+# Writes the made-up Notenübersicht of the checks (src/fixture.rs) to stdout.
+[[example]]
+name = "fixture"
+required-features = ["fixture"]
+
+[features]
+# The exports of the browser's Web Worker (src/wasm.rs, js/worker.js), for wasm32 only:
+# scripts/build-client.sh builds them as a cdylib.
+worker = []
+# The made-up Notenübersicht of the tests and the browser checks (src/fixture.rs).
+fixture = []
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
