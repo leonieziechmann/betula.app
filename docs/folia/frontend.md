@@ -5232,7 +5232,7 @@ but nothing said so.
   Betula not installed, whatever was kept: its offer outweighs `installed` (`Install::way`) and
   takes it back, also where it came as the page loaded, before the start page listened (owner,
   2026-11-18, in Chrome after taking the app off: „ich hatte es … chrome explizit deinstalliert zum
-  testen"; until Folia 1.101.1 the app had kept `installed` in the storage it shares with Chrome,
+  testen"; until Folia 1.102.1 the app had kept `installed` in the storage it shares with Chrome,
   and an offer made at the load was not heard, so nothing was offered).
 - **What is kept** (R20): `betula.install.v1`, of this browser and not of a profile, as the switch
   of the vibrations: the last 16 days the start page was open (`days`), the day of „Später"
