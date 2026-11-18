@@ -96,7 +96,7 @@ nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cort
 | `radix/internal/gemini`, `radix/internal/curriculumscan`, `radix/internal/statutes`, `radix/internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `radix/internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
 | `radix/internal/oplog`, `radix/internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
-| `folia/crates/{catalog,app,client,pack,semantic,server}` | Folia, the web tier in Rust (`docs/folia/frontend.md`): the data contract with every SQL query, the Leptos app, the codes that carry a value in a link (a compact bit format for serde in base 66, with two check characters), and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
+| `folia/crates/{catalog,app,client,pack,semantic,transcript,server}` | Folia, the web tier in Rust (`docs/folia/frontend.md`): the data contract with every SQL query, the Leptos app, the codes that carry a value in a link (a compact bit format for serde in base 66, with two check characters), the reader of the BTU's Notenübersicht that runs in the browser (its PDF read in a Web Worker of its own, which nothing leaves), and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
 | `folia/e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
 
 ### Web tier

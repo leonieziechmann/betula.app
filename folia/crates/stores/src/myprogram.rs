@@ -132,6 +132,12 @@ impl MyProgram {
         });
     }
 
+    /// All of it as it was before a change („Rückgängig" of a Notenübersicht taken over, which
+    /// set the program and its Studienbeginn).
+    pub fn put(self, doc: MineDoc) {
+        self.change(|now| *now = doc);
+    }
+
     /// Semester `s` as a semester of leave („Urlaubssemester"), which counts as no Fachsemester,
     /// or as one of study again. No more than `studyplan::MAX_SEMESTERS` of them.
     pub fn set_leave(self, s: SemesterKey, leave: bool) {

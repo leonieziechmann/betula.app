@@ -13,12 +13,14 @@ folia-query = { path = "../query" }
 folia-routes = { path = "../routes" }
 folia-search = { path = "../search" }
 folia-timetable = { path = "../timetable" }
+folia-transcript = { path = "../transcript" }
 serde = { version = "1.0", features = ["derive"] }
 # The keys of kept answers (`ask::Ask::key`).
 serde_json = "1.0"
 
 [dev-dependencies]
 folia-timetable = { path = "../timetable", features = ["fixtures"] }
+folia-transcript = { path = "../transcript", features = ["fixture"] }
 folia-test-support = { path = "../test-support" }
 folia-model = { path = "../model", features = ["sqlite"] }
 rusqlite = { version = "0.32", features = ["bundled"] }

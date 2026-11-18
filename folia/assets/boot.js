@@ -225,6 +225,30 @@ function startData() {
   });
 }
 
+// The reader of a Notenübersicht (folia/crates/transcript/js/worker.js), for „Mein Studium"
+// (folia/crates/planner/src/study/transcript.rs): a worker of its own for each file, of this page's
+// build, ended once it has answered, so that the file is read in that worker's memory alone and
+// goes with it. Nothing is sent anywhere and nothing is kept; the page gets the lines it read.
+//   betulaTranscript(file)  a promise: the lines (`Transcript::lines`, or `error\t<code>`); null
+//                           where it could not read at all
+window.betulaTranscript = (file) => new Promise((resolve) => {
+  let worker;
+  try {
+    worker = new Worker("/pkg/transcript-worker.js" + BUILD);
+  } catch (error) {
+    console.info("[transcript] no worker:", error);
+    resolve(null);
+    return;
+  }
+  const done = (answer) => {
+    worker.terminate();
+    resolve(typeof answer === "string" ? answer : null);
+  };
+  worker.onmessage = ({ data }) => done(data);
+  worker.onerror = () => done(null);
+  worker.postMessage(file);
+});
+
 // The server's page as a picture in front of the app while the app's first answers are on their
 // way (`betulaAnswered`, called by the app): the app replaces the page at once, and its first frame
 // would otherwise show its regions empty for the moment the data worker takes. The picture is a

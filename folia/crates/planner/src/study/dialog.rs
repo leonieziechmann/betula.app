@@ -17,13 +17,13 @@ use leptos::prelude::*;
 
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize, Sheet};
 
-use super::{count, overview, side, size, Dialog, StudyCtx};
+use super::{count, overview, side, size, transcript, Dialog, StudyCtx};
 
 /// The size of a dialog's kind (app.css „The dialogs"): „l" for a list to choose from, „m" for a
 /// form or an overview.
 fn size_of(dialog: &Dialog) -> ModalSize {
     match dialog {
-        Dialog::Switch | Dialog::Area(_) | Dialog::CountFor { .. } | Dialog::Size { .. } => ModalSize::M,
+        Dialog::Switch | Dialog::Area(_) | Dialog::CountFor { .. } | Dialog::Size { .. } | Dialog::Transcript(_) => ModalSize::M,
     }
 }
 
@@ -35,10 +35,11 @@ fn size_of(dialog: &Dialog) -> ModalSize {
 /// einrichten" is: half up its Fachsemester stood behind its buttons, and what it holds changes as
 /// it is filled in, which a sheet that fits would follow up and down. „Zählt für" › „Anderer
 /// Bereich …" all up as well: a list of every subgroup to pick from, its buttons under it; and
-/// „Umfang …", whose weighting grows under its stepper.
+/// „Umfang …", whose weighting grows under its stepper; and what a Notenübersicht was read as, a
+/// list as long as the study.
 fn sheet_of(dialog: &Dialog) -> Sheet {
     match dialog {
-        Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } => Sheet::Full,
+        Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } | Dialog::Transcript(_) => Sheet::Full,
         Dialog::Area(_) => size_of(dialog).sheet(),
     }
 }
@@ -56,6 +57,7 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
                 Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),
                 Dialog::CountFor { semester, id } => view! { <count::CountDialog ctx semester id/> }.into_any(),
                 Dialog::Size { semester, pid } => view! { <size::SizeDialog ctx semester pid/> }.into_any(),
+                Dialog::Transcript(reading) => view! { <transcript::TranscriptDialog ctx reading=*reading/> }.into_any(),
             })}
         </Modal>
     }
