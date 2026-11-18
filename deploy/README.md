@@ -1350,6 +1350,5 @@ before. Each relay port is a `docker-proxy` of the host (Docker's userland proxy
   works. Phloem counts the parts it hands out per address (3600 an hour): Folia's fetches share one
   address, so many subscriptions polled often would meet it (a 503 with Retry-After, which calendar
   apps follow); `phloem_rejections_total{reason="slow_down"}` shows it.
-- **The privacy notice** describes it („Abgleich zwischen deinen Geräten (Betula Sync)", „Kalender-
-  Abo", „Stundenplan teilen", `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem
-  keeps.
+- **The privacy notice** describes it („Betula Sync", „Stundenplan und Merkliste teilen",
+  „Kalender-Abo", `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem keeps.

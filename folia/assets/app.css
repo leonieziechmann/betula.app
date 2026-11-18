@@ -3064,6 +3064,9 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .legal-head .legal-stand { margin-top: 4px; color: var(--text-3); font-size: 13px; }
 .legal-part { container: part / inline-size; padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
 .legal-part h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+/* An anchor a part had before (`Part::was`): empty, at the head of its heading, and a link to it
+   stops where a link to the part does (the part's padding above the heading, and its margin). */
+.legal-was { scroll-margin-top: 28px; }
 /* One measure for the text, the label | text rows included, so the parts share their right edge. */
 .legal-part > * { max-width: 704px; }
 .legal-part > :where(:not(:first-child)), .legal-facts dd > :where(:not(:first-child)) { margin-top: 10px; }
@@ -3092,10 +3095,11 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .legal-part p, .legal-facts dd { text-align: start; }
 }
 /* On a phone the text starts 16px in, as on every other page, and a part a link jumps to
-   (/privacy#kalender) stops below the sticky search bar. */
+   (/privacy#calendar) stops below the sticky search bar. */
 @media (max-width: 900px) {
   .legal-head { padding: 20px 16px 14px; }
   .legal-part { padding: 18px 16px 20px; scroll-margin-top: 76px; }
+  .legal-was { scroll-margin-top: 94px; }
 }
 
 /* Two abilities a row, and an odd last one takes the whole row: no empty cell at the end (nine
