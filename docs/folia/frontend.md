@@ -6219,7 +6219,7 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   leeren“ and „Profil löschen“, each a row with its icon on a tile and a button of one width with
   the same icon (the only profile is emptied, and says so before; a synced one is deleted on this
   device alone or with Betula Sync ended, its data on the server deleted, which the question asks
-  since Folia 1.102.2, owner 2026-11-18), as Betula Sync's actions are
+  since Folia 1.102.3, owner 2026-11-18), as Betula Sync's actions are
   since Folia 1.97.2 (132 px, 116 px on a phone: the longest German word, „Verbinden“ and
   „Speichern“; a longer one makes its button wider). Every question before something
   that takes away („Profil leeren“, „Profil löschen“, „Entfernen“ of a device, „Nur dieses Gerät
