@@ -6804,7 +6804,7 @@ switched on; R20 has the exception.
   behalten" lets it stand; a hint whose module stands in one semester only is done. Nothing is
   decided for the visitor (owner, the design's question 6: the later version stands, the other one
   beside it).
-- **Where the data lives, said by the profile's state** (Folia 1.108.2; owner, 2026-11-18: „wir
+- **Where the data lives, said by the profile's state** (Folia 1.109.1; owner, 2026-11-18: „wir
   können noch nicht reinschreiben. Deinen stundenplan liegt nur in deinem Browser, wenn sync an
   ist?"): the four hints of the app that say where a profile's data lies ask
   `folia_stores::sync::active_synced`, one memo of the active profile and its `State::synced`
