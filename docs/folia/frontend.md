@@ -1098,25 +1098,43 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   der nav bar lange gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das
   dann eine auswahl von Regelstudienplan, Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch
   mit [Rechts]klick funktionieren. Bei dem katalog könnte sich dann gleich der katalog mit offenem
-  Filter öffnen (das wäre aber mobile only weil auf dem pc ist der ja eh immer offen)"; `enhance.js`
-  „a tab held", `chrome::TabMenu`, app.css `.tab-menu`): a finger that stays on a tab of the bar for
-  420 ms without moving (a little before the browser's own long press), or a right click (the
-  menu key) on a tab of the bar or the rail. „Studium" opens a menu at its tab, over the page
-  dimmed a little, above the bar on a phone and beside the rail on a wide screen: the name of
-  „Mein Studiengang", the views „Regelstudienplan", „Wahlpflicht" and „Ordnungen & Dokumente" of
-  „Mein Studium" where one is chosen (since 2026-10-14: until then the program's pages; the last
-  since 2026-11-10), and „Alle Studiengänge". The
-  Merkliste's, once there is a collection (Folia 1.37.0; oberflaeche.html, „Der Tab, lange
-  gedrückt"), its views: „Alle gemerkten", „Ohne Sammlung" and each collection, each with how many
-  marked modules it holds (`data-hold="menu"` on the tab only then; the browser app's alone, R9).
-  A tap beside it, Esc, a way taken or another page closes it. The catalog's tab held on a phone
-  opens the catalog's list as it was left (else the catalog its tab starts at) with its filter
-  sheet open; a right click on it on a wide screen, where the filters are always there, keeps the
-  browser's menu, as do the other tabs. The touch that held is no tap and no swipe (its click, which
-  would land on the sheet's dimmed page and close it again, goes before anything hears it), and
-  the bar's tabs never get the browser's own menu or preview of a link (`-webkit-touch-callout`).
-  The app marks the tabs that hold something (`data-hold="menu"`, `data-hold="filters"` with the
-  list's address in `data-list`); before the app runs none does.
+  Filter öffnen (das wäre aber mobile only weil auf dem pc ist der ja eh immer offen)"; every tab
+  since Folia 1.101.0, owner, 2026-11-18: „ich möchte gerne, dass alle Einträge in der navbar eine
+  rclick und long press action/context menu Bekommen. Also am pc immer context menu und beim handy
+  kann beides sein je nachdem was besser passt"; `enhance.js` „a tab held", `chrome::TabMenu`,
+  app.css `.tab-menu`): a finger that stays on a tab of the bar for 420 ms without moving (a little
+  before the browser's own long press), or a right click (the menu key, Shift+F10) on a tab of the
+  bar or the rail. Each tab opens a menu at it, over the page dimmed a little, above the bar on a
+  phone and beside the rail on a wide screen, of the ways into its area that its page alone does
+  not offer at a glance; the browser's own menu of a link no longer comes on any tab.
+  - „Start": under the head „Über Betula" its pages, „Überblick", „Module finden", „Studium
+    planen", „Deine Daten", „Technik" and „Häufige Fragen" (the tiles at the start page's end,
+    with their icons).
+  - „Module", on a wide screen: „Alle Module", „Module meines Studiengangs" (the catalog of „Mein
+    Studiengang", where one is chosen) and „Gemerkte Module" with how many there are (`marked=only`,
+    where one is marked). A finger held on it on a phone opens the catalog's list as it was left
+    (else the catalog its tab starts at) with its filter sheet open, as since 2026-10-06: there the
+    filters are a sheet away, on a wide screen always there.
+  - „Studium": the name of „Mein Studiengang", the views „Regelstudienplan", „Wahlpflicht" and
+    „Ordnungen & Dokumente" of „Mein Studium" where one is chosen (since 2026-10-14: until then the
+    program's pages; the last since 2026-11-10), and „Alle Studiengänge".
+  - The Merkliste (Folia 1.37.0; oberflaeche.html, „Der Tab, lange gedrückt"; until 1.101.0 only
+    once there was a collection): „Alle gemerkten", where there is a collection „Ohne Sammlung" and
+    each collection, each with how many marked modules it holds, and after a line „Im Katalog
+    zeigen" (`/catalog?marked=only`).
+  - The Stundenplan: its views „Woche", „Termine" and „Prüfungen", which the page names nowhere
+    since „Ansicht" left its sidebar (2026-11-04), and after a line „Bearbeiten" (`edit=1`, in the
+    view the tab leads to), in the semester its tab leads to (the query of the tab's link as it was
+    held: read in the menu's view, the location woke the effect that closes the menu on another
+    page, and the menu went as it came).
+
+  A tap beside the menu, Esc, a way taken or another page closes it; the first way has the focus.
+  The touch that held is no tap and no swipe (its click, which would land on the sheet's dimmed
+  page and close it again, goes before anything hears it), and the bar's tabs never get the
+  browser's own menu or preview of a link (`-webkit-touch-callout`). The app marks the tabs
+  (`data-hold="menu"`, the catalog's `data-hold="filters"` with the list's address in
+  `data-list`); before the app runs none does, and the server's page keeps the browser's menu (R9).
+  `node folia/e2e/held.mjs` checks every tab (§4).
 - **The tab of the area one is in, tapped again, takes its page back to where it starts**
   (`tabs::TabAgain`, counted by `NavItems`, also where the tab leads to the address the app is at
   and the router has nothing to do; on a phone the history goes back to the tab's first entry,
@@ -7530,6 +7548,17 @@ an iPhone's within the page), the area picker staying open while the window
 shrinks (the on-screen keyboard) and counting its modules, and the virtual list with the window
 scrolling (the last rows at its end, the page keeping its height, no two rows overlapping,
 `page` following).
+
+```bash
+cd e2e && node held.mjs
+```
+
+checks what every tab of the navigation holds besides its page (Folia 1.101.0): on a wide screen
+each tab of the rail right clicked (and the Stundenplan's by Shift+F10) has its menu beside it with
+its ways and head, never the browser's own, and „Prüfungen", „Bearbeiten", „Technik" and „Gemerkte
+Module" lead there; on a phone a finger held on each tab of the bar has the same menus above the
+bar, its release and a tap beside it going nowhere, „Termine" taken with a finger, and the catalog
+held its list with the filters instead of a menu.
 
 ```bash
 cd e2e && node edit.mjs
