@@ -31,6 +31,11 @@ pub struct Texts {
     pub what_placeholder: &'static str,
     /// „Wann": every week, in the A or the B weeks, or on dates of its own.
     pub when: &'static str,
+    /// „Schneller: die Zeitspanne direkt in der Woche ziehen.": one quiet line by „Wann" where the
+    /// form came from a button, that a span drawn in the week is quicker; on a phone the held
+    /// finger's („Schneller: in der Woche gedrückt halten und ziehen.").
+    pub quicker_drag: &'static str,
+    pub quicker_hold: &'static str,
     pub every_week: &'static str,
     pub a_week: &'static str,
     pub b_week: &'static str,
@@ -141,6 +146,8 @@ pub const DE: Texts = Texts {
     what: "Was",
     what_placeholder: "z. B. Arbeit, Sport, Lerngruppe",
     when: "Wann",
+    quicker_drag: "Schneller: die Zeitspanne direkt in der Woche ziehen.",
+    quicker_hold: "Schneller: in der Woche gedrückt halten und ziehen.",
     every_week: "Jede Woche",
     a_week: "A-Woche",
     b_week: "B-Woche",
@@ -221,6 +228,8 @@ pub const EN: Texts = Texts {
     what: "What",
     what_placeholder: "e.g. work, sport, study group",
     when: "When",
+    quicker_drag: "Quicker: drag the time span straight in the week.",
+    quicker_hold: "Quicker: press and hold in the week, then drag.",
     every_week: "Every week",
     a_week: "Week A",
     b_week: "Week B",

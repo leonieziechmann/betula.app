@@ -12,8 +12,8 @@
 //! for a finger and its buttons. What has no fixed time stands under „Ohne feste Zeit", once for
 //! the semester, under the fold (`WeekLoose`). Where the plan has Termine of A or B weeks only,
 //! „A-Woche · B-Woche · A/B" in the head shows one kind of week or both (`PlanCtx::weeks`), on a
-//! phone a carousel of the three (`WeekCarousel`), switched in the head beside „Bearbeiten"
-//! („Woche: A, B, A/B"); a slot that overlaps another in the
+//! phone a carousel of the three (`WeekCarousel`), switched in the toolbar of the head („A · B ·
+//! A/B"); a slot that overlaps another in the
 //! week shown is red and names the other in its tooltip (owner's redesign of 2026-09-25).
 //!
 //! Each slot of the plan is a link to its Termin (`termin=`), in both states, a hatched group and a
@@ -106,7 +106,7 @@ type Layer = Memo<(Vec<GridSlot>, Vec<GridBand>)>;
 /// in it) and only while it is looked at, the empty week and in its middle what is to do
 /// (`NothingPlanned`), on a phone what is to do alone; while editing the week is drawn bare.
 /// What has no fixed time stands under the page's fold (`WeekLoose`), the switch of A and B weeks
-/// in the head (`WeekSwitch`; on a phone beside „Bearbeiten").
+/// in the head (`WeekSwitch`; on a phone in the head's toolbar).
 #[component]
 pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -170,7 +170,13 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
     // The buttons of the slots, one listener for all of them: a click changes the plan after the
     // next frame (R21), and the week follows; the bin of a Termin of one's own deletes it with the
     // note and „Rückgängig" (`own::remove`).
+    // A span drawn on a free stretch while the plan is edited (`own::Drag`): the click that ends
+    // it opens nothing more.
+    let drag = super::own::Drag::new(ctx);
     let act = move |ev: leptos::ev::MouseEvent| {
+        if drag.swallow(&ev) {
+            return;
+        }
         let Some(key) = act_under(ev.target()) else {
             // While editing, a click on a free stretch of a day: a Termin of one's own there (owner,
             // the first question of folia/design/kalender/termine.html: „ein Klick auf eine freie
@@ -210,7 +216,7 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
         }
         if ctx.phone.get() {
             return view! {
-                <WeekCarousel ctx weeks layers shown=slots layer picked/>
+                <WeekCarousel ctx weeks layers shown=slots layer picked drag/>
                 {move || {
                     any_rows.get().then(|| {
                         view! {
@@ -253,9 +259,25 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
         });
         let bands = Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
         view! {
-            <div class="sp-week" on:click=act>
+            // The week holds the pointer of a press on a free stretch (`setPointerCapture`), and
+            // the span drawn lies over it (`SketchView`).
+            <div
+                class="sp-week"
+                class:drawing=move || ctx.sketch.with(Option::is_some)
+                on:click=act
+                on:pointerdown=move |ev| drag.down(&ev)
+                on:pointermove=move |ev| {
+                    drag.moved(&ev);
+                }
+                on:pointerup=move |ev| {
+                    drag.up(&ev);
+                }
+                on:pointercancel=move |_| drag.cancel()
+                on:lostpointercapture=move |ev| drag.lost(&ev)
+            >
                 <WeekGrid slots=grid bands fit=true/>
                 {nothing}
+                <super::own::SketchView drag/>
             </div>
         }
         .into_any()
@@ -278,16 +300,16 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
 /// as it leaves it, over the list of its days (closed until asked for). Where the plan has Termine
 /// of A or B weeks only (`has_ab`), a carousel of the three weeks „A-Woche", „B-Woche" and „A/B",
 /// as the pictures of the start page are one (`home.rs`): the week shown fills the screen's width,
-/// another one comes with a swipe, the finger carrying the weeks, or with the switch in the head
-/// beside „Bearbeiten" (`WeekSwitch`'s `short`; owner, 2026-10-26: „Woche: A, B, A/B" in the row of
-/// the head's button, no longer tabs under the week). They stand in the order of that switch and do not go
+/// another one comes with a swipe, the finger carrying the weeks, or with the switch in the head's
+/// toolbar (`WeekSwitch`'s `short`, „A · B · A/B"; owner, 2026-10-26: in the head, no longer tabs
+/// under the week). They stand in the order of that switch and do not go
 /// round: the three are no cycle. The week shown is the page's (`PlanCtx::weeks`), which the switch
 /// and the list under the carousel follow. Without A or B weeks the three would be one and the same: the grid alone. Its slots are
 /// links to their module (on a phone the module is the page); their buttons are the list's, as
 /// large as a finger (in a day's narrow column they would cover the slot). With nothing planned
 /// there is no week (`WeekView`).
 #[component]
-fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: [Layer; 3], shown: Memo<Vec<PlanSlot>>, layer: Layer, picked: Memo<Picked>) -> impl IntoView {
+fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: [Layer; 3], shown: Memo<Vec<PlanSlot>>, layer: Layer, picked: Memo<Picked>, drag: super::own::Drag) -> impl IntoView {
     let t = i18n::t();
     let ab = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(has_ab)));
     let current = Memo::new(move |_| week_at(ctx.weeks.get()));
@@ -309,9 +331,21 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             grid
         })
     };
-    // A finger held on a free stretch of the week: a Termin of one's own there (owner: „am Handy
-    // langes Drücken").
-    let hold = super::own::Hold::new(ctx);
+    // A finger held on a free stretch of the week: a Termin of one's own there, its span stretched
+    // by the finger before it lifts (owner: „am Handy langes Drücken"; 2026-11-18: „drag placement um
+    // gleich eine Zeitspanne zu machen").
+    let hold = super::own::Hold::new(drag);
+    // The week holds still under a finger that draws: one listener on it for as long as it is there.
+    let node = NodeRef::<leptos::html::Div>::new();
+    #[cfg(feature = "csr")]
+    drag.keep_still(node);
+    // While a finger is held on the week or draws, its long press opens no menu of the browser's (a
+    // mouse's right click keeps its menu: the hold is a finger's alone).
+    let menu = move |ev: leptos::ev::MouseEvent| {
+        if hold.pressing() {
+            ev.prevent_default();
+        }
+    };
     let bands = |layer: Layer| Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
     // To the week at `to` of `WEEKS`; the ends stay where they are.
     let go = move |to: usize| {
@@ -319,20 +353,26 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             ctx.weeks.set(*week);
         }
     };
-    // A finger that moves sideways further than up or down carries the weeks with it (`drag`, in
+    // A finger that moves sideways further than up or down carries the weeks with it (`drag_x`, in
     // pixels; the page scrolls under any other move), less where no week lies beyond. Let go
     // further than `SWIPE`, the next week or the one before comes, else the week goes back. It
     // ends in a click on what lay under the finger, and that click opens nothing.
     let start = StoredValue::new(None::<(i32, i32)>);
     let carried = StoredValue::new(false);
-    let drag = RwSignal::new(0i32);
+    let drag_x = RwSignal::new(0i32);
     let dragging = RwSignal::new(false);
     let down = move |ev: leptos::ev::PointerEvent| {
         carried.set_value(false);
         start.set_value(Some((ev.client_x(), ev.client_y())));
+        // A mouse or a pen draws here as on a wide week; a finger holds first.
+        drag.down(&ev);
         hold.down(&ev);
     };
     let moving = move |ev: leptos::ev::PointerEvent| {
+        // A finger drawing a span carries no week.
+        if drag.moved(&ev) {
+            return;
+        }
         hold.moved(&ev);
         let Some((x, y)) = start.get_value() else { return };
         let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
@@ -345,14 +385,20 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
         }
         let now = current.get_untracked();
         let beyond = (dx > 0 && now == 0) || (dx < 0 && now + 1 >= WEEKS.len());
-        drag.set(if beyond { dx / 3 } else { dx });
+        drag_x.set(if beyond { dx / 3 } else { dx });
     };
     let up = move |ev: leptos::ev::PointerEvent| {
         hold.up();
+        if drag.up(&ev) {
+            start.set_value(None);
+            dragging.set(false);
+            drag_x.set(0);
+            return;
+        }
         let Some((x, y)) = start.get_value() else { return };
         start.set_value(None);
         dragging.set(false);
-        drag.set(0);
+        drag_x.set(0);
         let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
         if dx.abs() > SWIPE && dx.abs() > dy.abs() {
             carried.set_value(true);
@@ -362,12 +408,13 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
     };
     let cancel = move |_| {
         hold.up();
+        drag.cancel();
         start.set_value(None);
         dragging.set(false);
-        drag.set(0);
+        drag_x.set(0);
     };
     let click = move |ev: leptos::ev::MouseEvent| {
-        if hold.swallow(&ev) {
+        if hold.swallow(&ev) | drag.swallow(&ev) {
             return;
         }
         if carried.get_value() {
@@ -385,7 +432,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                 class:is-current=move || at.get() == 0
                 class:is-side=move || at.get().abs() == 1
                 class:is-far=move || { at.get().abs() > 1 }
-                style=move || format!("--at:{};--drag:{}px", at.get(), drag.get())
+                style=move || format!("--at:{};--drag:{}px", at.get(), drag_x.get())
                 role=label.map(|_| "group")
                 aria-roledescription=label.map(|_| t.studyplan_week.week_role)
                 aria-label=label
@@ -403,19 +450,40 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             return view! {
                 <div
                     class="sp-carousel"
-                    on:pointerdown=move |ev| hold.down(&ev)
-                    on:pointermove=move |ev| hold.moved(&ev)
-                    on:pointerup=move |_| hold.up()
-                    on:pointerleave=move |_| hold.up()
-                    on:pointercancel=move |_| hold.up()
+                    node_ref=node
+                    on:pointerdown=move |ev| {
+                        drag.down(&ev);
+                        hold.down(&ev);
+                    }
+                    on:pointermove=move |ev| {
+                        if !drag.moved(&ev) {
+                            hold.moved(&ev);
+                        }
+                    }
+                    on:pointerup=move |ev| {
+                        hold.up();
+                        drag.up(&ev);
+                    }
+                    on:pointerleave=move |_| {
+                        if !drag.live() {
+                            hold.up();
+                        }
+                    }
+                    on:pointercancel=move |_| {
+                        hold.up();
+                        drag.cancel();
+                    }
+                    on:lostpointercapture=move |ev| drag.lost(&ev)
+                    on:contextmenu=menu
                     on:click=move |ev| {
-                        if hold.swallow(&ev) {
+                        if hold.swallow(&ev) | drag.swallow(&ev) {
                             return;
                         }
                         remember(Within::Grid, &ev);
                     }
                 >
                     {slide(Signal::stored(0), None, shown, layer, ctx.weeks.get_untracked())}
+                    <super::own::SketchView drag/>
                 </div>
             }
             .into_any();
@@ -437,18 +505,26 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             // cancels the pointer): the slots are not dragged.
             <div
                 class="sp-carousel"
+                node_ref=node
                 class:dragging=move || dragging.get()
                 aria-roledescription=t.studyplan_week.carousel_role
                 aria-label=t.studyplan_week.weeks
                 on:pointerdown=down
                 on:pointermove=moving
                 on:pointerup=up
-                on:pointerleave=up
+                on:pointerleave=move |ev| {
+                    if !drag.live() {
+                        up(ev);
+                    }
+                }
                 on:pointercancel=cancel
+                on:lostpointercapture=move |ev| drag.lost(&ev)
+                on:contextmenu=menu
                 on:click=click
                 on:dragstart=|ev| ev.prevent_default()
             >
                 {slides}
+                <super::own::SketchView drag/>
             </div>
         }
         .into_any()
@@ -506,10 +582,11 @@ pub(super) fn WeekLoose(ctx: PlanCtx) -> impl IntoView {
 }
 
 /// „A-Woche · B-Woche · A/B": which kind of week the Regelwoche shows. The click answers at once
-/// (R21): a signal of the page, the week is worked out again in Rust. `short`: on a phone, beside
-/// „Bearbeiten" in the head, „Woche" and „A", „B", „A/B" (owner, 2026-10-26: „Dann kann oben in die
-/// gleiche Reihe mit dem Anpassen Knopf die Handles. Woche: A, B, A/B"); the carousel under it
-/// follows the switch, and a swipe of the carousel moves it (`PlanCtx::weeks`).
+/// (R21): a signal of the page, the week is worked out again in Rust. `short`: on a phone, at the
+/// left of the head's toolbar, „A", „B", „A/B" (owner, 2026-10-26: „Dann kann oben in die gleiche
+/// Reihe mit dem Anpassen Knopf die Handles. Woche: A, B, A/B"; the word „Woche" went on
+/// 2026-11-18, its name says it); the carousel under it follows the switch, and a swipe of the
+/// carousel moves it (`PlanCtx::weeks`).
 #[component]
 pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>, #[prop(optional)] short: bool) -> impl IntoView {
     let t = i18n::t();
@@ -541,7 +618,10 @@ pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>, #[prop(optional)] short: bool) 
         </div>
     };
     match short {
-        true => view! { <div class="sp-weekpick"><span class="l" aria-hidden="true">{w.week}</span>{switch}</div> }.into_any(),
+        // On a phone the switch alone, „A · B · A/B", at the left of the head's toolbar: its name says
+        // „Woche" (owner, 2026-11-18, of the head: „eine absolute Katastrophe"; until then the word
+        // stood before it).
+        true => view! { <div class="sp-weekpick">{switch}</div> }.into_any(),
         false => switch.into_any(),
     }
 }

@@ -17,8 +17,9 @@
 //! The week is there before anything is planned (owner, 2026-09-25), with what to do in its middle.
 //! The page is looked at or edited (`edit.rs`, `PlanCtx::edit`): only the mode adds the page's own
 //! controls. Its parts share one `PlanCtx`: the memos below, built once per page. On a phone there
-//! is no sidebar: the calendars stand in a line over the week, „Export" and „Teilen …" under the
-//! Termine, the mode is a dock in the tab bar's place, and the module beside the plan is the page.
+//! is no sidebar: the calendars and „Export" with „Teilen …" are sheets the head's toolbar opens
+//! (`head::PhoneSheets`), the mode is a dock in the tab bar's place, and the module beside the plan
+//! is the page.
 //!
 //! The memo graph keeps to R16 (docs/folia/frontend.md): no closure reads a source together with a memo
 //! derived from it. The semester shown depends on the plan (the default semester, B.4), so it is
@@ -76,15 +77,14 @@ use folia_shell::tabs::Area;
 use folia_shell::frame::{ErrorState, Frame};
 use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
-use self::calendars::{CalendarLine, CalendarModules};
+use self::calendars::CalendarModules;
 use self::edit::EditDock;
 use self::exams::ExamsView;
-use self::export::CalendarGroup;
-use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, SemesterHead};
+use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, PhoneBand, PhoneSheets, SemesterHead};
 use self::modules::ModuleList;
-use self::open::{OpenLine, OpenPanel, PickSheet};
+use self::open::{OpenPanel, PickSheet};
 use self::own::{OwnForm, OwnNote};
-use self::side::{PlanSidebar, SavedPlans, ShareGroup};
+use self::side::{PlanSidebar, SavedPlans};
 use self::termin::{PlanTerminFull, PlanTerminModal};
 use self::week::{DatesView, WeekLoose, WeekView};
 
@@ -183,6 +183,11 @@ pub(super) struct PlanCtx {
     /// The dialog „Teilen" while it is open: for which calendar, on which side
     /// (`share_dialog.rs`; folia/design/teilen/teilen.html). Not stored.
     pub sharing: RwSignal<Option<share_dialog::ShareOpen>>,
+    /// The span a drag draws on a free stretch of the week while it lasts (`own::Drag`), drawn as
+    /// the form's draft is. Not stored.
+    pub sketch: RwSignal<Option<own::Sketch>>,
+    /// The sheet a phone's head opened: the calendars or „Export" (`head::PhoneSheets`). Not stored.
+    pub sheet: RwSignal<Option<head::PhoneSheet>>,
     /// Where the keyboard goes once „Rückgängig" put back the Termin of one's own a deletion took:
     /// the slot it stood on, as a selector of the week (`own::remove`). Not stored.
     pub back_to: StoredValue<Option<String>>,
@@ -327,6 +332,8 @@ pub fn StudyplanPage() -> impl IntoView {
         adding: RwSignal::new(None),
         own: RwSignal::new(None),
         sharing: RwSignal::new(None),
+        sketch: RwSignal::new(None),
+        sheet: RwSignal::new(None),
         back_to: StoredValue::new(None),
         left: folia_design::nav::Newborn::grown(),
     };
@@ -343,6 +350,13 @@ pub fn StudyplanPage() -> impl IntoView {
     Effect::new(move |_| {
         if !edit.get() {
             ctx.unfolded.set(false);
+        }
+    });
+    // A sheet of a phone's head closes once the page is no longer a phone's: the sidebar holds what
+    // it held, and it must not come back with the next phone.
+    Effect::new(move |_| {
+        if !ctx.phone.get() && ctx.sheet.with_untracked(Option::is_some) {
+            ctx.sheet.set(None);
         }
     });
 
@@ -481,22 +495,17 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 Some(error) => view! { <ErrorState error/> }.into_any(),
                 None => view! {
                     <ExamAlerts ctx/>
+                    // On a phone one band over the week (`head.rs`): what is left to choose — a way
+                    // into the mode while looking, its rows while editing — and the overlaps'
+                    // figure. Wider, the status row under the head says both, and the choice in
+                    // focus stands there (`edit.rs`).
+                    {move || ctx.phone.get().then(|| view! { <PhoneBand ctx/> })}
+                    // What the overlaps' figure unfolds, under it.
                     <Overlaps ctx/>
-                    // On a phone what is left to choose, over the week (`open.rs`): a way into the
-                    // mode while looking, its rows while editing. Wider, the status row under the
-                    // head says it, and the choice in focus stands there (`edit.rs`).
-                    {move || ctx.phone.get().then(|| view! { <OpenLine ctx/> })}
-                    // On a phone the calendars of one's own in a line over the week, where there
-                    // are any, in both states (`calendars.rs`).
-                    {move || (ctx.phone.get() && weekly.get()).then(|| view! { <CalendarLine ctx/> })}
                     <div class="sp-view">{view}</div>
                     // The choice in focus on a phone: a sheet under the week (H1 of
                     // folia/design/kalender/handy.html).
                     {move || ctx.phone.get().then(|| view! { <PickSheet ctx/> })}
-                    // On a phone „Export" and „Teilen …" stand under the Termine, in every view
-                    // (owner, 2026-09-27: among what is shown nobody finds them); a plan of
-                    // Termine of one's own alone can be shared too.
-                    {move || (ctx.phone.get() && planned.get()).then(|| view! { <section class="sp-export"><CalendarGroup ctx/><ShareGroup ctx/></section> })}
                     // On a phone the mode is a dock in the tab bar's place (`edit.rs`).
                     {move || ctx.phone.get().then(|| view! { <EditDock ctx/> })}
                 }
@@ -507,6 +516,8 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
             <OwnNote ctx/>
             // „Teilen" (`share_dialog.rs`).
             <share_dialog::ShareDialog ctx/>
+            // On a phone the sheets of the head's toolbar: the calendars and „Export" (`head.rs`).
+            {move || ctx.phone.get().then(|| view! { <PhoneSheets ctx marked/> })}
         </div>
         {move || {
             fine.get().then(|| {

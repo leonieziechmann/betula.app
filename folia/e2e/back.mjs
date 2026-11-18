@@ -26,6 +26,9 @@
 //   under it.
 // 8 a link from outside: while it is only read, Back leaves Betula; its first use (the arrow) lays
 //   the list and Start under it.
+// 9 the Stundenplan's sheets on a phone („Kalender", „Export", „Teilen …" over „Export", „+ Modul" over
+//   „Kalender"): each closes with one Back and writes no entry, Forward opens nothing, the page stays;
+//   what lay over another sheet goes back to it, the keyboard on the row that opened it.
 // An iPhone (no CloseWatcher): Back is the history; a dialog goes with the page it leaves.
 // A wide screen: filter clicks closer than a second are one step, after a pause another; the
 // module beside the list closed by its × goes back where the list was the step before, and so does
@@ -319,6 +322,44 @@ await part("the profile", async () => {
   const { page: outside, step: outsideStep } = await open(PHONE, "/profile");
   check(await outside.evaluate(() => Boolean(document.querySelector(".top-back.on")) && document.querySelector(".top-back").getAttribute("href") === "/"), "the profile come to from outside has no arrow to Start");
   await outsideStep("the arrow from outside: Start", () => outside.tap(".top-back.on"), () => location.pathname === "/");
+});
+
+// ---------- the Stundenplan's sheets on a phone, as Android has it ----------
+// A sheet lies over the page: it has no entry of the history, and Back as Android has it (a close
+// request) closes it — „Kalender", „Export", „Teilen …" over „Export", which goes back to „Export",
+// and „+ Modul" of a calendar of one's own over „Kalender", which goes back to „Kalender"; each writes
+// no entry, Forward opens nothing, the page stays /studyplan.
+await part("the Stundenplan's sheets", async () => {
+  const { page, step, seed } = await open(PHONE, "/");
+  await seed([[MINE, THIRD], [PLAN, FILLED + "l\t1\t\t013-82-2018\tLena\nn\t1\t2026W\t11109\n"]]);
+  await step("„Stundenplan“", () => page.tap('.bottomnav a.nav[data-area="studyplan"]'), () => location.pathname === "/studyplan" && document.querySelector("#content > .page-stage.front .sp-tool[data-action='calendars']"));
+  const start = await where(page);
+  const tool = (action) => `#content > .page-stage.front .sp-tool[data-action='${action}']`;
+  const stays = async (name) => {
+    const now = await where(page);
+    check(now.here === "/studyplan" && now.length === start.length && now.at === start.at, `${name}: the history moved: ${JSON.stringify(now)}`);
+    check(!(await page.evaluate(() => navigation.canGoForward)), `${name}: Forward could open something`);
+    check(!(await over(page)), `${name}: something still lies over the page`);
+  };
+  await step("„Kalender“", () => page.tap(tool("calendars")), () => document.querySelector("dialog.sp-cal-sheet[open]"));
+  check((await where(page)).length === start.length, "the calendars' sheet wrote an entry");
+  await step("Back closes „Kalender“", () => back(page), () => !document.querySelector("dialog.sp-cal-sheet[open]"));
+  await stays("„Kalender“");
+  await step("„Export“", () => page.tap(tool("export")), () => document.querySelector("dialog.sp-export-sheet[open]"));
+  await step("Back closes „Export“", () => back(page), () => !document.querySelector("dialog.sp-export-sheet[open]"));
+  await stays("„Export“");
+  await step("„Export“ again", () => page.tap(tool("export")), () => document.querySelector("dialog.sp-export-sheet[open] #sp-share"));
+  await step("„Teilen …“ over it", () => page.tap("dialog.sp-export-sheet[open] #sp-share"), () => document.querySelector("dialog.sh-dialog[open]") && !document.querySelector("dialog.sp-export-sheet[open]"));
+  check((await where(page)).length === start.length, "„Teilen“ wrote an entry");
+  await step("Back: „Teilen“ goes, „Export“ comes back", () => back(page), () => !document.querySelector("dialog.sh-dialog[open]") && document.querySelector("dialog.sp-export-sheet[open]") && document.activeElement?.id === "sp-share");
+  await step("Back closes „Export“ then", () => back(page), () => !document.querySelector("dialog[open]"));
+  await stays("„Teilen“ over „Export“");
+  await step("„Kalender“ for „Modul aufnehmen“", () => page.tap(tool("calendars")), () => document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-more"));
+  await page.tap("dialog.sp-cal-sheet[open] .sp-cal-more");
+  await step("„Modul aufnehmen“", () => page.tap("dialog.sp-cal-sheet[open] .sp-cal-menu > button >> nth=0"), () => document.querySelector("dialog.sp-add-sheet[open] .sp-addp") && !document.querySelector("dialog.sp-cal-sheet[open]"));
+  await step("Back: „+ Modul“ goes, „Kalender“ comes back", () => back(page), () => !document.querySelector("dialog.sp-add-sheet[open]") && document.querySelector("dialog.sp-cal-sheet[open]"));
+  await step("Back closes „Kalender“ then", () => back(page), () => !document.querySelector("dialog[open]"));
+  await stays("„+ Modul“ over „Kalender“");
 });
 
 // ---------- a link from outside ----------

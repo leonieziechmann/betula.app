@@ -11,8 +11,15 @@
 //   and, while editing, the bin alone (no eye), the list „Eigene Termine", the note with „Rückgängig".
 // - One that meets the Friday lecture: „Trifft VL EvS (Fr 09:15). Anlegen geht trotzdem.", then both
 //   slots red. A click on a free stretch while editing: the form with that day and time; Esc closes the
-//   form and the mode stays. The slot's bin deletes it, „Rückgängig" brings it back. „Fertig": the sum
-//   counts them, the slots carry no button.
+//   form and the mode stays. A drag on a free stretch draws its span in quarters of an hour over its
+//   column (no slot changes its width), its times in a tag above it, in its day and the grid's hours,
+//   upward as downward, a first move past the grid's end held, the minutes following a wheel's
+//   scroll; it opens the form with it, which says no hint („Schneller: …" stands only where a button
+//   opened it). Every way a drag ends without its up — Esc, a mouse let go elsewhere, lostpointercapture,
+//   pointercancel, a second pointer, the window's blur, the page turning a phone's — leaves no span, no
+//   hold of the pointer, nothing open, and the next click on a free stretch opens the form. The
+//   slot's bin deletes it, „Rückgängig" brings it back. „Fertig": the sum counts them, the slots carry
+//   no button.
 // - Its card (C.3 e): „Eigener Termin" and its name, „Jede Woche · …, die Vorlesungszeit", „nicht in
 //   Datei und festem Abo", the tools pencil „Bearbeiten" · eye „Nur am … ausblenden" · bin „Löschen",
 //   no „⋯", no „Teilen". The eye skips the day and closes the card with its note and „Rückgängig"; on
@@ -31,13 +38,20 @@
 // - Lena's calendar, while editing: „+ Termin" under its modules, its line of calendar 1, „Zählt für
 //   „Gemeinsam frei“ mit Lena"; while looking it has no „+ Termin".
 // - A phone: no round button and nothing for a held finger while looking; „Bearbeiten": the dock's
-//   „+ Termin" opens the form as a sheet, a finger held on a free stretch opens it for that day.
+//   „+ Termin" opens the form as a sheet with the hint „Schneller: in der Woche gedrückt halten und
+//   ziehen.", a finger held on a free stretch opens it for that day; a real finger as the owner defined
+//   it (2026-11-18): the vibration as the hold completes and not before, 90 minutes standing, no
+//   browser's menu, nothing open or stored before the lift; moved, it stretches while the page holds
+//   still, its times in a tag; lifted, the form with exactly that, a lift without a move 90 minutes; a
+//   pointercancel gives it up; in the last column the tag stays on the screen and off the finger; a
+//   finger that moves at once scrolls.
 // - The start page: a Termin of one's own of today in the day, its card leading to the Stundenplan.
 // History: 2026-11-17, the edit mode. The ways in are the mode's (the head's „+ Termin", the round
 // button of a phone and a free stretch while looking went); the form has „Art" and puts „Gehört zu"
 // first; the view of a Termin of one's own is its card (its rows „Im Stundenplan" went into the tools);
 // a module's Termin is a row under its module, not under „Eigene Termine"; a name the student did not
-// write is said without quotes („PBS angelegt").
+// write is said without quotes („PBS angelegt"). 2026-11-18: a span drawn by a drag (owner: „drag
+// placement um gleich eine Zeitspanne zu machen"); a finger held draws it before the form opens.
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -65,6 +79,11 @@ const open = async (options, plan, path = "/studyplan") => {
   const context = await browser.newContext(options);
   await context.addInitScript(ON_PAGE);
   await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
+  // A phone that writes down when it vibrates (as haptics.mjs has it).
+  await context.addInitScript(() => {
+    window.__felt = [];
+    Object.defineProperty(Navigator.prototype, "vibrate", { configurable: true, value(pattern) { window.__felt.push(performance.now()); return true; } });
+  });
   await context.addInitScript(([k1, k2, v1, v2]) => {
     if (localStorage.getItem(k1) === null) {
       localStorage.setItem(k1, v1);
@@ -183,6 +202,8 @@ if (block("form")) {
   const clashes = await page.evaluate(() => allOnPage(".sp-week .slot.clash").length);
   await click(page, ".sp-editbar [data-action='own-add']", "the bar's „+ Termin\"");
   await until(page, "the form", (form) => Boolean(onPage(form)) && onPage(`${form} #own-form-title`)?.textContent === "Neuer Termin", form);
+  // Opened by a button, one quiet line by „Wann" says that drawing in the week is quicker.
+  check((await text(page, `${form} .own-fld.wide .own-quicker`)) === "Schneller: die Zeitspanne direkt in der Woche ziehen.", `the hint of the gesture: ${await text(page, `${form} .own-quicker`)}`);
   check((await text(page, `${form} .st-dlg-head p`)) === "In „Mein Studiengang“, WiSe 2026/27", `the form's line: ${await text(page, `${form} .st-dlg-head p`)}`);
   const order = await page.evaluate((form) => [...onPage(`${form} .own-body`).children].map((field) => field.querySelector("label, .own-lb")?.textContent ?? field.className), form);
   check(JSON.stringify(order.slice(0, 6)) === JSON.stringify(["Was", "Gehört zu", "Art", "Wann", "Tag", "Zeit"]), `„Gehört zu" and „Art" first, „Wann" above what it changes: ${JSON.stringify(order)}`);
@@ -222,8 +243,161 @@ if (block("form")) {
   at = await spot(page, 3, 16 * 60);
   await page.mouse.click(at.x, at.y);
   await until(page, "the form of the free stretch", (form) => onPage(`${form} #own-day`)?.value === "3" && onPage(`${form} .own-two input`)?.value === "16:00" && onPage(`${form} #own-form-title`)?.textContent === "Neuer Termin", form);
+  check(await page.evaluate((form) => !onPage(`${form} .own-quicker`), form), "the form of a free stretch says that drawing is quicker");
   await page.keyboard.press("Escape");
   await until(page, "Esc closes the form, the mode stays", () => !onPage("dialog.own-form[open]") && /[?&]edit=1/.test(location.search) && Boolean(onPage(".sp-editbar")));
+
+  // A drag on a free stretch draws the span in quarters of an hour, its times written in it and in a
+  // tag above it; letting go opens the form with them, the draft standing where the span was (owner,
+  // 2026-11-18: „drag placement um gleich eine Zeitspanne zu machen"). Wednesday from 16:05 down to 17:20.
+  const sketch = () => page.evaluate(() => ({
+    span: allOnPage(".sp-week .sp-sketch").map((el) => el.textContent.replace(/\s+/g, " ").trim()).join(),
+    tag: allOnPage(".sp-week .sp-sketch-tag").map((el) => el.textContent.trim()).join(),
+    drafts: allOnPage(".sp-week .slot.draft").length,
+    drawing: Boolean(onPage(".sp-week.drawing")),
+    held: Boolean(onPage(".sp-week")?.hasPointerCapture(1)),
+  }));
+  const none = (s) => !s.span && !s.tag && !s.drafts && !s.drawing && !s.held;
+  const [down, low] = [await spot(page, 3, 16 * 60 + 5), await spot(page, 3, 17 * 60 + 20)];
+  await page.mouse.move(down.x, down.y);
+  await page.mouse.down();
+  await page.mouse.move(down.x, low.y, { steps: 8 });
+  await until(page, "the span drawn while dragging, its times in a tag above it", () => {
+    const span = onPage(".sp-week .sp-sketch"), tag = onPage(".sp-week .sp-sketch-tag");
+    if (!span || !tag) return false;
+    const [s, t] = [span.getBoundingClientRect(), tag.getBoundingClientRect()];
+    return span.textContent.replace(/\s+/g, " ").trim() === "16:00 – 17:30" && tag.textContent.trim() === "16:00–17:30" && t.bottom <= s.top && !allOnPage(".sp-week .slot.draft").length;
+  });
+  // Out of its column and below the grid: the day stays, the end stops at the grid's last hour.
+  await page.mouse.move(down.x - 300, low.y + 2000, { steps: 4 });
+  await until(page, "the span keeps its day and the grid's hours", () => {
+    const week = onPage(".sp-week .week");
+    const last = Number(week?.dataset.last);
+    const col = week.querySelectorAll(".col")[2].getBoundingClientRect(), span = onPage(".sp-week .sp-sketch")?.getBoundingClientRect();
+    return span && Math.abs(span.left - col.left) < 1.5 && onPage(".sp-week .sp-sketch-tag")?.textContent === `16:00–${String(Math.floor(last / 60)).padStart(2, "0")}:${String(last % 60).padStart(2, "0")}`;
+  });
+  await page.mouse.move(down.x, low.y, { steps: 4 });
+  if (shots) await page.screenshot({ path: `${shots}/own-drag.png` });
+  await page.mouse.up();
+  await until(page, "the form of the span drawn, the tag gone", (form) => onPage(`${form} #own-day`)?.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:30" && allOnPage(".sp-week .slot.draft").length === 1 && !onPage(".sp-sketch, .sp-sketch-tag"), form);
+  check(await page.evaluate((form) => !onPage(`${form} .own-quicker`), form), "the form of a span drawn says that drawing is quicker");
+  await page.keyboard.press("Escape");
+  await until(page, "Esc closes the form of the span", () => !onPage("dialog.own-form[open]") && allOnPage(".sp-week .slot.draft").length === 0 && /[?&]edit=1/.test(location.search));
+  // Upward as downward, the quarter pressed in it: from 17:20 up to 16:10 is 16:00–17:30; Esc while
+  // drawing gives the span up, and letting go then opens nothing (the mode stays).
+  await page.mouse.move(low.x, low.y);
+  await page.mouse.down();
+  await page.mouse.move(low.x, (await spot(page, 3, 16 * 60 + 10)).y, { steps: 8 });
+  await until(page, "the span drawn upward", () => onPage(".sp-week .sp-sketch-tag")?.textContent === "16:00–17:30");
+  await page.keyboard.press("Escape");
+  await until(page, "Esc gives the span up", () => !onPage(".sp-week .sp-sketch"));
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  check(await page.evaluate(() => !onPage("dialog.own-form[open]") && /[?&]edit=1/.test(location.search)), "after Esc a drag opened the form or left the mode");
+
+  // A plain click on a free stretch opens the form at its time, whatever ended the drag before: no
+  // click is swallowed.
+  const clickOpens = async (name) => {
+    const at = await spot(page, 3, 16 * 60);
+    await page.mouse.click(at.x, at.y);
+    await until(page, `${name}: a click on a free stretch then opens the form`, (form) => onPage(`${form} .own-two input`)?.value === "16:00", form);
+    await page.keyboard.press("Escape");
+    await until(page, `${name}: the form closed`, () => !onPage("dialog.own-form[open]"));
+  };
+  // Every way a drag can end without its pointer let go over the week leaves nothing: no span, no
+  // hold of the pointer. Each begun at Wednesday 16:05 and drawn down to 17:20.
+  const begin = async () => {
+    const [from, to] = [await spot(page, 3, 16 * 60 + 5), await spot(page, 3, 17 * 60 + 20)];
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x, to.y, { steps: 6 });
+    await page.waitForFunction(() => Boolean(onPage(".sp-week .sp-sketch")), null, { timeout: 5000 }).catch(() => {});
+  };
+  const ended = async (name, end, after = async () => page.mouse.up()) => {
+    await begin();
+    await end();
+    await page.waitForTimeout(250);
+    const now = await sketch();
+    check(none(now), `${name}: the drag left something behind: ${JSON.stringify(now)}`);
+    await after();
+    await page.waitForTimeout(450);
+    const later = await sketch();
+    check(none(later) && !(await page.evaluate(() => Boolean(onPage("dialog.own-form[open]")))), `${name}: after it something was drawn or opened: ${JSON.stringify(later)}`);
+    await clickOpens(name);
+  };
+  // Let go where the week never hears it (a menu, another window), and the mouse comes back with its
+  // button up: nothing follows it.
+  await ended("let go elsewhere", () => page.evaluate(() => {
+    const r = onPage(".sp-week .week .col").getBoundingClientRect();
+    onPage(".sp-week").dispatchEvent(new PointerEvent("pointermove", { pointerId: 1, pointerType: "mouse", buttons: 0, bubbles: true, cancelable: true, clientX: r.left + 20, clientY: r.top + 300 }));
+  }), async () => {
+    await page.mouse.up();
+    const [b, c] = [await spot(page, 4, 16 * 60), await spot(page, 4, 18 * 60)];
+    await page.mouse.move(b.x, b.y, { steps: 3 });
+    await page.mouse.move(c.x, c.y, { steps: 5 });
+  });
+  // (The browser says it at the pointer's next event.)
+  await ended("the browser takes the pointer (lostpointercapture)", async () => {
+    await page.evaluate(() => onPage(".sp-week").releasePointerCapture(1));
+    const to = await spot(page, 3, 17 * 60 + 20);
+    await page.mouse.move(to.x + 2, to.y + 1);
+  });
+  await ended("the browser takes the pointer (pointercancel)", () => page.evaluate(() => onPage(".sp-week").dispatchEvent(new PointerEvent("pointercancel", { pointerId: 1, bubbles: true }))));
+  await ended("a second pointer comes down", () => page.evaluate(() => {
+    const r = onPage(".sp-week .week .col").getBoundingClientRect();
+    onPage(".sp-week").dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7, pointerType: "touch", bubbles: true, clientX: r.left + 4, clientY: r.top + 4 }));
+  }));
+  await ended("the window loses the focus", () => page.evaluate(() => window.dispatchEvent(new Event("blur"))));
+  await ended("the page turns a phone's", () => page.setViewportSize({ width: 800, height: 900 }), async () => {
+    await page.mouse.up();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForFunction(() => Boolean(onPage(".sp-week .week .col")), null, { timeout: 5000 }).catch(() => {});
+  });
+  // A first move already past the grid's end is held, not lost: Friday from 17:05 flicked down.
+  const flick = await spot(page, 5, 17 * 60 + 5);
+  await page.mouse.move(flick.x, flick.y);
+  await page.mouse.down();
+  await page.mouse.move(flick.x, flick.y + 900);
+  await page.mouse.up();
+  await until(page, "a flick past the grid's end draws to its last hour", (form) => onPage(`${form} #own-day`)?.value === "5" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "17:00,19:00", form);
+  await page.keyboard.press("Escape");
+  await until(page, "the flick's form closed", () => !onPage("dialog.own-form[open]"));
+  // The wheel scrolls the page while the mouse draws: the minutes follow the column where it is now.
+  {
+    const from = await spot(page, 3, 16 * 60 + 5);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x, from.y + 20, { steps: 3 });
+    await page.mouse.wheel(0, 120);
+    await page.waitForTimeout(300);
+    const to = await page.evaluate(() => {
+      const week = onPage(".sp-week .week");
+      const col = week.querySelectorAll(".col")[2].getBoundingClientRect();
+      const [first, last] = [Number(week.dataset.first), Number(week.dataset.last)];
+      return col.top + col.height * ((17 * 60 + 20 - first) / (last - first)) + 2;
+    });
+    await page.mouse.move(from.x, to, { steps: 4 });
+    await until(page, "a wheel while drawing shifts no time", () => onPage(".sp-week .sp-sketch-tag")?.textContent === "16:00–17:30");
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+  // Drawn across slots, the span lies over them: no slot of the week changes its width (Tuesday
+  // from 07:05 down to 12:50).
+  {
+    const widths = () => page.evaluate(() => allOnPage(".sp-week .week a.slot").map((slot) => Math.round(slot.getBoundingClientRect().width * 10) / 10).join());
+    const before = await widths();
+    const [from, to] = [await spot(page, 2, 7 * 60 + 5), await spot(page, 2, 12 * 60 + 50)];
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x, to.y, { steps: 8 });
+    await until(page, "the span across Tuesday's slots", () => onPage(".sp-week .sp-sketch-tag")?.textContent === "07:00–13:00");
+    const during = await widths();
+    check(during === before, `drawn across slots, the slots changed their widths: ${before} → ${during}`);
+    await page.keyboard.press("Escape");
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+  }
 
   // The slot's bin: gone, with „Rückgängig".
   const hiwi = await page.evaluate(() => {
@@ -419,6 +593,7 @@ if (block("phone")) {
   });
   await page.tap(".sp-editdock [data-action='own-add']");
   await until(page, "the form as a sheet", (form) => Boolean(onPage(form)) && onPage(`${form}`)?.hasAttribute("data-sheet"), form);
+  check((await text(page, `${form} .own-quicker`)) === "Schneller: in der Woche gedrückt halten und ziehen.", `the phone's hint of the gesture: ${await text(page, `${form} .own-quicker`)}`);
   if (shots) await page.screenshot({ path: `${shots}/own-phone-form.png` });
   await page.keyboard.press("Escape");
   await until(page, "the sheet closed, the mode stays", () => !onPage("dialog.own-form[open]") && /[?&]edit=1/.test(location.search));
@@ -427,6 +602,100 @@ if (block("phone")) {
   const target = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.className ?? "", [at.x, at.y]);
   await hold(page, at);
   await until(page, `a finger held opens the form for Wednesday (on ${target})`, (form) => onPage(`${form} #own-day`)?.value === "3" && onPage(`${form} .own-two input`)?.value === "16:00", form);
+  await page.keyboard.press("Escape");
+  await until(page, "the form closed", () => !onPage("dialog.own-form[open]"));
+  // A real finger, as the owner defined it (2026-11-18: „Das soll so sein, dass man lange gedrückt
+  // hält, dann bekommt man ein vib feedback, und danach kann man draggen oder einfach los lassen. Und
+  // erst veim los lassen wird der termin erstellt. Beim draggen in dem bereich und wenn man direkt los
+  // lässt dann ein 90min termin."): held, the phone vibrates as the hold completes and not before, the
+  // span of 90 minutes stands, nothing is open and nothing stored; moved, it stretches with its times in
+  // a tag outside it and the page does not scroll; lifted, the form opens with exactly what stood.
+  const cdp = await context.newCDPSession(page);
+  const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: Math.round(x), y: Math.round(y), id: 1 }] });
+  const drawnNow = () => page.evaluate(() => ({
+    span: allOnPage(".sp-sketch").map((el) => el.textContent.replace(/\s+/g, " ").trim()).join(),
+    tag: allOnPage(".sp-sketch-tag").map((el) => el.textContent.trim()).join(),
+    form: Boolean(onPage("dialog.own-form[open]")),
+    felt: window.__felt.length,
+    scroll: scrollY,
+  }));
+  const stored = await own(page);
+  // Each spot may scroll its point into view: both are taken once the page holds still for them.
+  await spot(page, 3, 17 * 60 + 5);
+  const from = await spot(page, 3, 16 * 60 + 5);
+  const further = await spot(page, 3, 17 * 60 + 5);
+  const before = await page.evaluate(() => { window.__felt = []; return scrollY; });
+  await touch("touchStart", from.x, from.y);
+  await page.waitForTimeout(300);
+  const early = await drawnNow();
+  check(early.felt === 0 && !early.span && !early.form, `before the hold completes nothing is felt or drawn: ${JSON.stringify(early)}`);
+  await page.waitForTimeout(400);
+  const held = await drawnNow();
+  check(held.felt === 1 && held.span === "16:00 – 17:30" && held.tag === "16:00–17:30" && !held.form, `the hold completed: felt once, 90 minutes stand, nothing open: ${JSON.stringify(held)}`);
+  // The long press's menu of the browser does not come over a finger held on the week.
+  check(await page.evaluate(([x, y]) => !document.elementFromPoint(x, y).dispatchEvent(new PointerEvent("contextmenu", { bubbles: true, cancelable: true, pointerType: "touch", clientX: x, clientY: y })), [from.x, from.y]), "a finger held on the week brings the browser's menu");
+  for (let i = 1; i <= 8; i++) {
+    await touch("touchMove", from.x, from.y + ((further.y - from.y) * i) / 8);
+    await page.waitForTimeout(30);
+  }
+  const drawn = await drawnNow();
+  check(drawn.tag === "16:00–17:15" && drawn.scroll === before && !drawn.form && drawn.felt === 1, `the finger stretches the span and the page holds still: ${JSON.stringify({ ...drawn, before })}`);
+  check(JSON.stringify(await own(page)) === JSON.stringify(stored), "a Termin was stored before the finger lifted");
+  if (shots) await page.screenshot({ path: `${shots}/own-phone-drag.png` });
+  await touch("touchEnd");
+  await until(page, "the form of the span a finger drew, the tag gone", (form) => onPage(`${form} #own-day`)?.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:15" && !onPage(".sp-sketch-tag"), form);
+  check(JSON.stringify(await own(page)) === JSON.stringify(stored), "the lift stored a Termin before „Anlegen\"");
+  await page.keyboard.press("Escape");
+  await until(page, "the form closed again", () => !onPage("dialog.own-form[open]"));
+  // Held and let go without a move: 90 minutes.
+  {
+    const at = await spot(page, 3, 16 * 60 + 5);
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    await touch("touchEnd");
+    await until(page, "a hold let go at once gives 90 minutes", (form) => allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:30", form);
+    await page.keyboard.press("Escape");
+    await until(page, "its form closed", () => !onPage("dialog.own-form[open]"));
+  }
+  // The browser takes the finger's pointer while it draws: the span is given up, nothing opens.
+  {
+    const at = await spot(page, 3, 16 * 60 + 5);
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    await touch("touchMove", at.x, at.y + 30);
+    await page.evaluate(() => onPage(".sp-carousel").dispatchEvent(new PointerEvent("pointercancel", { pointerId: 1, pointerType: "touch", bubbles: true })));
+    await page.waitForTimeout(200);
+    const gone = await drawnNow();
+    await touch("touchEnd");
+    await page.waitForTimeout(500);
+    check(!gone.span && !gone.tag && !(await page.evaluate(() => Boolean(onPage("dialog.own-form[open]")))), `a cancelled finger left a span or opened the form: ${JSON.stringify(gone)}`);
+  }
+  // In the week's last column the tag stays on the screen, and never under the finger.
+  {
+    const at = await spot(page, 5, 16 * 60 + 5);
+    if (await page.evaluate(([x, y]) => !document.elementFromPoint(x, y)?.closest(".slot, a, button"), [at.x, at.y])) {
+      await touch("touchStart", at.x, at.y);
+      await page.waitForTimeout(700);
+      for (let i = 1; i <= 4; i++) await touch("touchMove", at.x, at.y + 12 * i);
+      const tag = await page.evaluate(() => { const r = onPage(".sp-sketch-tag")?.getBoundingClientRect(); return r && { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: innerWidth }; });
+      check(tag && tag.left >= 0 && tag.right <= tag.width && !(tag.top <= at.y + 48 && tag.bottom >= at.y + 48 && tag.left <= at.x && tag.right >= at.x), `the tag of Friday's span leaves the screen or lies under the finger: ${JSON.stringify({ tag, at })}`);
+      await touch("touchEnd");
+      await page.waitForTimeout(400);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+    } else problems.push("Friday 16:05 is no free stretch here");
+  }
+  const quick = await spot(page, 3, 16 * 60 + 5);
+  const still = await page.evaluate(() => scrollY);
+  await touch("touchStart", quick.x, quick.y);
+  for (let i = 1; i <= 8; i++) {
+    await touch("touchMove", quick.x, quick.y - 25 * i);
+    await page.waitForTimeout(16);
+  }
+  await touch("touchEnd");
+  await page.waitForTimeout(800);
+  const moved = await page.evaluate(() => ({ scroll: scrollY, draft: allOnPage(".sp-week .slot.draft, .sp-sketch").length, form: Boolean(onPage("dialog.own-form[open]")) }));
+  check(moved.scroll > still + 40 && moved.draft === 0 && !moved.form, `a finger moving at once scrolls and draws nothing: ${JSON.stringify({ ...moved, still })}`);
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
   await context.close();
 }

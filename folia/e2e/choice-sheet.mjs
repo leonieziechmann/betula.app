@@ -129,7 +129,7 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   await until(page, "phone: the tile tapped ticked", () => liveSheet()?.querySelector(".grp-h .r")?.textContent.includes("1 von 4"));
   let s = await sheet();
   check(s?.tiles.filter((on) => on === "true").length === 1 && !s.full, `phone: not one tile ticked, half up: ${JSON.stringify(s)}`);
-  check(await page.evaluate(() => !/ausgeblendet/.test(document.querySelector(".sp-sum-row, .sp-overlaps")?.textContent ?? "")), "phone: the line under the head says what is hidden");
+  check(await page.evaluate(() => !/ausgeblendet/.test(document.querySelector(".sp-band, .sp-overlaps")?.textContent ?? "")), "phone: the line under the head says what is hidden");
   if (shots) await page.screenshot({ path: `${shots}/choice-phone-ticked.png` });
 
   // Up from its head: the tiles on their way while the finger moves; let go past the middle, all up.

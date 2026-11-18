@@ -1,16 +1,22 @@
 // Checks the Stundenplan on a phone (owner, 2026-09-27; folia/crates/planner/src/studyplan/week.rs
 // `WeekCarousel`): „Woche" is a grid there too, as wide as the window; where the plan has Termine of
-// A or B weeks only, a carousel of „A-Woche", „B-Woche" and „A/B", switched in the head beside
-// „Bearbeiten" („Woche: A, B, A/B", owner 2026-10-26), which a finger swipes and carries while it
+// A or B weeks only, a carousel of „A-Woche", „B-Woche" and „A/B", switched in the head's toolbar
+// („A · B · A/B", owner 2026-10-26 and 2026-11-18), which a finger swipes and carries while it
 // moves, the page scrolling under any other move; each slot says where it is held and opens its
 // card, and closed again the week is where it was; the list of the week's days is closed until
 // its line opens it, counts the week shown and follows it; „Bearbeiten" brings the dock in the tab
-// bar's place and the buttons of the day list's rows, Back takes both away; „Export" and „Teilen …"
-// stand under the Termine in every view, while a wide screen keeps them in the sidebar and the
-// switch of the weeks and „Bearbeiten" in the head. A plan without A or B weeks has the grid alone,
+// bar's place and the buttons of the day list's rows, Back takes both away; the head is two rows of
+// one grid, as tall in both states, „Kalender" and „Export" a group with a name of its own, the
+// weeks' segment a finger's 44 px; „Export" and „Teilen …" are a sheet the head's „Export" opens in
+// every view, and „Teilen" opened from it („Abonnieren", „Teilen …") returns to it as it closes, the
+// keyboard on its row, while a wide screen keeps them in the sidebar and the switch of the weeks and
+// „Bearbeiten" in the head. One band under the head says what is open and the overlaps, their figure
+// at its right, what it unfolds under it. A plan without A or B weeks has the grid alone,
 // and no switch of the weeks.
 // History: 2026-11-17, the edit mode. The sheet „Anpassen" and „Plan · Alle Termine" in it went (the
 // mode shows what is hidden); a slot opens its card (`termin=`), not its module (`open=`).
+// 2026-11-18: the head tidied into two rows (owner: „der header ist ja eine absolute Katastrophe"),
+// „Export" a sheet of the head (owner: „Export sollte am handy wahrscheinlich auch ein modal werden").
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node studyplan-phone.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Works on any snapshot: it plans modules of the snapshot's current semester that meet in A
 // weeks, in B weeks and every week, found in the snapshot itself (`/api/db`, read with the app's
@@ -97,13 +103,42 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   const first = await page.evaluate(() => ({
     weeks: [...document.querySelectorAll(".sp-slide")].map((slide) => [slide.getAttribute("aria-label"), slide.inert]),
     tabs: [...document.querySelectorAll(".sp-head .sp-weekpick button")].map((b) => [b.textContent, b.getAttribute("aria-label")]),
-    beside: (() => { const a = document.querySelector(".sp-head .sp-weekpick")?.getBoundingClientRect(), b = document.querySelector(".sp-head .sp-edit-toggle")?.getBoundingClientRect(); return Boolean(a && b && Math.abs(a.top + a.height / 2 - (b.top + b.height / 2)) < 6 && a.right < b.left); })(),
+    // Two rows of one grid: the title over the switch (their left ends one line), „Bearbeiten" over
+    // „Kalender · Export" (their right ends one line), the switch and the tools in one row.
+    beside: (() => {
+      const r = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+      const [title, weeks, edit, tools] = [r(".sp-head h1"), r(".sp-head .sp-weekpick"), r(".sp-head .sp-edit-toggle"), r(".sp-head .sp-tools")];
+      return Boolean(title && weeks && edit && tools) && Math.abs(title.left - weeks.left) < 1 && Math.abs(edit.right - tools.right) < 1 && Math.abs(weeks.top + weeks.height / 2 - (tools.top + tools.height / 2)) < 2 && weeks.top >= title.bottom && tools.top >= edit.bottom - 1;
+    })(),
+    word: [...document.querySelectorAll(".sp-head .sp-weekpick *")].some((e) => e.children.length === 0 && /Woche/.test(e.textContent)),
+    named: document.querySelector(".sp-head .sp-weekpick [role=radiogroup]")?.getAttribute("aria-label") ?? null,
+    tools: [...document.querySelectorAll(".sp-head .sp-tools > button")].map((b) => [b.dataset.action, b.textContent.trim(), Math.round(b.getBoundingClientRect().height)]),
+    // An honest group with a name of its own (a toolbar would promise arrow keys).
+    group: [document.querySelector(".sp-head .sp-tools")?.getAttribute("role"), document.querySelector(".sp-head .sp-tools")?.getAttribute("aria-label")],
+    // The weeks' segment looks small, but a finger's 44 px hit it: 6 px over and under its box.
+    hit: (() => {
+      const button = document.querySelector(".sp-head .sp-weekpick button");
+      if (!button) return null;
+      const was = scrollY;
+      button.scrollIntoView({ block: "center" });
+      const r = button.getBoundingClientRect();
+      const at = (y) => document.elementFromPoint(r.left + r.width / 2, y)?.closest("button") === button;
+      const hit = { height: Math.round(r.height), above: at(r.top - 5), below: at(r.bottom + 5) };
+      scrollTo(0, was);
+      return hit;
+    })(),
+    sum: Boolean(document.querySelector(".sp-sum")),
+    head: Math.round(document.querySelector(".sp-head").getBoundingClientRect().height),
     all: Boolean(document.querySelector(".sp-all, .sheet-toggle")),
     band: (() => { const r = document.querySelector(".sp-slide.is-current .week").getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), innerWidth]; })(),
   }));
   check(JSON.stringify(first.weeks) === JSON.stringify([["A-Woche", true], ["B-Woche", true], ["A/B", false]]), `phone: not three weeks with A/B shown, the others out of reach: ${JSON.stringify(first.weeks)}`);
-  check(JSON.stringify(first.tabs) === JSON.stringify([["A", "A-Woche"], ["B", "B-Woche"], ["A/B", "A- und B-Woche"]]) && first.beside && !first.all, `phone: the head has no „Woche: A, B, A/B" beside „Bearbeiten", or „Anpassen" or „Plan · Alle Termine" still: ${JSON.stringify(first)}`);
+  check(JSON.stringify(first.tabs) === JSON.stringify([["A", "A-Woche"], ["B", "B-Woche"], ["A/B", "A- und B-Woche"]]) && first.beside && !first.all, `phone: the head is not two rows of one grid, „A · B · A/B" under the title and „Kalender · Export" under „Bearbeiten", or „Anpassen" or „Plan · Alle Termine" still: ${JSON.stringify(first)}`);
+  check(!first.word && first.named === "Woche", `phone: the switch of the weeks has the word „Woche" or no name: ${JSON.stringify({ word: first.word, named: first.named })}`);
+  check(JSON.stringify(first.tools) === JSON.stringify([["calendars", "Kalender", 44], ["export", "Export", 44]]) && !first.sum, `phone: the toolbar's „Kalender" and „Export" (44 px), and no line of numbers under the head: ${JSON.stringify({ tools: first.tools, sum: first.sum })}`);
   check(first.band[0] === 0 && first.band[1] === first.band[2], `phone: the week does not take the window's whole width: ${JSON.stringify(first.band)}`);
+  check(first.group[0] === "group" && first.group[1] === "Kalender und Export", `phone: the head's tools are no group with a name of its own: ${JSON.stringify(first.group)}`);
+  check(first.hit && first.hit.above && first.hit.below, `phone: the weeks' segment is no finger's target of 44 px: ${JSON.stringify(first.hit)}`);
   // Each slot tall enough for it says where it is held.
   const rooms = await page.evaluate(() => [...document.querySelectorAll(".sp-slide.is-current .slot")].filter((slot) => slot.querySelector("small.p") && slot.getBoundingClientRect().height > 44).map((slot) => getComputedStyle(slot.querySelector("small.p")).display));
   check(rooms.length > 0 && rooms.every((display) => display !== "none"), `phone: a slot hides where it is held: ${JSON.stringify(rooms)}`);
@@ -115,6 +150,8 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   // „Bearbeiten": the dock in the tab bar's place, the day list's rows with their buttons; Back leaves.
   await page.tap(".sp-head .sp-edit-toggle");
   await page.waitForFunction(() => location.search === "?edit=1" && document.querySelector(".sp-editdock") && !document.querySelector(".sp-editdock").getAnimations().length, null, { timeout: 8000 }).catch(() => problems.push("phone: „Bearbeiten“ brings no dock"));
+  const editingHead = await page.evaluate(() => Math.round(document.querySelector(".sp-head").getBoundingClientRect().height));
+  check(editingHead === first.head, `phone: the head is not as tall while editing: ${first.head} → ${editingHead}`);
   const dock = await page.evaluate(() => { const [a, b] = [document.querySelector(".sp-editdock")?.getBoundingClientRect(), document.querySelector(".bottomnav")?.getBoundingClientRect()]; return Boolean(a && b) && ["x", "y", "width", "height"].every((k) => Math.abs(a[k] - b[k]) < 0.5); });
   check(dock, "phone: the dock does not stand in the tab bar's place");
   await page.tap(".sp-days-toggle");
@@ -190,28 +227,86 @@ if (!semester || inA.length === 0 || inB.length === 0 || weekly.length === 0) {
   s = await state(page);
   check(s.tab === "A/B" && back.top >= 0 && back.top < back.height / 2, `phone: back from the card the week is not in view as it was: ${JSON.stringify({ s, back })}`);
 
-  // ---- „Export" and „Teilen …": under the Termine in every view, no sidebar
+  // ---- „Export" and „Teilen …": a sheet the head's „Export" opens, in every view, no sidebar
   for (const view of ["week", "dates", "exams"]) {
     if (view !== "week") {
       await page.goto(base + `/studyplan?view=${view}`, { waitUntil: "domcontentloaded" });
       await page.waitForFunction(() => window.__betulaApp === true && document.querySelector(".sp-view"), null, { timeout: 30000 }).catch(() => {});
       await page.waitForTimeout(500);
     }
+    const before = await page.evaluate(() => ({ page: Boolean(document.querySelector("#sp-abo, #sp-share")), sheet: Boolean(document.querySelector(".sidebar #sp-abo, .sidebar #sp-share")) }));
+    await page.tap(".sp-head .sp-tool[data-action='export']");
+    await page.waitForFunction(() => document.querySelector("dialog.sp-export-sheet[open] #sp-abo"), null, { timeout: 5000 }).catch(() => {});
     const where = await page.evaluate(() => {
-      const [view, abo, share] = [document.querySelector(".sp-view"), document.querySelector(".sp-export #sp-abo"), document.querySelector("#sp-share")];
-      const after = (a, b) => Boolean(a && b && a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-      return { export: Boolean(document.querySelector(".sp-view + .sp-export #sp-abo")), share: after(abo, share) && after(view, share), sheet: Boolean(document.querySelector(".sidebar #sp-abo, .sidebar #sp-share")) };
+      const sheet = document.querySelector("dialog.sp-export-sheet[open]");
+      return { abo: Boolean(sheet?.querySelector("#sp-abo")), share: Boolean(sheet?.querySelector("#sp-share")), file: Boolean(sheet?.querySelector("a.action[download]")), picture: [...(sheet?.querySelectorAll("button.action") ?? [])].some((b) => /Als Bild speichern/.test(b.textContent)), expanded: document.querySelector(".sp-head .sp-tool[data-action='export']")?.getAttribute("aria-expanded") };
     });
-    check(where.export && where.share && !where.sheet, `phone (${view}): „Export" and „Teilen …" are not under the Termine alone: ${JSON.stringify(where)}`);
+    check(!before.page && !before.sheet && where.abo && where.share && where.file && where.picture && where.expanded === "true", `phone (${view}): „Export" is not a sheet of the head with the file, the picture, „Abonnieren" and „Teilen …": ${JSON.stringify({ before, where })}`);
+    if (view === "week") {
+      // „Abonnieren" and „Teilen …" open „Teilen", which takes the sheet's place; closed, by Esc or
+      // its ×, the sheet comes back with the keyboard on the row that opened it.
+      for (const [row, close] of [["#sp-abo", "Esc"], ["#sp-share", "×"]]) {
+        await page.tap(`dialog.sp-export-sheet[open] ${row}`);
+        await page.waitForFunction(() => document.querySelector("dialog.sh-dialog[open]") && !document.querySelector("dialog.sp-export-sheet[open]"), null, { timeout: 5000 }).catch(() => problems.push(`phone: ${row} in the sheet does not open „Teilen“ in its place`));
+        if (close === "Esc") await page.keyboard.press("Escape");
+        else await page.evaluate(() => document.querySelector("dialog.sh-dialog[open] .dlg-close").click());
+        await page.waitForFunction((row) => !document.querySelector("dialog.sh-dialog[open]") && document.querySelector("dialog.sp-export-sheet[open]") && document.activeElement === document.querySelector(`dialog.sp-export-sheet[open] ${row}`), row, { timeout: 5000 }).catch(() => problems.push(`phone: „Teilen“ from ${row} closed by ${close} does not return to the sheet with the keyboard on its row`));
+      }
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 5000 }).catch(() => problems.push(`phone (${view}): Esc leaves a dialog open`));
   }
   await context.close();
 
   // ---- a wide screen keeps „Export" in the sidebar, the switch of the weeks and „Bearbeiten" in the head
   const wide = await open({ viewport: { width: 1440, height: 900 } }, "/studyplan", planOf([...weekly, ...inA, ...inB]));
   await wide.page.waitForSelector(".sp-week .slot", { timeout: 8000 }).catch(() => problems.push("wide: the week shows no slot"));
-  const seen = await wide.page.evaluate(() => ({ sidebar: Boolean(document.querySelector(".sidebar #sp-abo")), export: Boolean(document.querySelector(".sp-export")), head: Boolean(document.querySelector(".sp-head .sp-weeks")), all: Boolean(document.querySelector(".sp-head .sp-edit-toggle")) && !document.querySelector(".sp-all"), carousel: Boolean(document.querySelector(".sp-carousel")) }));
+  const seen = await wide.page.evaluate(() => ({ sidebar: Boolean(document.querySelector(".sidebar #sp-abo")), export: Boolean(document.querySelector(".sp-export, .sp-tools")), head: Boolean(document.querySelector(".sp-head .sp-weeks")), all: Boolean(document.querySelector(".sp-head .sp-edit-toggle")) && !document.querySelector(".sp-all"), carousel: Boolean(document.querySelector(".sp-carousel")) }));
   check(seen.sidebar && !seen.export && seen.head && seen.all && !seen.carousel, `wide: not the sidebar's „Export", the head's switch and „Bearbeiten": ${JSON.stringify(seen)}`);
   await wide.context.close();
+}
+
+// ---- one band under the head: what is open and the overlaps' figure in one row
+// A Termin of one's own on the first weekly module's first Termin makes an overlap. The figure stands
+// at the right of the amber line where choices are open, compact (its name the whole words), alone
+// with its words where nothing is open; what it unfolds opens under the band, over the week. No band
+// where nothing is to say.
+if (semester && weekly.length > 0) {
+  const [weekday, startTime, endTime] = rows("SELECT weekday, start_time, end_time FROM v_module_schedule WHERE semester_key = ? AND module_id = ? AND start_time IS NOT NULL ORDER BY weekday, start_time LIMIT 1", [semester, weekly[0]])[0] ?? [];
+  const hm = (t) => String(t ?? "").slice(0, 5);
+  const clash = `t\t1\t0\t${semester}\tw\t${weekday}\t${hm(startTime)}-${hm(endTime)}\t\t\t\tKollision\t\t\n`;
+  const bands = async (plan) => {
+    const { page, context } = await open(phone, "/studyplan", plan);
+    await page.waitForSelector(".sp-carousel .slot", { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(() => {
+      const r = (el) => el?.getBoundingClientRect();
+      const band = document.querySelector(".sp-band"), fig = document.querySelector(".sp-band .sp-clash-fig"), line = document.querySelector(".sp-band .sp-open-line");
+      return {
+        bands: [...document.querySelectorAll(".sp-band")].filter((el) => el.getClientRects().length).length,
+        rows: document.querySelectorAll(".sp-sum-row").length,
+        line: Boolean(line),
+        fig: fig ? { name: fig.getAttribute("aria-label"), shown: fig.innerText.replace(/\s+/g, " ").trim(), right: line ? Math.abs(r(fig).right - r(band).right) < 1 : true, row: line ? Math.abs(r(fig).top - r(line).top) < 1 : true } : null,
+      };
+    });
+    return { page, context, m };
+  };
+  {
+    const { page, context, m } = await bands(planOf(weekly) + clash);
+    check(m.bands === 1 && m.rows === 0 && m.fig && m.fig.right && m.fig.row && (m.line ? /^\d+$/.test(m.fig.shown) && /Überschneidung/.test(m.fig.name) : /Überschneidung/.test(m.fig.shown)), `phone: not one band with the overlaps' figure at its right, compact beside the open line, with its words alone: ${JSON.stringify(m)}`);
+    await page.tap(".sp-band .sp-clash-fig");
+    const below = await page.waitForFunction(() => {
+      const [band, list, week] = [".sp-band", "#sp-overlaps", ".sp-carousel"].map((sel) => document.querySelector(sel)?.getBoundingClientRect());
+      return band && list && week && list.top >= band.bottom && week.top >= list.bottom;
+    }, null, { timeout: 5000 }).then(() => true, () => false);
+    check(below, "phone: the overlaps do not unfold under the band and over the week");
+    await context.close();
+  }
+  {
+    const { context, m } = await bands(planOf(weekly));
+    check(m.rows === 0 && !m.fig && (m.line ? m.bands === 1 : m.bands === 0), `phone: a band without anything to say, or the figure without an overlap: ${JSON.stringify(m)}`);
+    await context.close();
+  }
 }
 
 // ---- a plan without A or B weeks: the grid alone
