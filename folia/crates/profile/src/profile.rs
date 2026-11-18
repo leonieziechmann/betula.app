@@ -18,7 +18,9 @@
 //! - „Daten": the active profile as a file („Als Datei sichern", `Backup`).
 //! - „Gefahrenzone": „Profil leeren" and „Profil löschen", each a row with its icon on a tile and a
 //!   button of one width with the same icon, the question under the row; „Rückgängig" after, until
-//!   the page is left. The only profile is emptied instead of deleted, and says so before.
+//!   the page is left. The only profile is emptied instead of deleted, and says so before. A synced
+//!   profile is deleted on this device alone, or with Betula Sync ended (its data on the server
+//!   deleted, owner 2026-11-18): the question asks which.
 //! - At its end a line: the Impressum and the Datenschutz (§ 5 DDG: every page leads to the profile
 //!   page, the rail and the head of a phone's page; the menu of the profiles names them too), the
 //!   versions and how fresh the data is, where it comes from.
@@ -44,7 +46,7 @@ use folia_stores::studyplan::{Saved, Studyplan};
 use leptos::prelude::*;
 use folia_design::stage::Title;
 
-use crate::confirm::{Confirm, Question};
+use crate::confirm::{Answer, Confirm, Question};
 use crate::i18n::{self, Texts};
 use folia_data::use_ask;
 use folia_design::format;
@@ -70,6 +72,7 @@ const CLEAR_ID: &str = "pf-clear";
 const CLEAR_YES_ID: &str = "pf-clear-yes";
 const DELETE_ID: &str = "pf-delete";
 const DELETE_YES_ID: &str = "pf-delete-yes";
+const DELETE_END_ID: &str = "pf-delete-end";
 const OPEN_ID: &str = "pf-open";
 const UNDO_ID: &str = "pf-undo";
 
@@ -81,10 +84,12 @@ enum Note {
     Created(String),
     /// A profile was made of a file, and is the active one: its name.
     Opened(String),
-    /// A profile was deleted: what puts it back, and its name.
-    Deleted(Deleted, String),
+    /// A profile was deleted: what puts it back, its name, and whether Betula Sync was ended with it.
+    Deleted(Deleted, String, bool),
     /// The active profile was emptied: what puts it back.
     Cleared(Cleared),
+    /// „Löschen und Sync beenden" could not end Sync, and the profile stays: why.
+    NotEnded(String),
 }
 
 /// The tags of the profile page: a page of one visitor, the same address for everybody and nothing
@@ -209,7 +214,7 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
     let undo = move |_| {
         if let Some(profiles) = profiles {
             match note.get_untracked() {
-                Some(Note::Deleted(deleted, _)) => {
+                Some(Note::Deleted(deleted, ..)) => {
                     profiles.undo_delete(&deleted);
                 }
                 Some(Note::Cleared(cleared)) => profiles.undo_clear(&cleared),
@@ -225,6 +230,7 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
             note.as_ref().map(|note| match note {
                 Note::Created(_) | Note::Opened(_) => Haptic::Success,
                 Note::Deleted(..) | Note::Cleared(_) => Haptic::Tap,
+                Note::NotEnded(_) => Haptic::Error,
             })
         });
         if let (Some(()), Some(felt)) = (seen, felt) {
@@ -236,8 +242,10 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
             let (icon, said, undoable) = match &now {
                 Note::Created(name) => ("user-round-plus", (p.created)(name), false),
                 Note::Opened(name) => ("upload", (p.opened)(name), false),
-                Note::Deleted(_, name) => ("trash-2", (p.deleted)(name), true),
+                Note::Deleted(_, name, false) => ("trash-2", (p.deleted)(name), true),
+                Note::Deleted(_, name, true) => ("trash-2", (p.deleted_ended)(name), true),
                 Note::Cleared(_) => ("check", p.cleared.to_string(), true),
+                Note::NotEnded(why) => ("triangle-alert", (p.not_ended)(why), false),
             };
             view! {
                 <div class="offer pf-note" role="status">
@@ -501,7 +509,10 @@ fn DataPart() -> impl IntoView {
 }
 
 /// „Gefahrenzone": „Profil leeren" and „Profil löschen", the question under the row, „Rückgängig"
-/// after in the note at the head. The only profile is emptied instead, and says so before.
+/// after in the note at the head. The only profile is emptied instead, and says so before. A synced
+/// profile is deleted on this device alone („Nur auf diesem Gerät löschen", the others keep it) or
+/// with Betula Sync ended („Löschen und Sync beenden"): its space at Phloem goes first, then the
+/// profile; where the space does not go, the profile stays and the note says why.
 #[component]
 fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
     let t = i18n::t();
@@ -509,6 +520,11 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
     let profiles = Profiles::expect();
     let current = Memo::new(move |_| profiles.map(Profiles::current));
     let only = Memo::new(move |_| profiles.map_or(1, Profiles::count) < 2);
+    // Betula Sync, where the site offers it: whether the active profile syncs.
+    let sync = folia_stores::sync::Sync::expect().filter(|_| folia_stores::sync::offered().is_some());
+    let synced = Memo::new(move |_| sync.is_some_and(|sync| current.with(|profile| profile.as_ref().is_some_and(|profile| sync.synced(profile.id)))));
+    // „Löschen und Sync beenden" under way: the profile whose Sync ends.
+    let ending = RwSignal::new(None::<u16>);
     // The question, in a menu at the button that asked (`confirm`).
     let asking = RwSignal::new(None::<Question>);
     // Another profile: the question was about the one before.
@@ -526,34 +542,71 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
         note.set(Some(Note::Cleared(cleared)));
         request_animation_frame(|| nav::focus_by_id(UNDO_ID));
     };
+    // `ended`: Betula Sync was ended for it before. The page may be gone by then (Sync ends over the
+    // network), and the profile goes all the same.
+    let delete_profile = move |profile: Profile, ended: bool| {
+        let Some(profiles) = profiles else { return };
+        if let Some(deleted) = profiles.delete(profile.id) {
+            if note.try_set(Some(Note::Deleted(deleted, profile.shown(t.locale), ended))).is_none() {
+                request_animation_frame(|| nav::focus_by_id(UNDO_ID));
+            }
+        }
+    };
     let delete = move || {
-        let (Some(profiles), Some(profile)) = (profiles, current.get_untracked()) else { return };
+        let Some(profile) = current.get_untracked() else { return };
         if untrack(|| only.get()) {
             clear();
             return;
         }
-        if let Some(deleted) = profiles.delete(profile.id) {
-            note.set(Some(Note::Deleted(deleted, profile.shown(t.locale))));
-            request_animation_frame(|| nav::focus_by_id(UNDO_ID));
+        delete_profile(profile, false);
+    };
+    let delete_ending = move || {
+        let (Some(sync), Some(profile)) = (sync, current.get_untracked()) else { return };
+        if untrack(|| only.get()) {
+            clear();
+            return;
         }
+        note.set(None);
+        ending.set(Some(profile.id));
+        sync.stop_then(profile.id, move |done| {
+            ending.try_set(None);
+            match done {
+                Ok(()) => delete_profile(profile, true),
+                Err(problem) => {
+                    note.try_set(Some(Note::NotEnded(crate::sync::problem_text(problem))));
+                }
+            }
+        });
     };
     let ask = move |kind: &'static str| {
         Callback::new(move |()| {
-            if kind == CLEAR_ID && kept.empty.get_untracked() {
+            if kind == CLEAR_ID && kept.empty.get_untracked() || ending.get_untracked().is_some() {
                 return;
             }
             // The only profile is emptied instead of deleted, and asked about so.
             let deleting = kind == DELETE_ID && !only.get_untracked();
             let name = untrack(shown);
-            let question = if deleting {
-                Question { at: kind.to_string(), title: (p.delete_question)(&name), hint: p.delete_after.to_string(), yes: p.delete_yes.to_string(), icon: "trash-2", yes_id: DELETE_YES_ID }
+            let question = if deleting && synced.get_untracked() {
+                Question {
+                    at: kind.to_string(),
+                    title: (p.delete_question)(&name),
+                    hint: p.delete_after_synced.to_string(),
+                    answers: vec![
+                        Answer::new(p.delete_here, "trash-2", DELETE_YES_ID).with_line(p.delete_here_line),
+                        Answer::new(p.delete_end, "server", DELETE_END_ID).with_line(p.delete_end_line),
+                    ],
+                }
+            } else if deleting {
+                Question::one(kind, (p.delete_question)(&name), p.delete_after, Answer::new(p.delete_yes, "trash-2", DELETE_YES_ID))
             } else {
-                Question { at: kind.to_string(), title: (p.clear_question)(&name), hint: p.clear_after.to_string(), yes: p.clear_yes.to_string(), icon: "rotate-ccw", yes_id: CLEAR_YES_ID }
+                Question::one(kind, (p.clear_question)(&name), p.clear_after, Answer::new(p.clear_yes, "rotate-ccw", CLEAR_YES_ID))
             };
             asking.set(Some(question));
         })
     };
     let asked = move |kind: &'static str| Signal::derive(move || asking.with(|asking| asking.as_ref().is_some_and(|q| q.at == kind)));
+    // While Sync ends for the profile shown, neither is asked again.
+    let busy = move || ending.get().is_some_and(|id| current.with(|profile| profile.as_ref().is_some_and(|profile| profile.id == id)));
     view! {
         <section class="panel pf-part pf-danger" aria-labelledby="pf-danger">
             <h2 id="pf-danger"><Icon name="triangle-alert"/>{p.danger_heading}</h2>
@@ -566,22 +619,27 @@ fn DangerPart(note: RwSignal<Option<Note>>, kept: Kept) -> impl IntoView {
                     label=p.clear_button.to_string()
                     id=CLEAR_ID
                     danger=true
-                    disabled=Signal::derive(move || kept.empty.get().then_some(p.nothing_to_clear))
+                    disabled=Signal::derive(move || if busy() { Some(t.sync.ending) } else { kept.empty.get().then_some(p.nothing_to_clear) })
                     expanded=asked(CLEAR_ID)
                     on_press=ask(CLEAR_ID)
                 />
                 <ActionRow
                     icon="trash-2"
                     title=p.delete.to_string()
-                    line=Signal::derive(move || if only.get() { p.delete_only.to_string() } else { (p.delete_hint)(&shown()) })
+                    line=Signal::derive(move || if busy() { (p.delete_ending)(&shown()) } else if only.get() { p.delete_only.to_string() } else { (p.delete_hint)(&shown()) })
                     label=Signal::derive(move || if only.get() { p.clear_button } else { p.delete_button }.to_string())
                     id=DELETE_ID
                     danger=true
+                    disabled=Signal::derive(move || busy().then_some(t.sync.ending))
                     expanded=asked(DELETE_ID)
                     on_press=ask(DELETE_ID)
                 />
             </div>
-            <Confirm asking on_yes=Callback::new(move |yes: &'static str| if yes == DELETE_YES_ID { delete() } else { clear() })/>
+            <Confirm asking on_yes=Callback::new(move |yes: &'static str| match yes {
+                DELETE_YES_ID => delete(),
+                DELETE_END_ID => delete_ending(),
+                _ => clear(),
+            })/>
         </section>
     }
 }

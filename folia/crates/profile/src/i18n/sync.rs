@@ -19,6 +19,8 @@ pub struct Texts {
     pub cancel: &'static str,
     /// While it is switched on, or a profile comes from another device.
     pub starting: &'static str,
+    /// While „Sync beenden" asks the server to delete the profile's copy.
+    pub ending: &'static str,
     /// A synced profile, online with how many other devices of it; offline.
     /// Other devices online, of them connected directly, of them through Betula's relay.
     pub online: fn(usize, usize, usize) -> String,
@@ -174,6 +176,7 @@ pub const DE: Texts = Texts {
     explain_yes: "Einschalten und Code zeigen",
     cancel: "Abbrechen",
     starting: "Wird eingerichtet …",
+    ending: "Sync wird beendet …",
     online: |others, direct, relayed| {
         let devices = match others {
             0 => return "Synchronisiert · gerade kein anderes Gerät online".to_string(),
@@ -303,6 +306,7 @@ pub const EN: Texts = Texts {
     explain_yes: "Turn on and show the code",
     cancel: "Cancel",
     starting: "Setting up …",
+    ending: "Ending Sync …",
     online: |others, direct, relayed| {
         let devices = match others {
             0 => return "Synced · no other device online right now".to_string(),
