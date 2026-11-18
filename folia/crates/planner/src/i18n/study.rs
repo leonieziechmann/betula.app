@@ -31,8 +31,10 @@ pub struct Texts {
     pub fill_later_hint: &'static str,
     /// „Studium anlegen".
     pub create: &'static str,
-    /// „Bleibt in diesem Browser."
+    /// „Bleibt in diesem Browser.", and while the profile is synced where else it lies
+    /// (`stays_here`).
     pub stays_here: &'static str,
+    pub stays_here_synced: &'static str,
     /// „Alle Studiengänge ansehen": the way to the overview.
     pub all_programs: &'static str,
 
@@ -53,8 +55,9 @@ pub struct Texts {
     pub legend_over: &'static str,
     pub legend_retake: &'static str,
     pub legend_offer: &'static str,
-    /// Where all of it lives.
+    /// Where all of it lives, in a private profile and in a synced one (`storage_hint`).
     pub storage_hint: &'static str,
+    pub storage_hint_synced: &'static str,
 
     // „Studiengang wechseln" and the first visit: the study as a card (`card.rs`).
     pub switch_title: &'static str,
@@ -409,8 +412,8 @@ pub struct Texts {
 pub const DE: Texts = Texts {
     title: "Mein Studium",
     server_title: "Dein Studium, Semester für Semester",
-    server_hint: "Hier planst du dein Studium: welche Module in welches Semester kommen, was du bestanden hast und wie viel in jedem Bereich noch fehlt. Das braucht JavaScript, und alles bleibt in deinem Browser.",
-    seo_description: "Dein Studium an der BTU planen, Semester für Semester: was bestanden ist, was geplant ist und was in jedem Bereich noch fehlt. Inoffiziell, nur in deinem Browser.",
+    server_hint: "Hier planst du dein Studium: welche Module in welches Semester kommen, was du bestanden hast und wie viel in jedem Bereich noch fehlt. Das braucht JavaScript, und was du planst, liegt in deinem Browser.",
+    seo_description: "Dein Studium an der BTU planen, Semester für Semester: was bestanden ist, was geplant ist und was in jedem Bereich noch fehlt. Inoffiziell, lokal in deinem Browser.",
 
     setup_title: "Richte dein Studium einmal ein",
     setup_lead: "Damit Betula weiß, wie deine Module zählen. Das machst du einmal; ändern kannst du es jederzeit unter „Mein Studiengang“.",
@@ -426,6 +429,7 @@ pub const DE: Texts = Texts {
     fill_later_hint: "Im 1. Fachsemester gibt es noch keine.",
     create: "Studium anlegen",
     stays_here: "Bleibt in diesem Browser.",
+    stays_here_synced: "Liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur verschlüsselt.",
     all_programs: "Alle Studiengänge ansehen",
 
     change_program: "Studiengang ändern …",
@@ -440,6 +444,7 @@ pub const DE: Texts = Texts {
     legend_retake: "Wiederholung",
     legend_offer: "Nicht angeboten",
     storage_hint: "Was du planst und als bestanden markierst, bleibt in diesem Browser.",
+    storage_hint_synced: "Was du planst und als bestanden markierst, liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten. Auf dem Server liegt es nur verschlüsselt.",
 
     switch_title: "Studiengang wechseln",
     since: |semester| format!("seit {semester}"),
@@ -680,8 +685,8 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     title: "My studies",
     server_title: "Your studies, semester by semester",
-    server_hint: "This is where you plan your studies: which modules go into which semester, what you have passed and how much each area still needs. It needs JavaScript, and everything stays in your browser.",
-    seo_description: "Plan your studies at BTU, semester by semester: what is passed, what is planned and what each area still needs. Unofficial, in your browser only.",
+    server_hint: "This is where you plan your studies: which modules go into which semester, what you have passed and how much each area still needs. It needs JavaScript, and what you plan is stored in your browser.",
+    seo_description: "Plan your studies at BTU, semester by semester: what is passed, what is planned and what each area still needs. Unofficial, local in your browser.",
 
     setup_title: "Set up your studies once",
     setup_lead: "So that Betula knows how your modules count. You do this once; you can change it any time under \u{201c}My programme\u{201d}.",
@@ -697,6 +702,7 @@ pub const EN: Texts = Texts {
     fill_later_hint: "In semester 1 there are none yet.",
     create: "Set up my studies",
     stays_here: "Stays in this browser.",
+    stays_here_synced: "Stored in this browser and, as Betula Sync is on, on your other devices; on the server encrypted only.",
     all_programs: "See all degree programmes",
 
     change_program: "Change programme …",
@@ -711,6 +717,7 @@ pub const EN: Texts = Texts {
     legend_retake: "Retake",
     legend_offer: "Not offered",
     storage_hint: "What you plan and mark as passed stays in this browser.",
+    storage_hint_synced: "What you plan and mark as passed is stored in this browser and, as Betula Sync is on, on your other devices. The server holds it encrypted only.",
 
     switch_title: "Change degree programme",
     since: |semester| format!("since {semester}"),
@@ -947,3 +954,55 @@ pub const EN: Texts = Texts {
     line_title: |fs| format!("standard study plan: {fs} · click adds it"),
     line_retake: |semester| format!("Retake: not passed in {semester} · click adds it"),
 };
+
+impl Texts {
+    /// Where the study lives, by whether the active profile is synced
+    /// (`folia_stores::sync::active_synced`): „bleibt in diesem Browser" is untrue of a synced one
+    /// (owner, 2026-11-18). The sidebar's line …
+    pub fn storage_hint(&self, synced: bool) -> &'static str {
+        if synced { self.storage_hint_synced } else { self.storage_hint }
+    }
+
+    /// … and the setup's.
+    pub fn stays_here(&self, synced: bool) -> &'static str {
+        if synced { self.stays_here_synced } else { self.stays_here }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use folia_stores::sync::{Problem, State};
+
+    /// A synced profile's hints name its other devices and the server's encrypted copy; every
+    /// other state keeps „in diesem Browser" alone, in both languages.
+    #[test]
+    fn the_storage_hints_follow_the_profiles_state() {
+        let states = [State::Private, State::Starting, State::Ending, State::Online { devices: 0, direct: 0, relayed: 0 }, State::Offline, State::Ended, State::Failed(Problem::Budget)];
+        for state in states {
+            let synced = matches!(state, State::Online { .. } | State::Offline);
+            assert_eq!(state.synced(), synced);
+            let (de, en) = if synced {
+                (
+                    ("Was du planst und als bestanden markierst, liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten. Auf dem Server liegt es nur verschlüsselt.", "Liegt in diesem Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur verschlüsselt."),
+                    ("What you plan and mark as passed is stored in this browser and, as Betula Sync is on, on your other devices. The server holds it encrypted only.", "Stored in this browser and, as Betula Sync is on, on your other devices; on the server encrypted only."),
+                )
+            } else {
+                (("Was du planst und als bestanden markierst, bleibt in diesem Browser.", "Bleibt in diesem Browser."), ("What you plan and mark as passed stays in this browser.", "Stays in this browser."))
+            };
+            assert_eq!((DE.storage_hint(state.synced()), DE.stays_here(state.synced())), de, "{state:?}");
+            assert_eq!((EN.storage_hint(state.synced()), EN.stays_here(state.synced())), en, "{state:?}");
+        }
+    }
+
+    /// What the server renders without the app cannot know the profile's state: it is true of a
+    /// private profile and of a synced one alike.
+    #[test]
+    fn the_servers_texts_hold_in_every_state() {
+        for t in [&DE, &EN] {
+            for text in [t.server_hint, t.seo_description] {
+                assert!(!text.contains("nur in deinem Browser") && !text.contains("alles bleibt") && !text.contains("browser only") && !text.contains("everything stays"), "{text}");
+            }
+        }
+    }
+}
