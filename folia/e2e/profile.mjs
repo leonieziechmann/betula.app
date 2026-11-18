@@ -22,6 +22,8 @@
 // page: that Betula is not the BTU's, Impressum and Datenschutz, Folia's version (the ground held
 // them until 2026-11-03, which the start page and the pages about Betula keep). Without the app: the page explains
 // itself, is `noindex`, offers the other language and the legal pages, and the rail's way to it shows.
+// Many profiles: five at once in the menu and the page's sidebar, the active one among them, the rest
+// scrolls.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { readFile, writeFile, mkdtemp } from "node:fs/promises";
@@ -289,6 +291,44 @@ const mark = async (page, id) => {
   // (The file „Als Datei sichern" („Speichern") hands over is the page's own, a `blob:` address.)
   const beyond = requests.filter((r) => !r.startsWith(base) && !r.startsWith("blob:"));
   check(beyond.length === 0, `requests to somewhere else: ${beyond.slice(0, 3)}`);
+  await context.close();
+}
+
+// ---------- many profiles ----------
+// Five profiles at once at most (owner, 2026-11-18: „wenn man viele Profile hat soll es so sein,
+// dass man da scrollen muss, ich finde 5 sind eine gute Anzahl, die man gleichzeitig maximal sehen
+// kann"): with eight, the menu of the profiles and the page's sidebar show five, the active one (the
+// seventh) among them, and scroll; the edge where more lies runs out (`data-more`).
+{
+  const context = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+  const many = "active\t7\n" + Array.from({ length: 8 }, (_, i) => `profile\t${i + 1}\t0\tProfil Nr. ${i + 1}\n`).join("");
+  await context.addInitScript(([key, text]) => { if (!localStorage.getItem(key)) localStorage.setItem(key, text); }, [LIST, many]);
+  const { page } = await open(context, "/profile");
+  // What a list shows: the rows wholly in it, whether the active one is among them, what more it has.
+  const seen = (selector) => page.evaluate((selector) => {
+    const list = onPage(selector);
+    if (!list) return null;
+    const box = list.getBoundingClientRect();
+    const inside = (row) => { const r = row.getBoundingClientRect(); return r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5; };
+    const rows = [...list.children];
+    return { rows: rows.length, seen: rows.filter(inside).length, active: rows.some((row) => row.getAttribute("aria-checked") === "true" && inside(row)), more: list.getAttribute("data-more") };
+  }, selector);
+  await page.waitForFunction(() => allOnPage(".pf-list .pf-item").length === 8 && onPage(".pf-list")?.hasAttribute("data-more"), null, { timeout: 8000 }).catch(() => problems.push("many profiles: the page's sidebar does not have them all, or does not scroll"));
+  let side = await seen(".pf-list");
+  check(JSON.stringify(side) === JSON.stringify({ rows: 8, seen: 5, active: true, more: "above" }), `many profiles: the page's sidebar shows ${JSON.stringify(side)}`);
+  await page.mouse.move(700, 450);
+  await page.hover(".rail .profile-btn >> visible=true");
+  await page.waitForSelector(".profile-menu .pm-item >> visible=true", { timeout: 3000 }).catch(() => problems.push("many profiles: the menu of the profiles does not open"));
+  await page.waitForTimeout(300);
+  let menu = await seen(".profile-menu .pm-list");
+  check(JSON.stringify(menu) === JSON.stringify({ rows: 8, seen: 5, active: true, more: "above" }), `many profiles: the menu shows ${JSON.stringify(menu)}`);
+  // The wheel scrolls the list, not the page, and the menu stays.
+  const at = await page.evaluate(() => { const r = onPage(".profile-menu .pm-list").getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.wheel(0, -1000);
+  await page.waitForTimeout(300);
+  menu = await seen(".profile-menu .pm-list");
+  check(JSON.stringify(menu) === JSON.stringify({ rows: 8, seen: 5, active: false, more: "below" }), `many profiles: the menu scrolled up shows ${JSON.stringify(menu)}`);
   await context.close();
 }
 
