@@ -8,11 +8,14 @@
 //! questions. Each topic is a page of its own with its own address, title and description for
 //! search engines (the text is what they know of Betula, owner, 2026-09-28): „Überblick" (the first
 //! panel, the pictures with the map of the programs, what Betula does; `overview.rs`), „Module
-//! finden" (the way to a module, the filters, the ways into the catalog), „Studium planen" (the
-//! Regelstudienpläne, the Stundenplan, the programs by faculty), „Deine Daten" (no account, where
-//! the data comes from), „Technik" (with and without JavaScript, the devices) and „Häufige
-//! Fragen". The chapters are those of `detail.rs`, the questions those of `home`; nothing of them
-//! was rewritten. „Über Betula" itself, which led to the topics, went the same day (owner: „die
+//! finden" (the way to a module, the filters, the Merkliste, the ways into the catalog), „Studium
+//! planen" (the Regelstudienpläne, „Mein Studium", the Stundenplan, the programs by faculty),
+//! „Deine Daten" (the profile kept on the device, Betula Sync, sharing, where the catalog's data
+//! comes from), „Technik" (with and without JavaScript, the devices) and „Häufige Fragen". The
+//! chapters are those of `detail.rs`, the questions those of `home`: moved as they were on
+//! 2026-10-27, and brought up to what Betula is on 2026-11-18 (owner: the pages „sind alle
+//! veraltet und könnten etwas interessanter werden"; no account anywhere, there being none).
+//! „Über Betula" itself, which led to the topics, went the same day (owner: „die
 //! /about seite muss komplett raus nur die about/<slug> seiten sind ok. Was du als erhaltenswert
 //! siehst dann noch als eigene page"): what it kept is the overview, and its address leads there
 //! (`url::ABOUT`).
@@ -85,12 +88,12 @@ pub fn MoreAbout(topics: Vec<AboutTopic>, #[prop(optional)] day: bool) -> impl I
     let t = i18n::t();
     let count = topics.len();
     let head = if day {
-        view! { <header class="day-head"><h2 id="mehr-titel">{t.topics.more}</h2><span class="sub">{t.topics.more_lead}</span></header> }.into_any()
+        view! { <header class="day-head"><h2 id="more-title">{t.topics.more}</h2><span class="sub">{t.topics.more_lead}</span></header> }.into_any()
     } else {
-        view! { <header class="block-head"><h2 id="mehr-titel">{t.topics.more}</h2><p>{t.topics.more_lead}</p></header> }.into_any()
+        view! { <header class="block-head"><h2 id="more-title">{t.topics.more}</h2><p>{t.topics.more_lead}</p></header> }.into_any()
     };
     view! {
-        <section class="panel about-ways" class:on-day=day aria-labelledby="mehr-titel" data-commands=t.topics.more>
+        <section class="panel about-ways" class:on-day=day aria-labelledby="more-title" data-commands=t.topics.more>
             {head}
             <div class="about-tiles" style=format!("--n:{count}")>
                 {topics.into_iter().map(|topic| {
@@ -260,7 +263,9 @@ pub fn AboutRedirect() -> impl IntoView {
 fn Questions() -> impl IntoView {
     let t = i18n::t();
     view! {
-        <section class="panel questions" id="fragen" aria-label=t.home.questions>
+        <section class="panel questions" id="questions" aria-label=t.home.questions>
+            // The anchor the section had while its anchors were German: it still leads here.
+            <span class="was-anchor" id="fragen"></span>
             {questions(t).into_iter().map(|faq| view! {
                 <div class="faq">
                     <h2 class="faq-group label">{faq.name}</h2>

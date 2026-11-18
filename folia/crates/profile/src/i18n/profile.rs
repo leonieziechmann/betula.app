@@ -122,7 +122,7 @@ fn module_en(n: usize) -> &'static str {
 
 pub const DE: Texts = Texts {
     title: "Profil",
-    description: "Die Profile von Betula: Merkliste, Stundenplan und Studium getrennt für mehrere Profile, alles nur im eigenen Browser, ohne Konto.",
+    description: "Die Profile von Betula: Merkliste, Stundenplan und Studium getrennt für mehrere Profile, lokal auf deinem Gerät.",
     server_title: "Deine Profile liegen in deinem Browser",
     server_hint: "Welche Profile es gibt und was sie enthalten, weiß nur dein Browser. Mit JavaScript siehst du sie hier und kannst sie verwalten.",
     profiles: "Profile",
@@ -200,13 +200,13 @@ pub const DE: Texts = Texts {
     file_newer: "Diese Sicherung stammt aus einer neueren Version von Betula. Lade die Seite neu und versuche es noch einmal.",
     file_too_large: "Diese Datei ist zu groß für eine Sicherung.",
     file_full: |max| format!("Es gibt schon {max} Profile. Lösche eines, dann lässt sich die Datei laden."),
-    storage_hint: "Profile liegen nur in diesem Browser: kein Konto, nichts auf dem Server. Ein anderes Gerät hat seine eigenen; eine Sicherung als Datei bringt ein Profil hinüber.",
-    storage_hint_sync: "Profile liegen in diesem Browser, ohne Konto. Auf den Server kommt ein Profil nur mit Betula Sync, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben.",
+    storage_hint: "Profile liegen nur in diesem Browser, lokal auf deinem Gerät: Nichts davon ist auf dem Server. Ein anderes Gerät hat seine eigenen; eine Sicherung als Datei bringt ein Profil hinüber.",
+    storage_hint_sync: "Profile liegen in diesem Browser, lokal auf deinem Gerät. Auf den Server kommt ein Profil nur mit Betula Sync, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben.",
 };
 
 pub const EN: Texts = Texts {
     title: "Profile",
-    description: "Betula's profiles: saved modules, timetable and studies kept apart for several profiles, all only in your own browser, without an account.",
+    description: "Betula's profiles: saved modules, timetable and studies kept apart for several profiles, locally on your device.",
     server_title: "Your profiles are kept in your browser",
     server_hint: "Only your browser knows which profiles there are and what they hold. With JavaScript you see them here and can manage them.",
     profiles: "Profiles",
@@ -284,6 +284,6 @@ pub const EN: Texts = Texts {
     file_newer: "This backup comes from a newer version of Betula. Reload the page and try again.",
     file_too_large: "This file is too large to be a backup.",
     file_full: |max| format!("There are {max} profiles already. Delete one, then the file can be loaded."),
-    storage_hint: "Profiles are kept only in this browser: no account, nothing on the server. Another device has its own; a backup file takes a profile there.",
-    storage_hint_sync: "Profiles are kept in this browser, without an account. A profile reaches the server only with Betula Sync, encrypted with a key only your devices have.",
+    storage_hint: "Profiles are kept only in this browser, locally on your device: none of it is on the server. Another device has its own; a backup file takes a profile there.",
+    storage_hint_sync: "Profiles are kept in this browser, locally on your device. A profile reaches the server only with Betula Sync, encrypted with a key only your devices have.",
 };

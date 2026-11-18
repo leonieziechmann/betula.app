@@ -7,26 +7,36 @@
 //! under it and four points, and beside them a picture made of the app's own parts, not a
 //! drawing of them:
 //!
-//! - the way from four questions to the one module page,
+//! - the way from five questions to the one module page,
 //! - the filter panel laid out as a board, its chips in the panel's look, with an example chosen
 //!   and the number of modules the catalog has for it; in the browser app the chips switch in
 //!   place and the number follows,
+//! - the Merkliste with its collections and a note at a module,
 //! - a PDF of a regulation becoming the plan's matrix, and the number of programs with a plan,
-//! - a week in the Stundenplan's own grid (`week::WeekGrid`), with a clash and a choice,
-//! - where a visitor's things live, and four figures (no account, no tracker …),
+//! - „Mein Studium": the credits passed, planned and open by area, and the semesters,
+//! - a week in the Stundenplan's own grid (`week::WeekGrid`), with a clash, a choice and a
+//!   Termin of one's own,
+//! - where a visitor's things live (on the device; on the server nothing, or with Betula Sync
+//!   the profile sealed), and four figures,
+//! - two devices of a profile and the server between them, which holds what it cannot read,
+//! - the three ways of the dialog „Teilen" and what comes along,
 //! - the site with and without JavaScript,
 //! - the birch from its root (Radix) to its leaves (Folia), in the season's crown and the ground's
 //!   sand of the site's frame,
 //! - screenshots on a computer and a phone.
 //!
-//! On a wide page the picture stands beside the words, the second chapter of a topic's on the
-//! left; the board of the filters takes the whole width under them; on a narrow page everything
-//! stacks. What a
-//! picture shows that the app has words for is said in the app's words (`catalog::Texts`, and
-//! what it quotes of the other areas as `home_detail::quoted_*`), the rest is
-//! `i18n/home_detail.rs`. Everything looks the same with and
-//! without JavaScript; the only numbers are the snapshot's, and a picture without them leaves them
-//! out.
+//! On a wide page the picture stands beside the words, every other chapter's on the left; the
+//! board of the filters takes the whole width under them; on a narrow page everything stacks.
+//! What a picture shows that the app has words for is said in the app's words
+//! (`catalog::Texts`, and what it quotes of the other areas as `home_detail::quoted_*`), the rest
+//! is `i18n/home_detail.rs`. Everything looks the same with and without JavaScript; the only
+//! numbers are the snapshot's, and a picture without them leaves them out.
+//!
+//! Since 2026-11-18 (owner: the pages „sind alle veraltet und könnten etwas interessanter
+//! werden") the chapters cover what Betula is by now — the Merkliste, „Mein Studium", the profile
+//! on the device, Betula Sync and sharing came, „Ohne Konto" went (there is none to speak of; a
+//! profile and local data are what there is) —, and their anchors are US English like every
+//! address (CLAUDE.md, „Addresses"); the German ones they had (`Look::was`) still lead to them.
 
 use folia_calendar::day::clock;
 use folia_calendar::kind::EventKind;
@@ -60,32 +70,37 @@ pub fn example() -> CatalogQuery {
     }
 }
 
-/// How a chapter looks: where it stands (its id, which the row of chapters links), its tint
-/// (`t-…`), the icon beside its name, and the icons of its four points.
+/// How a chapter looks: where it stands (its id, which a link to it names, and the ids it had
+/// before, which still lead to it), its tint (`t-…`), the icon beside its name, and the icons of
+/// its four points.
 struct Look {
     id: &'static str,
+    was: &'static [&'static str],
     tint: &'static str,
     icon: &'static str,
     points: [&'static str; 4],
 }
 
-const FLOW: Look = Look { id: "weg", tint: "t-ice", icon: "route", points: ["search", "panel-right-open", "link", "keyboard"] };
-const FILTERS: Look = Look { id: "filter", tint: "t-violet", icon: "sliders-horizontal", points: ["circle-check-big", "eye", "graduation-cap", "smartphone"] };
-const PLANS: Look = Look { id: "regelstudienplaene", tint: "t-sun", icon: "file-check-2", points: ["scan-line", "sigma", "sparkles", "waypoints"] };
-const TIMETABLE: Look = Look { id: "stundenplan", tint: "t-coral", icon: "calendar-range", points: ["calendar-clock", "check-check", "triangle-alert", "calendar-plus"] };
-const ACCOUNT: Look = Look { id: "ohne-konto", tint: "t-teal", icon: "shield-check", points: ["smartphone", "share-2", "calendar-plus", "server"] };
-const TECHNOLOGY: Look = Look { id: "technik", tint: "t-slate", icon: "code", points: ["file-code-2", "zap", "wifi-off", "download"] };
-const DATA: Look = Look { id: "daten", tint: "t-green", icon: "tree-deciduous", points: ["clock-3", "badge-check", "eye", "arrow-up-right"] };
-const DEVICES: Look = Look { id: "geraete", tint: "t-rose", icon: "monitor-smartphone", points: ["languages", "moon", "keyboard", "share-2"] };
+const FLOW: Look = Look { id: "way", was: &["weg"], tint: "t-ice", icon: "route", points: ["search", "panel-right-open", "link", "keyboard"] };
+const FILTERS: Look = Look { id: "filters", was: &["filter"], tint: "t-violet", icon: "sliders-horizontal", points: ["circle-check-big", "eye", "graduation-cap", "smartphone"] };
+const MARKS: Look = Look { id: "saved", was: &[], tint: "t-rose", icon: "bookmark", points: ["layers", "pencil", "graduation-cap", "users-round"] };
+const PLANS: Look = Look { id: "study-plans", was: &["regelstudienplaene"], tint: "t-sun", icon: "file-check-2", points: ["scan-line", "sigma", "sparkles", "waypoints"] };
+const STUDY: Look = Look { id: "my-studies", was: &[], tint: "t-green", icon: "graduation-cap", points: ["zap", "target", "triangle-alert", "shuffle"] };
+const TIMETABLE: Look = Look { id: "timetable", was: &["stundenplan"], tint: "t-coral", icon: "calendar-range", points: ["calendar-clock", "triangle-alert", "calendar-plus", "check-check"] };
+const PROFILE: Look = Look { id: "profile", was: &["ohne-konto"], tint: "t-teal", icon: "shield-check", points: ["users-round", "download", "rotate-ccw", "server"] };
+const SYNC: Look = Look { id: "sync", was: &[], tint: "t-ice", icon: "refresh-cw", points: ["scan-line", "eye-off", "wifi-off", "rotate-ccw"] };
+const SHARING: Look = Look { id: "sharing", was: &[], tint: "t-violet", icon: "share-2", points: ["copy", "refresh-cw", "user-round", "calendar-plus"] };
+const TECHNOLOGY: Look = Look { id: "technology", was: &["technik"], tint: "t-slate", icon: "code", points: ["file-code-2", "zap", "wifi-off", "download"] };
+const DATA: Look = Look { id: "sources", was: &["daten"], tint: "t-green", icon: "tree-deciduous", points: ["clock-3", "badge-check", "eye", "arrow-up-right"] };
+const DEVICES: Look = Look { id: "devices", was: &["geraete"], tint: "t-rose", icon: "monitor-smartphone", points: ["smartphone", "languages", "moon", "keyboard"] };
 
 /// The chapters of a topic's page about Betula (`topics.rs`; owner, 2026-10-27: „Das soll
 /// aufgeteilt werden in mehrere kontent pages"): until then all eight stood one under the other
 /// under „Betula im Detail" at the end of the one page of „Über Betula", with a panel that named
-/// them; now two to a topic, the picture of the first on the right and of the second on the left
-/// (the board of the filters across the width under its words). `plans`: the current programs
-/// with a checked plan and all current programs; `example`: what the board's selection finds. Both
-/// are the snapshot's, and missing where it could not be read. The overview and the questions have
-/// no chapter.
+/// them; now two to four to a topic, the picture of every other one on the left (the board of the
+/// filters across the width under its words). `plans`: the current programs with a checked plan
+/// and all current programs; `example`: what the board's selection finds. Both are the snapshot's,
+/// and missing where it could not be read. The overview and the questions have no chapter.
 #[component]
 pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u64>) -> impl IntoView {
     let t = i18n::t();
@@ -95,6 +110,7 @@ pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u6
         AboutTopic::Finding => view! {
             <Feature look=&FLOW words=&d.flow link=(d.to_catalog, url::CATALOG) picture=flow(t).into_any()/>
             <Feature look=&FILTERS words=&d.filters wide=true figure=steps(t).into_any() picture=board(t, example).into_any()/>
+            <Feature look=&MARKS words=&d.marks flip=true link=(d.to_bookmarks, url::BOOKMARKS) picture=shelf(t).into_any()/>
         }
         .into_any(),
         AboutTopic::Planning => {
@@ -109,7 +125,8 @@ pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u6
             });
             view! {
                 <Feature look=&PLANS words=&d.plans figure=plan_figure.into_any() link=(d.to_programs, url::PROGRAMS) picture=plan(t).into_any()/>
-                <Feature look=&TIMETABLE words=&d.timetable flip=true link=(d.to_studyplan, url::STUDYPLAN) picture=week(t).into_any()/>
+                <Feature look=&STUDY words=&d.study flip=true link=(d.to_study, url::STUDY) picture=study(t).into_any()/>
+                <Feature look=&TIMETABLE words=&d.timetable link=(d.to_studyplan, url::STUDYPLAN) picture=week(t).into_any()/>
             }
             .into_any()
         }
@@ -121,7 +138,9 @@ pub fn Chapters(topic: AboutTopic, plans: Option<(u64, u64)>, example: Option<u6
             }
             .into_any();
             view! {
-                <Feature look=&ACCOUNT words=&d.account figure=zeros link=(d.to_privacy, url::PRIVACY) picture=places(t).into_any()/>
+                <Feature look=&PROFILE words=&d.profile figure=zeros link=(d.to_privacy, url::PRIVACY) picture=places(t).into_any()/>
+                <Feature look=&SYNC words=&d.sync flip=true link=(d.to_profile, url::PROFILE) picture=devices_in_sync(t).into_any()/>
+                <Feature look=&SHARING words=&d.sharing link=(d.to_studyplan, url::STUDYPLAN) picture=ways_to_share(t).into_any()/>
                 <Feature look=&DATA words=&d.data flip=true bare=true picture=tree(t).into_any()/>
             }
             .into_any()
@@ -151,9 +170,11 @@ fn Feature(
     #[prop(optional)] bare: bool,
 ) -> impl IntoView {
     let t = i18n::t();
-    let title = format!("{}-titel", look.id);
+    let title = format!("{}-title", look.id);
     view! {
-        <section class=format!("panel feature {}", look.tint) class:flip=flip class:wide=wide id=look.id aria-labelledby=format!("{}-titel", look.id)>
+        <section class=format!("panel feature {}", look.tint) class:flip=flip class:wide=wide id=look.id aria-labelledby=format!("{}-title", look.id)>
+            // The anchors the chapter had before: a link to one still stops at the chapter.
+            {look.was.iter().map(|old| view! { <span class="was-anchor" id=*old></span> }).collect_view()}
             <div class="feature-text">
                 <p class="feature-name"><span class="ico"><Icon name=look.icon/></span>{words.name}</p>
                 <h3 id=title>{words.title}</h3>
@@ -284,13 +305,14 @@ fn steps(t: &'static Texts) -> impl IntoView {
     }
 }
 
-/// Four questions, each a way through the app, and the module page they all end on.
+/// Five questions, each a way through the app, and the module page they all end on.
 fn flow(t: &'static Texts) -> impl IntoView {
     let d = &t.home_detail;
     let c = &t.catalog;
     let english = format!("{}: {}", c.language, Language::English.label(t.locale));
-    let ways: [(&'static str, Vec<String>); 4] = [
+    let ways: [(&'static str, Vec<String>); 5] = [
         ("search", vec![c.tag_search.to_string(), d.as_you_type.to_string()]),
+        ("sparkles", vec![c.tag_search.to_string(), c.similar.to_string()]),
         ("graduation-cap", vec![t.home.choose_program.to_string(), ProgramTab::Plan.label(t.locale).to_string(), d.third_semester.to_string()]),
         ("languages", vec![t.home_detail.quoted_in_catalog.to_string(), c.area.to_string(), english]),
         ("calendar-range", vec![t.app.studyplan.to_string(), c.fits.to_string()]),
@@ -388,7 +410,7 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
     let semesters = std::iter::once(c.all.to_string()).chain((1..=6).map(|n| n.to_string())).chain(["?".to_string()]).collect();
     let credits = (t.format.credits)(&format!("{}–{}", format::number(6.0, locale), format::number(12.0, locale)));
     view! {
-        <input class="board-all" type="checkbox" id="alle-filter"/>
+        <input class="board-all" type="checkbox" id="all-filters"/>
         <div class="board">
             {group(c.tag_search.to_string(), view! { <span class="mock-field typed"><Icon name="search"/><span>{h.search_example}</span><Keys spec=folia_design::keys::SEARCH/></span> }.into_any(), Some(h.search), true)}
             {group(c.program.to_string(), view! {
@@ -427,7 +449,7 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
             }.into_any(), Some(c.location_hint), false)}
             {group(h.sort.to_string(), seg(vec![c.col_module.to_string(), t.common.credits_unit.to_string(), c.dates.to_string()], 0), Some(h.sort_hint), false)}
         </div>
-        <label class="board-more btn secondary" for="alle-filter"><Icon name="chevron-down"/>{h.all}</label>
+        <label class="board-more btn secondary" for="all-filters"><Icon name="chevron-down"/>{h.all}</label>
         // What is chosen, counted, and the way to it: said again while the chips switch.
         <p class="board-foot" aria-live="polite">
             {move || count.get().map(|n| view! {
@@ -499,7 +521,8 @@ fn plan(t: &'static Texts) -> impl IntoView {
 }
 
 /// A week of the Stundenplan in its own grid: a lecture, an Übung with two groups to choose from,
-/// two lectures at one time (the clash, framed in red), and the ways out into a calendar.
+/// two lectures at one time (the clash, framed in red), a Termin of one's own, and the ways out
+/// into a calendar.
 fn week(t: &'static Texts) -> impl IntoView {
     let d = &t.home_detail;
     let [maths, programming, physics, writing] = d.week_modules;
@@ -522,6 +545,7 @@ fn week(t: &'static Texts) -> impl IntoView {
         slot(4, 690, 780, EventKind::Lecture, physics, "t-violet"),
         slot(4, 930, 1020, EventKind::Seminar, writing, "t-teal"),
         GridSlot { small: t.home_detail.quoted_week_a.to_string(), ..slot(5, 555, 750, EventKind::Practical, physics, "t-violet") },
+        GridSlot { label: d.week_own.to_string(), ..slot(3, 930, 1020, EventKind::Lecture, "", "t-own") },
     ];
     let q = &t.home_detail;
     let calendars = [("download", q.quoted_download), ("calendar-plus", q.quoted_apple), ("calendar-plus", q.quoted_google), ("calendar-plus", "Outlook"), ("share-2", q.quoted_copy_link)];
@@ -536,30 +560,186 @@ fn week(t: &'static Texts) -> impl IntoView {
     }
 }
 
-/// Where a visitor's things live: in the browser, which holds all of them; on the server, which
-/// holds the same for everybody; and between them the link that carries the Merkliste.
+/// The Merkliste as it stands beside its list: „Alle" and three collections with how many
+/// modules each holds, and three marked modules — what each counts as in the program, the note at
+/// it, and where it stands in the study.
+fn shelf(t: &'static Texts) -> impl IntoView {
+    let d = &t.home_detail;
+    let stands = [Some(d.quoted_planned), None, Some(d.quoted_passed)];
+    view! {
+        <div class="shelf">
+            <div class="shelf-side">
+                <p class="flabel label">{d.quoted_collections}</p>
+                <ul>
+                    <li class="on"><Icon name="bookmark"/><span>{d.shelf_all}</span><em class="num">"7"</em></li>
+                    {d.shelf_collections.iter().zip(["4", "2", "1"]).map(|(name, held)| view! {
+                        <li><Icon name="layers"/><span>{*name}</span><em class="num">{held}</em></li>
+                    }).collect_view()}
+                </ul>
+            </div>
+            <ul class="shelf-rows">
+                {d.shelf_rows.iter().zip(stands).map(|((name, counts, note), stand)| view! {
+                    <li>
+                        <span class="shelf-mark"><Icon name="bookmark"/></span>
+                        <div>
+                            <b>{*name}</b>
+                            <small>{*counts}</small>
+                            {note.map(|note| view! { <p class="shelf-note"><Icon name="pencil"/>{note}</p> })}
+                        </div>
+                        {stand.map(|stand| view! { <span class="badge">{stand}</span> })}
+                    </li>
+                }).collect_view()}
+            </ul>
+        </div>
+    }
+}
+
+/// „Mein Studium" at a glance: how many credits are passed, a bar of the areas — in each what is
+/// passed, what is planned and what is open, the rest of the study after them —, the areas by
+/// name, and the semesters with what each holds, the one the student is in marked.
+fn study(t: &'static Texts) -> impl IntoView {
+    let d = &t.home_detail;
+    // An area's tint, and its credits passed, planned and asked for; the areas the picture does
+    // not name ask for the rest of the 180.
+    const AREAS: [(&str, u8, u8, u8); 4] = [("t-ice", 54, 12, 66), ("t-violet", 24, 0, 24), ("t-sun", 6, 6, 18), ("t-teal", 0, 6, 6)];
+    const REST: u8 = 66;
+    // The semester the student is in.
+    const NOW: usize = 3;
+    let [passed, planned, open] = d.study_legend;
+    view! {
+        <div class="progress">
+            <p class="progress-head">
+                <b class="num">{d.study_headline}</b>
+                <span class="progress-key"><i class="passed"></i>{passed}<i class="planned"></i>{planned}<i class="open"></i>{open}</span>
+            </p>
+            <div class="progress-bar" aria-hidden="true">
+                {AREAS.iter().map(|(tint, passed, planned, asked)| view! {
+                    <span class=*tint style=format!("--asked:{asked};--passed:{passed};--planned:{planned}")><i></i><i></i></span>
+                }).collect_view()}
+                <span style=format!("--asked:{REST};--passed:0;--planned:0")></span>
+            </div>
+            <ul class="progress-areas">
+                {AREAS.iter().zip(d.study_areas).map(|((tint, ..), (name, credits))| view! {
+                    <li class=*tint><i></i>{name}<em class="num">{credits}</em></li>
+                }).collect_view()}
+            </ul>
+            <ol class="progress-semesters">
+                {d.study_semesters.iter().enumerate().map(|(i, (semester, holds))| {
+                    let icon = match i.cmp(&NOW) {
+                        std::cmp::Ordering::Less => "circle-check-big",
+                        std::cmp::Ordering::Equal => "clock-3",
+                        std::cmp::Ordering::Greater => "calendar-plus",
+                    };
+                    view! {
+                        <li class:past={i < NOW} class:now={i == NOW}>
+                            <Icon name=icon/>
+                            <b>{*semester}</b>
+                            {(i == NOW).then(|| view! { <span class="badge">{d.study_now}</span> })}
+                            <span class="num">{*holds}</span>
+                        </li>
+                    }
+                }).collect_view()}
+            </ol>
+        </div>
+    }
+}
+
+/// Where a visitor's things live: on the device, which holds all of them; on the server, which
+/// holds the same for everybody and nothing of the visitor's — or, with Betula Sync, the profile
+/// sealed —; and between them what a visit sends, the address of the page asked for.
 fn places(t: &'static Texts) -> impl IntoView {
     let d = &t.home_detail;
-    let mine = [("bookmark", t.app.bookmarks), ("calendar-range", t.app.studyplan), ("copy", d.saved_plans), ("star", t.myprogram.mine), ("moon", d.settings), ("database", d.catalog_copy)];
+    let mine = [("bookmark", t.app.bookmarks), ("calendar-range", t.app.studyplan), ("graduation-cap", t.app.my_studies), ("star", t.myprogram.mine), ("moon", d.settings), ("database", d.catalog_copy)];
     let host = seo::site_url();
     let host = host.split("://").nth(1).unwrap_or(&host).to_string();
-    let transfer = format!("{host}{}#m=…", t.path(url::BOOKMARKS));
+    let asked = format!("{host}{}", t.path(url::CATALOG));
     view! {
         <div class="places">
             <div class="place mine">
-                <p class="place-head"><Icon name="monitor"/>{d.in_browser}</p>
+                <p class="place-head"><Icon name="monitor-smartphone"/>{d.on_device}</p>
                 <ul>{mine.into_iter().map(|(icon, label)| view! { <li><Icon name=icon/>{label}</li> }).collect_view()}</ul>
             </div>
             <div class="place-link">
-                <Icon name="link"/>
-                <code>{transfer}</code>
-                <small>{d.after_hash}</small>
+                <Icon name="arrow-right-left"/>
+                <code>{asked}</code>
+                <small>{d.only_the_address}</small>
             </div>
             <div class="place server">
                 <p class="place-head"><Icon name="server"/>{d.on_server}</p>
                 <p>{d.for_everyone}</p>
                 <p class="nothing"><Icon name="eye-off"/>{d.nothing_of_yours}</p>
+                <p class="sealed"><Icon name="lock"/>{d.sealed_copy}</p>
             </div>
+        </div>
+    }
+}
+
+/// Two devices of a profile and the server between them: a change as each device shows it, and
+/// the same change as the server holds it — sealed, with nothing to it but an id, a size and a
+/// time. Under them the ways a key gets from device to device, and the changes.
+fn devices_in_sync(t: &'static Texts) -> impl IntoView {
+    let d = &t.home_detail;
+    let device = |icon: &'static str, name: &'static str| {
+        view! {
+            <div class="sync-device">
+                <p class="place-head"><Icon name=icon/>{name}</p>
+                <p class="sync-change"><Icon name="bookmark"/>{d.sync_change}</p>
+            </div>
+        }
+    };
+    let wire = || view! { <span class="sync-wire" aria-hidden="true"><Icon name="lock"/></span> };
+    let ways = ["scan-line", "clipboard-list", "zap"];
+    view! {
+        <div class="sync-line">
+            {device("smartphone", d.sync_phone)}
+            {wire()}
+            <div class="sync-server">
+                <p class="place-head"><Icon name="server"/>{d.sync_server}</p>
+                // What a sealed change looks like from outside: bytes that say nothing.
+                <p class="sync-blob" aria-hidden="true">"9f 3a c1 07 e4 5b 2d 80 6e …"</p>
+                <p class="sync-tag"><Icon name="lock"/>{d.sync_sealed}</p>
+                <small>{d.sync_knows}</small>
+            </div>
+            {wire()}
+            {device("laptop", d.sync_laptop)}
+        </div>
+        <p class="calendars">
+            {d.sync_ways.iter().zip(ways).map(|(way, icon)| view! { <span class="badge"><Icon name=icon/>{*way}</span> }).collect_view()}
+        </p>
+    }
+}
+
+/// The three ways of the dialog „Teilen", by its own names: a copy of now in the link itself,
+/// what stays current, and a link for one person — each with the link it gives —, and what comes
+/// along with a calendar: what always does, and what only where the student ticks it.
+fn ways_to_share(t: &'static Texts) -> impl IntoView {
+    let d = &t.home_detail;
+    let host = seo::site_url();
+    let host = host.split("://").nth(1).unwrap_or(&host).to_string();
+    let plan = t.path(url::STUDYPLAN);
+    let [fixed, live, once] = d.share_lines;
+    let ways = [
+        ("copy", d.quoted_fixed, format!("{host}{plan}?share=…"), fixed, false),
+        ("refresh-cw", d.quoted_live, format!("{host}{plan}#live=…"), live, true),
+        ("user-round", d.quoted_once, format!("{host}{plan}#once=…"), once, false),
+    ];
+    view! {
+        <div class="share-ways">
+            {ways.into_iter().map(|(icon, name, link, line, on)| view! {
+                <div class="share-way" class:on=on>
+                    <p class="place-head"><Icon name=icon/>{name}</p>
+                    <code>{link}</code>
+                    <small>{line}</small>
+                </div>
+            }).collect_view()}
+        </div>
+        <div class="share-along">
+            <p class="flabel label">{d.quoted_along}</p>
+            <span class="chips">
+                {look(d.share_always.to_string(), None, Tri::With)}
+                {look(d.quoted_own.to_string(), None, Tri::With)}
+                {look(d.quoted_notes.to_string(), None, Tri::Off)}
+            </span>
         </div>
     }
 }
@@ -629,7 +809,7 @@ fn devices(t: &'static Texts) -> impl IntoView {
             <figure class="screen phone">{shots("module-phone", t.home_detail.phone_alt, 720, 960)}</figure>
         </div>
         <p class="device-keys">
-            <Keys spec=folia_design::keys::SEARCH/><kbd>"↑"</kbd><kbd>"↓"</kbd><kbd>"Enter"</kbd><kbd>"M"</kbd><kbd>"F"</kbd><kbd>"Esc"</kbd>
+            <Keys spec=folia_design::keys::SEARCH/><Keys spec=folia_design::keys::COMMANDS/><kbd>"↑"</kbd><kbd>"↓"</kbd><kbd>"Enter"</kbd><kbd>"M"</kbd><kbd>"P"</kbd><kbd>"V"</kbd><kbd>"Esc"</kbd><kbd>"?"</kbd>
             <span class="badge"><Icon name="languages"/>"DE · EN"</span>
             <span class="badge"><Icon name="sun"/><Icon name="moon"/></span>
         </p>

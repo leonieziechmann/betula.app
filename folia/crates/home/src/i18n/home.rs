@@ -13,7 +13,15 @@
 //! is what search engines and the assistants built on them know of Betula; comparing it with other
 //! tools they took the missing account for missing functions, and did not see that it works
 //! without JavaScript or that the study plans are read from the regulations). Where a text names a
-//! button or a filter, it names it as the page labels it; the tests below hold them together.
+//! button or a filter, it names it as the page labels it; the tests below and `folia_app::quotes`
+//! hold them together.
+//!
+//! Since 2026-11-18 it says what Betula is by now (owner: the pages „sind alle veraltet und könnten
+//! etwas interessanter werden") — the day on the start page, „Mein Studium", the Merkliste's
+//! collections and notes, profiles, Betula Sync and sharing; the keys as they are („/" the search,
+//! Strg+K the commands) — and it speaks of no account: there is none, a profile kept on the
+//! device is what there is (owner, the same day: „wir reden nicht von konten … sondern von
+//! profilen und lokalen Daten"; the test below holds every text here to it).
 
 pub struct Texts {
     /// The page's description for search engines and link previews.
@@ -70,12 +78,17 @@ pub struct Texts {
     pub catalog_text_plain: &'static str,
     /// … and what the screenshot shows, for those who cannot see it.
     pub catalog_alt: &'static str,
-    pub plan_slide: Slide,
-    pub plan_text: &'static str,
-    pub plan_alt: &'static str,
-    pub module_slide: Slide,
-    pub module_text: &'static str,
-    pub module_alt: &'static str,
+    /// The start page of a study set up, „Mein Studium" and the Stundenplan, each a screenshot of
+    /// an example study (`folia/e2e/showcase-shots.mjs`).
+    pub day_slide: Slide,
+    pub day_text: &'static str,
+    pub day_alt: &'static str,
+    pub study_slide: Slide,
+    pub study_text: &'static str,
+    pub study_alt: &'static str,
+    pub timetable_slide: Slide,
+    pub timetable_text: &'static str,
+    pub timetable_alt: &'static str,
 
     // The map
     /// The dialog the map opens large in: heading, the line under it, its close button.
@@ -131,10 +144,13 @@ pub struct Texts {
     pub search: Ability,
     pub filters: Ability,
     pub plans: Ability,
+    pub study: Ability,
     pub timetable: Ability,
     pub dates: Ability,
+    pub day: Ability,
+    pub marks: Ability,
     pub prerequisites: Ability,
-    pub account: Ability,
+    pub profile: Ability,
     pub offline: Ability,
     pub gaps: Ability,
     /// „In Arbeit", and what is.
@@ -175,7 +191,7 @@ pub struct Faq {
 }
 
 pub const DE: Texts = Texts {
-    description: "Alle Module und Studiengänge der BTU Cottbus-Senftenberg an einem Ort: durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, dein Stundenplan mit Kalender-Abo. Kostenlos, ohne Konto, auch offline. Inoffiziell, mit Link zum Original.",
+    description: "Alle Module und Studiengänge der BTU Cottbus-Senftenberg an einem Ort: durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, dein Studium Semester für Semester, dein Stundenplan mit Kalender-Abo. Kostenlos, auf all deinen Geräten, auch offline. Inoffiziell, mit Link zum Original.",
     seo_title: "Betula · Modulkatalog für die BTU Cottbus-Senftenberg",
     alternate_names: ["Betula Modulkatalog", "Modulkatalog BTU Cottbus-Senftenberg (inoffiziell)"],
     browser_requirements: "Läuft in jedem aktuellen Browser, auch ohne JavaScript. Mit JavaScript lädt die App den Katalog als SQLite-Datenbank in den Browser (WebAssembly), antwortet ohne Ladezeiten und funktioniert offline.",
@@ -207,14 +223,15 @@ pub const DE: Texts = Texts {
     catalog_text: |n| format!("Alle {n} Module, gefiltert während du tippst"),
     catalog_text_plain: "Alle Module, gefiltert während du tippst",
     catalog_alt: "Der Modulkatalog: die Suche „datenbank“ mit sechs Treffern, rechts das Modul Datenbanken mit seinem Wochenplan",
-    // „Studienplan" names the visitor's own plan now (the area „Plan"); the program's plan is the
-    // Regelstudienplan.
-    plan_slide: Slide { tab: "Regelstudienplan", title: "Der Regelstudienplan", action: "Studiengang wählen" },
-    plan_text: "Semester für Semester, als Matrix",
-    plan_alt: "Der Regelstudienplan von Informatik B.Sc. als Matrix: Module mal Semester, mit Pflicht und Wahlpflicht",
-    module_slide: Slide { tab: "Modul", title: "Ein Modul", action: "Beispiel ansehen" },
-    module_text: "Inhalte, Prüfung und Termine auf einer Seite",
-    module_alt: "Die Seite des Moduls Datenbanken: Inhalte, Lernziele, Prüfungsleistung und der Wochenplan der Termine",
+    day_slide: Slide { tab: "Dein Tag", title: "Dein Tag", action: "Zur Startseite" },
+    day_text: "Was gerade läuft, was als Nächstes kommt, wann deine Prüfungen sind",
+    day_alt: "Die Startseite mit eingerichtetem Studium: die Begrüßung mit dem nächsten Termin, darunter der Tag, die Woche, die Prüfungen und der Stand des Studiums",
+    study_slide: Slide { tab: "Studium", title: "Mein Studium", action: "Zu „Mein Studium“" },
+    study_text: "Bestanden, geplant, offen: Semester für Semester",
+    study_alt: "„Mein Studium“ für Informatik B.Sc.: die bestandenen Leistungspunkte, die Bereiche als Balken, darunter die Module des laufenden Semesters",
+    timetable_slide: Slide { tab: "Stundenplan", title: "Der Stundenplan", action: "Zum Stundenplan" },
+    timetable_text: "Dein Semester als Woche, mit jeder Überschneidung",
+    timetable_alt: "Der Stundenplan eines Semesters als Woche: Vorlesungen, Übungen und ein Praktikum, eine Überschneidung markiert, eine Übungsgruppe noch zu wählen",
 
     map_heading: "Wie die Studiengänge zusammenhängen",
     map_hint: "Jeder Punkt ist ein Studiengang; eine Linie verbindet zwei, deren Curricula sich Module teilen. Ein Klick auf einen Punkt zeigt, wohin er gehört.",
@@ -253,8 +270,8 @@ pub const DE: Texts = Texts {
     questions: "Fragen und Antworten",
     abilities_lead: "Dieselben Daten wie bei der BTU, so aufbereitet, dass man mit ihnen planen kann.",
     search: Ability {
-        title: "Ein Suchfeld für alle Module",
-        text: "Deutscher und englischer Titel und die Modulnummer in einer Suche, über alle Fakultäten und auf jeder Seite, mit Strg+K oder /. Die Treffer stehen da, während du tippst.",
+        title: "Ein Suchfeld für alles",
+        text: "Titel auf Deutsch und Englisch, Modulnummer, Kürzel und Lehrende in einer Suche, auf jeder Seite, mit der Taste /. Die Treffer stehen da, während du tippst, und darunter „Ähnliche Module“ zum selben Thema. Strg+K öffnet die Befehle für alles andere.",
     },
     filters: Ability {
         title: "Filter, die zusammenpassen",
@@ -264,21 +281,33 @@ pub const DE: Texts = Texts {
         title: "Regelstudienpläne aus den Prüfungsordnungen",
         text: "Aus den PDFs der Prüfungs- und Studienordnungen gelesen und gegen deren eigene Summen geprüft: Semester für Semester, mit Pflicht, Wahlpflicht und jeder Studienrichtung.",
     },
+    study: Ability {
+        title: "Dein Studium, Semester für Semester",
+        text: "„Mein Studium“ zeigt, was bestanden, geplant und offen ist, mit den Leistungspunkten jedes Bereichs. Beim Einplanen siehst du, ob ein Modul in dem Semester angeboten wird und ob seine Voraussetzungen davor liegen.",
+    },
     timetable: Ability {
         title: "Ein Stundenplan, der mitdenkt",
-        text: "Module einplanen oder ein ganzes Fachsemester übernehmen: Betula zeigt die Woche, findet Überschneidungen und zu knappe Prüfungen und sucht Module, die noch hineinpassen. Als .ics-Datei oder Kalender-Abo.",
+        text: "Ein Fachsemester übernehmen oder Module einzeln einplanen: Betula zeigt die Woche, findet Überschneidungen und zu knappe Prüfungen und sucht Module, die noch hineinpassen. Mit eigenen Terminen und Notizen, als .ics-Datei oder Kalender-Abo.",
     },
     dates: Ability {
         title: "Termine aus dem Vorlesungsverzeichnis",
         text: "Vorlesungen, Übungen und Prüfungen als Wochenplan beim Modul, mit Räumen, A- und B-Wochen. Platzhalter aus QIS wie eine Prüfung um 01:00 Uhr erscheinen als „Zeit offen“ statt als falsche Uhrzeit.",
     },
+    day: Ability {
+        title: "Dein Tag auf der Startseite",
+        text: "Was gerade läuft, was als Nächstes kommt und in welchem Raum: Die Startseite zeigt deinen Tag, die Woche, die nächsten Prüfungen und wie weit dein Studium ist.",
+    },
+    marks: Ability {
+        title: "Merkliste mit Sammlungen und Notizen",
+        text: "Ein Klick aufs Lesezeichen merkt ein Modul. Sammlungen ordnen, was zusammengehört, eine Notiz hält fest, warum, und die Liste zeigt, was davon in deinem Studium zählt.",
+    },
     prerequisites: Ability {
         title: "Voraussetzungen zum Anklicken",
         text: "Was ein Modul zwingend oder empfohlen voraussetzt, führt als Link direkt zu diesem Modul, mit dem Wortlaut der Modulbeschreibung. Ein abgelöstes Modul nennt sein Nachfolgemodul.",
     },
-    account: Ability {
-        title: "Kein Konto, und nichts fehlt",
-        text: "Merkliste, Stundenplan, gespeicherte Pläne und dein Studiengang liegen in deinem Browser statt auf einem Server. Per Link kommen sie auf andere Geräte, per Abo in deinen Kalender. Ohne Anmeldung, Werbung oder Tracking.",
+    profile: Ability {
+        title: "Deine Daten bleiben bei dir",
+        text: "Was du merkst und planst, liegt in deinem Profil auf deinem Gerät. Mit Betula Sync haben es alle deine Geräte, verschlüsselt mit einem Schlüssel, den nur sie kennen. Ohne Werbung, ohne Tracking.",
     },
     offline: Ability {
         title: "Schnell, offline, auch ohne JavaScript",
@@ -308,7 +337,7 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Wie funktioniert Betula?",
-                "Betula hat zwei Teile, benannt nach der Birke. Radix, die Wurzel, liest die öffentlichen Seiten der BTU und die PDFs ihrer Prüfungsordnungen ein, prüft das Ergebnis und veröffentlicht es als Datenstand: Module, Studiengänge mit Regelstudienplänen und Bereichen, die Termine des Vorlesungsverzeichnisses. Folia, die Blätter, ist die Web-App, die du gerade siehst. Ihr Server liefert jede Seite als fertiges HTML; mit JavaScript lädt dein Browser den Datenstand einmal als Datenbank und beantwortet danach Suche und Filter selbst. Welche Versionen gerade laufen, steht am Ende jeder Seite.",
+                "Betula ist nach der Birke benannt, und seine Teile sind es auch. Radix, die Wurzel, liest die öffentlichen Seiten der BTU und die PDFs ihrer Prüfungsordnungen ein, prüft das Ergebnis und veröffentlicht es als Datenstand: Module, Studiengänge mit Regelstudienplänen und Bereichen, die Termine des Vorlesungsverzeichnisses. Folia, die Blätter, ist die Web-App, die du gerade siehst. Ihr Server liefert jede Seite als fertiges HTML; mit JavaScript lädt dein Browser den Datenstand einmal als Datenbank und beantwortet danach Suche und Filter selbst. Und Phloem, das Leitgewebe unter der Rinde, reicht mit Betula Sync die verschlüsselten Änderungen zwischen deinen Geräten weiter. Welche Versionen gerade laufen, steht am Ende dieser Seite und auf der Profilseite.",
             ),
             (
                 "Woher kommen die Daten?",
@@ -316,15 +345,15 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Wie aktuell ist der Katalog?",
-                "Radix liest die Quellen laufend nach, in kleinen Schritten und das meiste nachts: Termine, die noch nicht feststehen, alle zwei Stunden, das Vorlesungsverzeichnis jede Nacht, Modulbeschreibungen und Studiengänge mindestens einmal im Monat. Ein neuer Datenstand erscheint, sobald sich etwas geändert und er alle Prüfungen bestanden hat; wann das zuletzt war, steht am Ende jeder Seite. Kurzfristige Änderungen stehen zuerst bei der BTU, und im Zweifel gilt das Original.",
+                "Radix liest die Quellen laufend nach, in kleinen Schritten und das meiste nachts: Termine, die noch nicht feststehen, alle zwei Stunden, das Vorlesungsverzeichnis jede Nacht, Modulbeschreibungen und Studiengänge mindestens einmal im Monat. Ein neuer Datenstand erscheint, sobald sich etwas geändert und er alle Prüfungen bestanden hat; wann das zuletzt war, steht am Ende dieser Seite und auf der Profilseite. Kurzfristige Änderungen stehen zuerst bei der BTU, und im Zweifel gilt das Original.",
             ),
             (
                 "Kostet Betula etwas?",
                 "Nein. Betula ist kostenlos, ohne Werbung und ohne Tracking: kein Analysedienst, keine Cookies, die dich wiedererkennen, und nichts wird von fremden Servern geladen. Es ist ein privates, nicht-kommerzielles Projekt.",
             ),
             (
-                "Warum gibt es kein Konto? Fehlt dadurch etwas?",
-                "Nein. Das Konto fehlt mit Absicht, nicht die Funktionen: Merkliste, Stundenplan mit Platzhaltern und ausgewählten Terminen, gespeicherte Pläne, „Mein Studiengang“ und deine Einstellungen funktionieren ohne Anmeldung, weil sie in deinem Browser liegen statt auf einem Server. Niemand sonst kann sie einsehen, und es gibt weder Passwort noch Profil. Auf ein anderes Gerät kommen Merkliste und Stundenplan per Link, in Apple Kalender, Google Kalender oder Outlook per Abo.",
+                "Wo liegen meine Daten?",
+                "In deinem Profil, und das liegt lokal auf deinem Gerät, im Speicher deines Browsers: deine Merkliste mit Sammlungen und Notizen, dein Stundenplan, „Mein Studium“ und „Mein Studiengang“. Betula fragt weder nach deinem Namen noch nach einer E-Mail-Adresse, und der Server bekommt nichts davon. Erst wenn du Betula Sync einschaltest, liegt eine Kopie auf dem Server, verschlüsselt mit einem Schlüssel, den nur deine Geräte haben. Die Einzelheiten stehen in der Datenschutzerklärung.",
             ),
         ],
     },
@@ -333,23 +362,47 @@ pub const DE: Texts = Texts {
         questions: &[
             (
                 "Wie finde ich schnell das richtige Modul?",
-                "Tippe oben in die Suche einen Titel oder eine Modulnummer (Strg+K oder / springt hinein), oder fang mit einem Filter an: Studiengang, Bereich, Fachsemester, Turnus, Prüfungsform, Leistungspunkte, Sprache, Standort, Lehrende und mehr. Alle Filter lassen sich kombinieren und fast alle umkehren, etwa zu „alles außer Klausur“. Jede Auswahl steht in der Adresse, lässt sich also teilen, als Lesezeichen speichern und mit „Zurück“ zurücknehmen. Jeden Filter einzeln erklärt die Seite „Module finden“, zu der auf der Startseite „Mehr über Betula“ führt.",
+                "Tippe oben in die Suche einen Titel, eine Modulnummer, ein Kürzel oder einen Namen aus der Lehre (die Taste / springt hinein); unter den Treffern stehen „Ähnliche Module“, die zum selben Thema passen. Oder fang mit einem Filter an: Studiengang, Bereich, Fachsemester, Turnus, Prüfungsform, Leistungspunkte, Sprache, Standort, Lehrende und mehr. Alle Filter lassen sich kombinieren und fast alle umkehren, etwa zu „alles außer Klausur“. Jede Auswahl steht in der Adresse, lässt sich also teilen, als Lesezeichen speichern und mit „Zurück“ zurücknehmen. Jeden Filter einzeln erklärt die Seite „Module finden“, zu der auf der Startseite „Mehr über Betula“ führt.",
+            ),
+            (
+                "Was zeigt die Startseite?",
+                "Sobald dein Studium eingerichtet ist, deinen Tag: was gerade läuft, was als Nächstes kommt und in welchem Raum, dazu die Woche, die nächsten Prüfungen, den Stand deines Studiums und deine Merkliste. Eingerichtet ist es in drei Klicks: Studiengang, Studienbeginn, Fachsemester. Wer sich erst umsehen will, sucht und stöbert ohne Einrichtung.",
+            ),
+            (
+                "Was ist „Mein Studium“?",
+                "Dein Plan bis zum Abschluss. Betula füllt die Semester nach dem Regelstudienplan deines Studiengangs, du hakst ab, was bestanden ist, und planst, was kommt. Ein Balken zeigt für jeden Bereich, wie viele Leistungspunkte bestanden, geplant und noch offen sind. Beim Einplanen siehst du, ob ein Modul in dem Semester angeboten wird und ob seine Voraussetzungen davor liegen; Urlaubssemester, Wiederholungen und ein Wechsel des Studiengangs rechnet der Plan mit.",
             ),
             (
                 "Was kann der Stundenplan?",
-                "Er zeigt ein Semester als Woche. Module kommen mit „Einplanen“ hinein, aus der Merkliste oder als ganzes Fachsemester aus dem Regelstudienplan, dessen Wahlpflichtzeilen zu Platzhaltern werden. Betula zählt Überschneidungen an den Tagen, an denen sich Termine wirklich treffen, mit A- und B-Wochen, bei Übungen mit mehreren Gruppen erst, wenn keine Gruppe mehr frei ist. Es warnt vor Prüfungen, die sich überschneiden oder zu wenig Zeit für den Weg zwischen den Standorten lassen, und „Passt in meinen Stundenplan“ findet Module, die noch hineinpassen. Mitnehmen lässt sich der Plan als .ics-Datei, als Kalender-Abo, das Änderungen selbst nachlädt, oder als Link zum Teilen.",
+                "Er zeigt ein Semester als Woche. Module kommen mit „Einplanen“ hinein, aus der Merkliste oder als ganzes Fachsemester aus dem Regelstudienplan, dessen Wahlpflichtzeilen zu Platzhaltern werden. Betula zählt Überschneidungen an den Tagen, an denen sich Termine wirklich treffen, mit A- und B-Wochen, bei Übungen mit mehreren Gruppen erst, wenn keine Gruppe mehr frei ist. Es warnt vor Prüfungen, die sich überschneiden oder zu wenig Zeit für den Weg zwischen den Standorten lassen, und „Passt in meinen Stundenplan“ findet Module, die noch hineinpassen. Eigene Termine stehen daneben, und einen Termin aus QIS kannst du verlegen und mit einer Notiz versehen. Mitnehmen lässt sich der Plan als .ics-Datei, als Bild oder als Kalender-Abo, das Änderungen selbst nachlädt.",
             ),
             (
                 "Kann ich mir Module merken?",
-                "Ja. Jedes Modul hat ein Lesezeichen, die Taste M tut dasselbe. Die Merkliste zählt deine Module und Leistungspunkte, trennt Winter und Sommer, lässt sich als Text kopieren und dient im Katalog als Filter („Gemerkt“). Sie liegt nur in deinem Browser: kein Konto, und nichts davon erreicht den Server.",
+                "Ja. Jedes Modul hat ein Lesezeichen, die Taste M tut dasselbe. Die Merkliste ordnest du in Sammlungen, zu jedem Modul passt eine Notiz, und sie zeigt, was davon in deinem Studium zählt und schon geplant oder bestanden ist. Sie lässt sich als Text kopieren und dient im Katalog als Filter („Gemerkt“). Sie gehört zu deinem Profil und liegt auf deinem Gerät.",
             ),
             (
                 "Kann ich Betula auf mehreren Geräten nutzen?",
-                "Ja, ohne Konto. „Link für ein anderes Gerät“ im Menü der Merkliste kopiert einen Link, der deine Merkliste hinter dem „#“ der Adresse trägt, und diesen Teil schickt kein Browser an einen Server. Einen Stundenplan gibst du mit „Link zum Teilen kopieren“ weiter, an dein anderes Gerät oder an andere Studierende, die seine Module dann übernehmen können. Und ein Kalender-Abo zeigt deinen Plan auf jedem Gerät, auf dem dein Kalender läuft.",
+                "Ja, mit Betula Sync. Schalte es auf der Seite „Profil“ für ein Profil ein und scanne mit dem anderen Gerät den QR-Code unter „Gerät verbinden“: Von da an haben Handy, Laptop und Tablet denselben Stand, und eine Änderung ist auf den anderen sofort da, auch nach einer Weile ohne Netz. Ohne Sync bringt eine Sicherung als Datei ein Profil auf ein anderes Gerät.",
+            ),
+            (
+                "Wer kann mit Betula Sync meine Daten lesen?",
+                "Nur deine Geräte. Dein Browser verschlüsselt jede Änderung, bevor sie das Gerät verlässt, mit einem Schlüssel, den er selbst erzeugt und der nur per QR-Code oder Link von Gerät zu Gerät geht. Der Server bewahrt die versiegelten Änderungen auf und reicht sie weiter; er kennt zufällige Kennungen, Größen und Zeitpunkte, aber weder den Inhalt noch dich: Einen Namen, eine E-Mail-Adresse oder ein Passwort gibt es dafür nicht. „Sync beenden“ löscht die Kopie auf dem Server sofort.",
+            ),
+            (
+                "Was passiert, wenn ich mein Handy verliere oder den Browser leere?",
+                "Mit Betula Sync nichts Schlimmes: Jedes andere verbundene Gerät hat das ganze Profil. Sind alle Geräte weg, holt der Wiederherstellungscode es zurück; Betula zeigt ihn dir auf der Seite „Profil“, bewahre ihn auf wie ein Passwort. Ein verlorenes Gerät sperrst du aus, indem du Sync beendest und neu einschaltest. Ohne Sync liegt ein Profil nur in dem einen Browser; dann schützt eine Sicherung als Datei, die du ebenfalls auf der Seite „Profil“ anlegst.",
+            ),
+            (
+                "Kann ich meinen Stundenplan oder meine Merkliste teilen?",
+                "Ja, mit „Teilen …“, auf drei Arten. Als fester Stand: ein Link mit einer Kopie von jetzt, den jeder öffnen kann, der ihn hat. So, dass es aktuell bleibt: Andere folgen deinem Kalender oder deiner Liste und sehen jede Änderung, bis du aufhörst zu teilen. Oder als Einmal-Link für genau eine Person, der höchstens 7 Tage gilt. Was aktuell bleibt und der Einmal-Link brauchen Betula Sync, und du wählst dabei, ob eigene Termine und Notizen mitkommen.",
+            ),
+            (
+                "Kann ich für zwei Studiengänge planen?",
+                "Ja, mit einem Profil je Studiengang. Jedes Profil hat seine eigene Merkliste, seinen Stundenplan und sein Studium; auf der Seite „Profil“ legst du eines an und wechselst zwischen ihnen. Ein zweites Profil eignet sich auch, um einen anderen Verlauf deines Studiums durchzuspielen.",
             ),
             (
                 "Funktioniert Betula ohne JavaScript?",
-                "Ja. Jede Seite kommt vom Server als vollständiges HTML: Der Katalog mit allen Filtern, die Modulseiten, Studiengänge und Regelstudienpläne funktionieren ohne JavaScript, als klassische Website, für Textbrowser und Suchmaschinen genauso. Mit JavaScript übernimmt eine App aus Rust und WebAssembly: Sie lädt den Katalog einmal als SQLite-Datenbank in deinen Browser und beantwortet danach jede Suche und jeden Filter selbst, ohne Ladezeiten zwischen den Seiten. Was in deinem Browser liegt, Merkliste und Stundenplan, braucht JavaScript.",
+                "Ja. Jede Seite kommt vom Server als vollständiges HTML: Der Katalog mit allen Filtern, die Modulseiten, Studiengänge und Regelstudienpläne funktionieren ohne JavaScript, als klassische Website, für Textbrowser und Suchmaschinen genauso. Mit JavaScript übernimmt eine App aus Rust und WebAssembly: Sie lädt den Katalog einmal als SQLite-Datenbank in deinen Browser und beantwortet danach jede Suche und jeden Filter selbst, ohne Ladezeiten zwischen den Seiten. Was zu deinem Profil gehört, Merkliste, Stundenplan und „Mein Studium“, braucht JavaScript.",
             ),
             (
                 "Funktioniert Betula offline und als App?",
@@ -388,13 +441,17 @@ pub const DE: Texts = Texts {
                 "Wo melde ich mich für Module und Prüfungen an?",
                 "Nicht bei Betula. Anmeldungen laufen über die Systeme der BTU; Fristen und Regeln stehen dort und in deiner Prüfungsordnung. Betula hilft beim Planen und verlinkt jedes Modul auf sein Original.",
             ),
+            (
+                "Wie sehe ich, wie viele Leistungspunkte mir noch fehlen?",
+                "In „Mein Studium“. Dort steht, wie viele Leistungspunkte du bestanden und geplant hast, im Ganzen und für jeden Bereich deines Studiengangs, und was laut Regelstudienplan noch offen ist. Betula rechnet mit dem, was du als bestanden markierst; verbindlich ist dein Notenspiegel bei der BTU.",
+            ),
         ],
     },
 
 };
 
 pub const EN: Texts = Texts {
-    description: "Every module and degree programme of BTU Cottbus-Senftenberg in one place: search and filter, standard study plans from the examination regulations, your timetable with a calendar subscription. Free, no account, works offline. Unofficial, with a link to the original.",
+    description: "Every module and degree programme of BTU Cottbus-Senftenberg in one place: search and filter, standard study plans from the examination regulations, your studies semester by semester, your timetable with a calendar subscription. Free, on all your devices, works offline. Unofficial, with a link to the original.",
     seo_title: "Betula · Module catalogue for BTU Cottbus-Senftenberg",
     alternate_names: ["Betula module catalogue", "Module catalogue of BTU Cottbus-Senftenberg (unofficial)"],
     browser_requirements: "Runs in any current browser, also without JavaScript. With JavaScript the app loads the catalogue into the browser as an SQLite database (WebAssembly), answers without loading times and works offline.",
@@ -426,12 +483,15 @@ pub const EN: Texts = Texts {
     catalog_text: |n| format!("All {n} modules, filtered as you type"),
     catalog_text_plain: "All modules, filtered as you type",
     catalog_alt: "The module catalogue: the search “datenbank” with six results, on the right the module Datenbanken with its weekly schedule",
-    plan_slide: Slide { tab: "Standard study plan", title: "The standard study plan", action: "Choose a degree programme" },
-    plan_text: "Semester by semester, as a matrix",
-    plan_alt: "The standard study plan of Informatik B.Sc. as a matrix: modules by semester, with compulsory and compulsory elective modules",
-    module_slide: Slide { tab: "Module", title: "A module", action: "See an example" },
-    module_text: "Contents, exam and dates on one page",
-    module_alt: "The page of the module Datenbanken: contents, learning outcomes, assessment and the weekly schedule of its dates",
+    day_slide: Slide { tab: "Your day", title: "Your day", action: "To the start page" },
+    day_text: "What is on right now, what comes next, when your exams are",
+    day_alt: "The start page with a study set up: the greeting with the next session, under it the day, the week, the exams and how far the studies are",
+    study_slide: Slide { tab: "Studies", title: "My studies", action: "To “My studies”" },
+    study_text: "Passed, planned, open: semester by semester",
+    study_alt: "“My studies” for Informatik B.Sc.: the credit points passed, the areas as a bar, under it the modules of the current semester",
+    timetable_slide: Slide { tab: "Timetable", title: "The timetable", action: "To the timetable" },
+    timetable_text: "Your semester as a week, with every clash",
+    timetable_alt: "The timetable of a semester as a week: lectures, exercises and a lab course, a clash marked, an exercise group still to choose",
 
     map_heading: "How the degree programmes are connected",
     map_hint: "Each dot is a degree programme; a line joins two whose curricula share modules. A click on a dot shows where it belongs.",
@@ -470,8 +530,8 @@ pub const EN: Texts = Texts {
     questions: "Questions and answers",
     abilities_lead: "The same data as at BTU, prepared so that you can plan with it.",
     search: Ability {
-        title: "One search box for all modules",
-        text: "German and English titles and the module number in one search, across all faculties and on every page, with Ctrl+K or /. The results appear as you type.",
+        title: "One search box for everything",
+        text: "German and English titles, module numbers, abbreviations and lecturers in one search, on every page, with the / key. The results appear as you type, and under them “Similar modules” on the same topic. Ctrl+K opens the commands for everything else.",
     },
     filters: Ability {
         title: "Filters that work together",
@@ -481,21 +541,33 @@ pub const EN: Texts = Texts {
         title: "Study plans from the regulations",
         text: "Read from the PDFs of the examination and study regulations and checked against their own totals: semester by semester, with compulsory and elective modules and every study direction.",
     },
+    study: Ability {
+        title: "Your studies, semester by semester",
+        text: "“My studies” shows what is passed, planned and open, with the credit points of every area. While planning you see whether a module is offered in that semester and whether its prerequisites come before it.",
+    },
     timetable: Ability {
         title: "A timetable that thinks ahead",
-        text: "Plan modules or import a whole semester of your programme: Betula shows the week, finds clashes and exams too close together, and looks for modules that still fit. As an .ics file or a calendar subscription.",
+        text: "Import a whole semester of your programme or plan modules one by one: Betula shows the week, finds clashes and exams too close together, and looks for modules that still fit. With your own events and notes, as an .ics file or a calendar subscription.",
     },
     dates: Ability {
         title: "Dates from the course catalogue",
         text: "Lectures, exercises and exams as a weekly schedule with the module, with rooms and A and B weeks. Placeholders in QIS, such as an exam at 1 a.m., show as “Time TBA” instead of a wrong time.",
     },
+    day: Ability {
+        title: "Your day on the start page",
+        text: "What is on right now, what comes next and in which room: the start page shows your day, the week, the next exams and how far your studies are.",
+    },
+    marks: Ability {
+        title: "Saved modules with collections and notes",
+        text: "One click on the bookmark saves a module. Collections sort what belongs together, a note keeps why, and the list shows what of it counts in your studies.",
+    },
     prerequisites: Ability {
         title: "Prerequisites to click on",
         text: "What a module requires, mandatory or recommended, leads straight to that module as a link, with the wording of the module description. A module that was replaced names its successor.",
     },
-    account: Ability {
-        title: "No account, nothing missing",
-        text: "Saved modules, your timetable, saved plans and your programme live in your browser instead of on a server. Links take them to other devices, a subscription into your calendar. No sign-up, no ads, no tracking.",
+    profile: Ability {
+        title: "Your data stays with you",
+        text: "What you save and plan is kept in your profile on your device. With Betula Sync all your devices have it, encrypted with a key only they know. No ads, no tracking.",
     },
     offline: Ability {
         title: "Fast, offline, even without JavaScript",
@@ -525,7 +597,7 @@ pub const EN: Texts = Texts {
             ),
             (
                 "How does Betula work?",
-                "Betula has two parts, named after the birch. Radix, the root, reads BTU's public pages and the PDFs of its examination regulations, checks the result and publishes it as a data set: modules, degree programmes with their standard study plans and areas, the dates of the course catalogue. Folia, the leaves, is the web app you are looking at. Its server delivers every page as finished HTML; with JavaScript your browser loads the data set once as a database and from then on answers search and filters itself. Which versions are running is shown at the end of every page.",
+                "Betula is named after the birch, and so are its parts. Radix, the root, reads BTU's public pages and the PDFs of its examination regulations, checks the result and publishes it as a data set: modules, degree programmes with their standard study plans and areas, the dates of the course catalogue. Folia, the leaves, is the web app you are looking at. Its server delivers every page as finished HTML; with JavaScript your browser loads the data set once as a database and from then on answers search and filters itself. And Phloem, the tissue under the bark that carries the sap, hands the encrypted changes of Betula Sync on between your devices. Which versions are running is shown at the end of this page and on the profile page.",
             ),
             (
                 "Where does the data come from?",
@@ -533,15 +605,15 @@ pub const EN: Texts = Texts {
             ),
             (
                 "How up to date is the catalogue?",
-                "Radix reads the sources continuously, in small steps and mostly at night: dates that are not settled yet every two hours, the course catalogue every night, module descriptions and degree programmes at least once a month. A new data set appears as soon as something has changed and it has passed every check; when that last happened is shown at the end of every page. Short-notice changes appear at BTU first, and if in doubt, the original applies.",
+                "Radix reads the sources continuously, in small steps and mostly at night: dates that are not settled yet every two hours, the course catalogue every night, module descriptions and degree programmes at least once a month. A new data set appears as soon as something has changed and it has passed every check; when that last happened is shown at the end of this page and on the profile page. Short-notice changes appear at BTU first, and if in doubt, the original applies.",
             ),
             (
                 "Does Betula cost anything?",
                 "No. Betula is free, without advertising and without tracking: no analytics, no cookies that recognise you, and nothing is loaded from other servers. It is a private, non-commercial project.",
             ),
             (
-                "Why is there no account? Is anything missing without one?",
-                "No. The account is left out on purpose, not the features: saved modules, a timetable with placeholders and chosen dates, saved plans, “My programme” and your settings all work without signing up, because they live in your browser instead of on a server. Nobody else can see them, and there is no password and no profile. Links take your saved modules and your timetable to another device, and a subscription takes the timetable into Apple Calendar, Google Calendar or Outlook.",
+                "Where is my data kept?",
+                "In your profile, and that is kept locally on your device, in your browser's storage: your saved modules with their collections and notes, your timetable, “My studies” and “My programme”. Betula asks neither for your name nor for an e-mail address, and the server gets none of it. Only when you switch on Betula Sync is a copy kept on the server, encrypted with a key only your devices have. The details are in the privacy policy.",
             ),
         ],
     },
@@ -550,23 +622,47 @@ pub const EN: Texts = Texts {
         questions: &[
             (
                 "How do I find the right module quickly?",
-                "Type a title or a module number into the search at the top (Ctrl+K or / jumps there), or start with a filter: degree programme, area, semester, offering, form of assessment, credit points, language, location, lecturers and more. All filters can be combined and almost all inverted, for example into “everything but a written exam”. Every selection is part of the address, so you can share it, bookmark it and go back with the browser's Back button. The page “Finding modules”, which “More about Betula” on the start page leads to, explains every filter.",
+                "Type a title, a module number, an abbreviation or a lecturer's name into the search at the top (the / key jumps there); under the results stand “Similar modules” on the same topic. Or start with a filter: degree programme, area, semester, offering, form of assessment, credit points, language, location, lecturers and more. All filters can be combined and almost all inverted, for example into “everything but a written exam”. Every selection is part of the address, so you can share it, bookmark it and go back with the browser's Back button. The page “Finding modules”, which “More about Betula” on the start page leads to, explains every filter.",
+            ),
+            (
+                "What does the start page show?",
+                "Once your studies are set up, your day: what is on right now, what comes next and in which room, and with it the week, the next exams, how far your studies are and your saved modules. Setting up takes three clicks: programme, start of studies, semester. If you want to look around first, you can search and browse without setting anything up.",
+            ),
+            (
+                "What is “My studies”?",
+                "Your plan up to your degree. Betula fills the semesters from the standard study plan of your programme, you tick off what you have passed and plan what comes. A bar shows for every area how many credit points are passed, planned and still open. While planning you see whether a module is offered in that semester and whether its prerequisites come before it; the plan allows for semesters of leave, retakes and a change of programme.",
             ),
             (
                 "What can the timetable do?",
-                "It shows one semester as a week. Modules come in with “Plan”, from your saved modules, or as a whole semester of your standard study plan, whose elective rows become placeholders. Betula counts clashes on the days on which dates really meet, with A and B weeks, and for exercises with several groups only when no group is free any more. It warns about exams that overlap or leave too little time to get from one site to the other, and “Fits my timetable” finds modules that still fit. You can take the plan along as an .ics file, as a calendar subscription that fetches changes by itself, or as a link to share.",
+                "It shows one semester as a week. Modules come in with “Plan”, from your saved modules, or as a whole semester of your standard study plan, whose elective rows become placeholders. Betula counts clashes on the days on which dates really meet, with A and B weeks, and for exercises with several groups only when no group is free any more. It warns about exams that overlap or leave too little time to get from one site to the other, and “Fits my timetable” finds modules that still fit. Your own events stand beside them, and a session from QIS can be moved and given a note. You can take the plan along as an .ics file, as a picture, or as a calendar subscription that fetches changes by itself.",
             ),
             (
                 "Can I save modules?",
-                "Yes. Every module has a bookmark, and the M key does the same. Your saved modules are counted with their credit points, split into winter and summer, can be copied as text and work as a filter in the catalogue (“Saved”). They are kept only in your browser: no account, and none of it reaches the server.",
+                "Yes. Every module has a bookmark, and the M key does the same. You sort your saved modules into collections, every module can carry a note, and the list shows what of it counts in your studies and is planned or passed already. It can be copied as text and works as a filter in the catalogue (“Saved”). It belongs to your profile and is kept on your device.",
             ),
             (
                 "Can I use Betula on several devices?",
-                "Yes, without an account. “Link for another device” in the menu of your saved modules copies a link that carries your saved modules behind the “#” of the address, and no browser sends that part to a server. You pass a timetable on with “Copy link to share”, to your other device or to other students, who can then add its modules to their own. And a calendar subscription shows your plan on every device your calendar runs on.",
+                "Yes, with Betula Sync. Switch it on for a profile on the “Profile” page and scan the QR code under “Connect a device” with the other device: from then on your phone, laptop and tablet have the same state, and a change is on the others at once, even after a while without a network. Without Sync, a backup file takes a profile to another device.",
+            ),
+            (
+                "Who can read my data with Betula Sync?",
+                "Only your devices. Your browser encrypts every change before it leaves the device, with a key it makes itself and that travels from device to device only by QR code or link. The server keeps the sealed changes and hands them on; it knows random ids, sizes and times, but neither the content nor you: there is no name, e-mail address or password for it. “End Sync” deletes the copy on the server at once.",
+            ),
+            (
+                "What happens if I lose my phone or clear my browser?",
+                "With Betula Sync, nothing bad: every other connected device has the whole profile. If all devices are gone, the recovery code brings it back; Betula shows it to you on the “Profile” page, keep it like a password. You shut out a lost device by ending Sync and switching it on again. Without Sync a profile is kept in that one browser only; then a backup file protects it, which you also make on the “Profile” page.",
+            ),
+            (
+                "Can I share my timetable or my saved modules?",
+                "Yes, with “Share …”, in three ways. As a fixed copy: a link with a copy of now, which anyone who has it can open. So that it stays current: others follow your calendar or your list and see every change until you stop sharing. Or as a one-time link for exactly one person, which holds for 7 days at most. What stays current and the one-time link need Betula Sync, and you choose whether your own events and notes come along.",
+            ),
+            (
+                "Can I plan for two degree programmes?",
+                "Yes, with a profile for each. Every profile has its own saved modules, timetable and studies; on the “Profile” page you create one and switch between them. A second profile is also good for trying out another course of your studies.",
             ),
             (
                 "Does Betula work without JavaScript?",
-                "Yes. Every page comes from the server as complete HTML: the catalogue with all its filters, module pages, degree programmes and standard study plans work without JavaScript, as a classic website, for text browsers and search engines alike. With JavaScript an app written in Rust and running as WebAssembly takes over: it loads the catalogue into your browser once as an SQLite database and from then on answers every search and every filter itself, without loading times between pages. What lives in your browser, your saved modules and your timetable, needs JavaScript.",
+                "Yes. Every page comes from the server as complete HTML: the catalogue with all its filters, module pages, degree programmes and standard study plans work without JavaScript, as a classic website, for text browsers and search engines alike. With JavaScript an app written in Rust and running as WebAssembly takes over: it loads the catalogue into your browser once as an SQLite database and from then on answers every search and every filter itself, without loading times between pages. What belongs to your profile, your saved modules, your timetable and “My studies”, needs JavaScript.",
             ),
             (
                 "Does Betula work offline and as an app?",
@@ -605,6 +701,10 @@ pub const EN: Texts = Texts {
                 "Where do I register for modules and exams?",
                 "Not on Betula. Registration goes through BTU's systems; deadlines and rules are stated there and in your examination regulations. Betula helps you plan and links every module to its original.",
             ),
+            (
+                "How do I see how many credit points I still need?",
+                "In “My studies”. It shows how many credit points you have passed and planned, in all and for every area of your programme, and what is still open according to the standard study plan. Betula counts what you mark as passed; your transcript at BTU is what is binding.",
+            ),
         ],
     },
 
@@ -626,6 +726,23 @@ mod tests {
             assert!(first.contains(&format!("{open}{}{close}", t.choose_program)), "{first}");
         }
         assert_eq!(((DE.slide_of)(2, 4, "Der Katalog"), (EN.in_semester)("Winter 2026/27")), ("2 von 4: Der Katalog".to_string(), "in Winter 2026/27".to_string()));
+    }
+
+    /// Nothing here speaks of an account: there is none (owner, 2026-11-18), and the texts say
+    /// what there is instead, a profile kept on the device. The descriptions, the abilities and
+    /// every answer, in every language.
+    #[test]
+    fn nothing_speaks_of_an_account() {
+        for t in [&DE, &EN] {
+            let abilities = [&t.search, &t.filters, &t.plans, &t.study, &t.timetable, &t.dates, &t.day, &t.marks, &t.prerequisites, &t.profile, &t.offline, &t.gaps];
+            let mut texts: Vec<&str> = vec![t.description, t.browser_requirements, t.abilities_lead];
+            texts.extend(abilities.iter().flat_map(|ability| [ability.title, ability.text]));
+            texts.extend([&t.about_betula, &t.using_betula, &t.for_studies].iter().flat_map(|faq| faq.questions.iter()).flat_map(|(question, answer)| [*question, *answer]));
+            for text in texts {
+                let lower = text.to_lowercase();
+                assert!(!lower.contains("konto") && !lower.contains("konten") && !lower.contains("account"), "{text}");
+            }
+        }
     }
 
 }
