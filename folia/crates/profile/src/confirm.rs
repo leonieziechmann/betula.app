@@ -4,6 +4,9 @@
 //! (app.css `.st-pop`), a sheet from below on a phone. It says what is asked and what follows, then
 //! the answer and „Abbrechen"; nothing on the page moves. The answer has the focus; Esc, a click
 //! beside it, „Abbrechen" and Back on a phone close it, and the focus goes back to the button.
+//! Where there are two ways to do it, each answer is an entry with a line under it that says what
+//! sets it apart, the first with the focus („Profil löschen" of a synced profile: on this device
+//! alone, or with Betula Sync ended).
 //!
 //! The profile page asks with it before „Profil leeren", „Profil löschen", „Entfernen" of a device,
 //! „Nur dieses Gerät trennen" and „Sync beenden".
@@ -31,13 +34,43 @@ pub struct Question {
     /// What is asked („„iPhone“ aus Betula Sync nehmen?"), and what follows.
     pub title: String,
     pub hint: String,
-    /// The answer, its icon and its id (what the caller tells its questions apart by).
-    pub yes: String,
-    pub icon: &'static str,
-    pub yes_id: &'static str,
+    /// The answers, the first with the focus; „Abbrechen" after them.
+    pub answers: Vec<Answer>,
 }
 
-/// The menu of `asking` while it holds a question; `on_yes` hears the answer's id.
+impl Question {
+    /// A question of one answer.
+    pub fn one(at: impl Into<String>, title: impl Into<String>, hint: impl Into<String>, answer: Answer) -> Self {
+        Question { at: at.into(), title: title.into(), hint: hint.into(), answers: vec![answer] }
+    }
+
+    /// The id of the answer with the focus.
+    fn first(&self) -> &'static str {
+        self.answers.first().map_or("", |answer| answer.id)
+    }
+}
+
+/// An answer: its word, its icon and its id (what the caller tells its answers apart by); `line`,
+/// where a question has more than one, what sets it apart.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Answer {
+    pub label: String,
+    pub icon: &'static str,
+    pub id: &'static str,
+    pub line: Option<String>,
+}
+
+impl Answer {
+    pub fn new(label: impl Into<String>, icon: &'static str, id: &'static str) -> Self {
+        Answer { label: label.into(), icon, id, line: None }
+    }
+
+    pub fn with_line(self, line: impl Into<String>) -> Self {
+        Answer { line: Some(line.into()), ..self }
+    }
+}
+
+/// The menu of `asking` while it holds a question; `on_yes` hears the id of the answer chosen.
 #[component]
 pub(crate) fn Confirm(asking: RwSignal<Option<Question>>, #[prop(into)] on_yes: Callback<&'static str>) -> impl IntoView {
     let t = i18n::t();
@@ -55,7 +88,7 @@ pub(crate) fn Confirm(asking: RwSignal<Option<Question>>, #[prop(into)] on_yes: 
     Effect::new(move |_| {
         let Some(question) = asking.get() else { return };
         place.set(at_button(&question.at, None));
-        let yes = question.yes_id;
+        let yes = question.first();
         request_animation_frame(move || {
             place.set(at_button(&question.at, height_of("pf-confirm")));
             nav::focus_by_id(yes);
@@ -70,7 +103,19 @@ pub(crate) fn Confirm(asking: RwSignal<Option<Question>>, #[prop(into)] on_yes: 
     };
     move || {
         asking.get().map(|question| {
-            let yes_id = question.yes_id;
+            // An answer as the menu shows it: the portal draws its children as often as it needs to.
+            let answer = move |answer: &Answer| {
+                let id = answer.id;
+                view! {
+                    <button class="st-pop-item danger" class:with-hint=answer.line.is_some() type="button" id=id on:click=move |_| {
+                        asking.set(None);
+                        on_yes.run(id);
+                    }>
+                        <Icon name=answer.icon/>
+                        <span class="st-pop-label"><span>{answer.label.clone()}</span>{answer.line.clone().map(|line| view! { <small>{line}</small> })}</span>
+                    </button>
+                }
+            };
             view! {
                 <Portal>
                     <div class="st-pop-shade pf-confirm-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
@@ -87,12 +132,7 @@ pub(crate) fn Confirm(asking: RwSignal<Option<Question>>, #[prop(into)] on_yes: 
                     >
                         <p class="pf-confirm-title" id="pf-confirm-title">{question.title.clone()}</p>
                         <p class="pf-confirm-hint" id="pf-confirm-hint">{question.hint.clone()}</p>
-                        <button class="st-pop-item danger" type="button" id=yes_id on:click=move |_| {
-                            asking.set(None);
-                            on_yes.run(yes_id);
-                        }>
-                            <Icon name=question.icon/><span>{question.yes.clone()}</span>
-                        </button>
+                        {question.answers.iter().map(answer).collect_view()}
                         <button class="st-pop-item" type="button" on:click=move |_| close()>
                             <Icon name="x"/><span>{t.profile.cancel}</span>
                         </button>
