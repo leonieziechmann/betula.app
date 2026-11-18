@@ -374,6 +374,10 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             return;
         }
         hold.moved(&ev);
+        // Nor does a finger whose hold is still pending: one of the two has the finger (`Hold`).
+        if hold.pending() {
+            return;
+        }
         let Some((x, y)) = start.get_value() else { return };
         let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
         if !dragging.get_untracked() {
@@ -550,7 +554,9 @@ fn linked(slot: &GridSlot, t: &i18n::Texts) -> Option<String> {
 }
 
 /// How far a finger moves sideways, in pixels, before it carries the carousel's weeks, and how far
-/// it carries them before letting go brings another week.
+/// it carries them before letting go brings another week. While the plan is edited a finger held on
+/// the week is the hold's as far as this (`own::HOLD_SLOP`, the same 8 px), and only then the
+/// carousel's.
 const DRAG: i32 = 8;
 const SWIPE: i32 = 40;
 
