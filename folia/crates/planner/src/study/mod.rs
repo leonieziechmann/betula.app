@@ -52,6 +52,7 @@ mod regular;
 mod setup;
 mod side;
 mod size;
+mod transcript;
 
 use std::collections::BTreeSet;
 
@@ -192,6 +193,10 @@ pub(super) enum Dialog {
     CountFor { semester: SemesterKey, id: String },
     /// „Umfang …" of a placeholder of a semester (`size.rs`).
     Size { semester: SemesterKey, pid: u32 },
+    /// What a Notenübersicht was read as, and what taking it over does (`transcript.rs`): in the
+    /// browser alone.
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    Transcript(Box<transcript::Reading>),
 }
 
 /// The rows selected in a semester (`Item::key`), for what is done to several at once (owner,
@@ -273,6 +278,8 @@ pub(super) struct StudyCtx {
     /// soll so sein, dass die nav bar noch funktioniert und oben auch noch die suchleiste ist").
     /// Not kept: a reload shows the page as it is.
     pub full: RwSignal<bool>,
+    /// A Notenübersicht is being read (`transcript.rs`).
+    pub reading: RwSignal<bool>,
 }
 
 /// The last change that „Rückgängig" takes back: what its note says, the plan before it, and its
@@ -281,11 +288,18 @@ pub(super) struct StudyCtx {
 pub struct Undo {
     pub note: String,
     pub before: PlanDoc,
+    /// „Mein Studiengang" before it, where the change set it too (a Notenübersicht taken over).
+    pub mine: Option<MineDoc>,
     pub turn: u32,
 }
 
 /// The turn of the next change with a note.
 static UNDO_TURNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// A new change's turn.
+pub(super) fn next_turn() -> u32 {
+    UNDO_TURNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
 
 impl StudyCtx {
     /// Changes the plan after the next frame (R21), then runs `then`: `change` gets the plan and
@@ -313,8 +327,7 @@ impl StudyCtx {
                 (*doc != before).then_some(before)
             });
             if let (Some(note), Some(before)) = (note, before) {
-                let turn = UNDO_TURNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                undo.try_set(Some(Undo { note, before, turn }));
+                undo.try_set(Some(Undo { note, before, mine: None, turn: next_turn() }));
             }
             then();
         });
@@ -535,6 +548,7 @@ pub fn StudyPage() -> impl IntoView {
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
         full: RwSignal::new(false),
+        reading: RwSignal::new(false),
     };
     // While the workbench is open, „Einplanen" elsewhere aims at its semester and subgroup
     // (`Planning::bench`); its end ends that.
@@ -801,6 +815,9 @@ fn UndoView(ctx: StudyCtx, turn: u32) -> impl IntoView {
     let restore = move |_| {
         let (Some(plan), Some(undo)) = (ctx.plan, ctx.undo.get_untracked().filter(|undo| undo.turn == turn)) else { return };
         done.set(true);
+        if let (Some(mine), Some(before)) = (ctx.mine, undo.mine) {
+            mine.put(before);
+        }
         plan.update_after_paint(move |doc| *doc = undo.before);
     };
     view! {

@@ -37,6 +37,7 @@ use folia_shell::tabs::{Area, TabAgain};
 use super::overview::{Bar, Info};
 use super::pager::{plan_path, Dots, Pager, Pages};
 use super::side::{AllPrograms, MineCard, StorageHint, ViewWays};
+use super::transcript::TranscriptWay;
 use super::{n, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -101,7 +102,7 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
             </section>
             <PlanBox ctx/>
             <div class="st-rest">
-                <nav class="st-ways"><AllPrograms line=true/></nav>
+                <nav class="st-ways"><TranscriptWay ctx line=true id="st-transcript-phone"/><AllPrograms line=true/></nav>
                 <StorageHint/>
             </div>
         </div>

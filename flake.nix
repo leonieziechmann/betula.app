@@ -380,11 +380,32 @@
           doInstallCargoArtifacts = false;
         });
 
+        # The reader of a Notenübersicht, as folia/scripts/build-client.sh builds it into site/pkg: the
+        # crate folia/crates/transcript as a cdylib without the names of its functions, and its worker's
+        # script. Nothing to build ahead: the crate has no dependencies.
+        folia-transcript = craneLib.mkCargoDerivation (rustCommon // {
+          pname = "betula-folia-transcript";
+          version = foliaVersion;
+          cargoArtifacts = null;
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "lld";
+          nativeBuildInputs = [ pkgs.lld ];
+          buildPhaseCargoCommand = ''
+            CARGO_ENCODED_RUSTFLAGS="-Cstrip=symbols" cargo rustc --locked -p folia-transcript --lib --features worker \
+              --crate-type cdylib --target wasm32-unknown-unknown --profile wasm-release --target-dir target/transcript
+          '';
+          installPhaseCommand = ''
+            mkdir -p "$out/site/pkg"
+            cp target/transcript/wasm32-unknown-unknown/wasm-release/folia_transcript.wasm "$out/site/pkg/transcript.wasm"
+            cp crates/transcript/js/worker.js "$out/site/pkg/transcript-worker.js"
+          '';
+          doInstallCargoArtifacts = false;
+        });
+
         folia-image = pkgs.dockerTools.buildLayeredImage {
           name = "betula-folia";
           tag = "latest";
           # /bin/folia and /site/pkg. No CA certificates: Folia only speaks plain HTTP, to Radix.
-          contents = [ folia folia-client folia-semantic ];
+          contents = [ folia folia-client folia-semantic folia-transcript ];
           # /data holds the downloaded snapshots. It belongs to the user the server runs as, and a
           # fresh named volume mounted there takes that owner over.
           fakeRootCommands = ''
@@ -420,7 +441,7 @@
       in
       {
         packages = {
-          inherit radix radix-image cortex cortex-image phloem phloem-image folia folia-client folia-semantic folia-image;
+          inherit radix radix-image cortex cortex-image phloem phloem-image folia folia-client folia-semantic folia-transcript folia-image;
           default = radix;
         };
 
