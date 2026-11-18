@@ -652,6 +652,9 @@ if (block("phone")) {
   check(drawn.tag === "16:00–17:15" && drawn.scroll === before && !drawn.form && drawn.felt === 1, `the finger stretches the span and the page holds still: ${JSON.stringify({ ...drawn, before })}`);
   check(JSON.stringify(await own(page)) === JSON.stringify(stored), "a Termin was stored before the finger lifted");
   if (shots) await page.screenshot({ path: `${shots}/own-phone-drag.png` });
+  // The finger rests before it lifts: a lift within 80 ms of the span's last change is taken as
+  // the shift of lifting (the block „a real finger" below), and this finger's last move was now.
+  await page.waitForTimeout(250);
   await touch("touchEnd");
   await until(page, "the form of the span a finger drew, the tag gone", (form) => onPage(`${form} #own-day`)?.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:15" && !onPage(".sp-sketch-tag"), form);
   check(JSON.stringify(await own(page)) === JSON.stringify(stored), "the lift stored a Termin before „Anlegen\"");
@@ -717,18 +720,16 @@ if (block("finger")) {
   const { page, context } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true }, FS1, "/studyplan?edit=1");
   await until(page, "the week while editing", () => allOnPage(".sp-week .slot").length > 0 && /[?&]edit=1/.test(location.search) && Boolean(onPage(".sp-slide.is-current")));
   const cdp = await context.newCDPSession(page);
-  const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: Math.round(x), y: Math.round(y), id: 1 }] });
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  // The shift of a lifting finger: its moves and the lift sent `ms` apart, not each waiting for the
-  // browser's answer (which alone takes some 50 ms).
+  // `at` (seconds): the event's own time, which the page reads as its `timeStamp`. Where the times
+  // between a finger's last moves and its lift decide what the lift gives, the check says them
+  // itself: how long a call takes here (some 50 ms, more on a busy machine) is not the finger's.
+  const touch = (type, x, y, at) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: Math.round(x), y: Math.round(y), id: 1 }], ...(at === undefined ? {} : { timestamp: at }) });
+  const clock = () => Date.now() / 1000 + 0.02;
+  // The shift of a lifting finger: its moves and the lift `ms` apart on the finger's clock.
   const lift = async (moves, ms = 15) => {
-    const sent = [];
-    for (const [x, y] of moves) {
-      sent.push(touch("touchMove", x, y));
-      await sleep(ms);
-    }
-    sent.push(touch("touchEnd"));
-    await Promise.all(sent);
+    const from = clock();
+    for (const [i, [x, y]] of moves.entries()) await touch("touchMove", x, y, from + (i * ms) / 1000);
+    await touch("touchEnd", 0, 0, from + (moves.length * ms) / 1000);
   };
   const now = () => page.evaluate(() => ({
     tag: onPage(".sp-sketch-tag")?.textContent ?? null,
@@ -795,13 +796,14 @@ if (block("finger")) {
     const [at] = await points(16 * 60 + 5);
     await touch("touchStart", at.x, at.y);
     await page.waitForTimeout(700);
+    // 25 ms a move on the finger's clock, the lift 10 ms after the last: no span stands for 150 ms.
     let last = null;
+    const from = clock();
     for (let i = 1; i <= 12; i++) {
-      await touch("touchMove", at.x, at.y + 7 * i);
-      await page.waitForTimeout(25);
+      await touch("touchMove", at.x, at.y + 7 * i, from + (i * 25) / 1000);
       last = (await now()).tag;
     }
-    await touch("touchEnd");
+    await touch("touchEnd", 0, 0, from + (12 * 25 + 10) / 1000);
     const times = last?.replace("–", ",") ?? "a tag";
     check(Boolean(last) && last !== "16:00–17:30", `a steady drag drew no span of its own: ${last}`);
     await formIs(`a drag lifted in motion gives what its tag said (${last})`, times);
@@ -836,6 +838,8 @@ if (block("finger")) {
     const steps = tags.filter((tag, i) => i === 0 || tag !== tags[i - 1]);
     if (below) check(JSON.stringify(steps) === JSON.stringify(["16:00–17:30"]), `a resting finger flipped the end: ${JSON.stringify(steps)}`);
     else check(steps[0] === "16:00–17:15" && steps.length <= 2 && steps.every((tag) => /^16:00–17:(15|30)$/.test(tag)), `a resting finger come from above flipped the end back and forth: ${JSON.stringify(steps)}`);
+    // It rests before it lifts, so that its last tremble is no shift of lifting.
+    await page.waitForTimeout(250);
     await touch("touchEnd");
     await formIs("a resting finger lifted gives what stood", steps.at(-1).replace("–", ","));
     await close();
