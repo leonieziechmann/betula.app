@@ -54,8 +54,9 @@
 //   the catalog with the place (`fill=`) and the bar of the workbench, whose „Einplanen" aims at it
 //   and its semester; planned, Allgemeine BWL I fills it — „Zurück zu WiSe 2026/27" shows it planned,
 //   the semester and Nebenfach count 6 LP, not 12, the place full stands no more and the module
-//   says „für „Anwendungsfach“"; taken out again, the place stands again, and the Wahlpflicht's
-//   „+ In WiSe 26/27" fills it the same way.
+//   says „für „Anwendungsfach“"; the catalog's tab then leads to the catalog with „Sommer" as the
+//   student left it before (owner, 2026-11-18), not to the workbench's filters; taken out again,
+//   the place stands again, and the Wahlpflicht's „+ In WiSe 26/27" fills it the same way.
 // 2c the Gesamtplan reworked (owner, 2026-11-09): the Fachstudium's head unfolds into its Komplexe
 //   (10–24, the room to 30) and its Seminar, the Nebenfach's into its two choices, Praktische
 //   Mathematik's 8 of 6 LP no „über Bedarf"; a subsection into its lanes; a module dragged onto
@@ -869,6 +870,12 @@ if (current !== "2026W") {
 {
   const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/");
   await seed([[MINE, THIRD], [PLAN, FILLED]]);
+  // The catalog as the student leaves it in this session, before the workbench looks for a place
+  // in it: its tab leads back there afterwards (owner, 2026-11-18: „Die vorherigen Filter müssen
+  // danach wieder hergestellt werden").
+  await step("Module, before the workbench", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".rows a.row"));
+  await step("Sommer, the student's own filter", () => page.click('#filters a.chip:has-text("Sommer") >> visible=true'), () => new URLSearchParams(location.search).get("turnus") === "summer");
+  const ownCatalog = await page.evaluate(() => location.pathname + location.search);
   await step("Studium, for a place", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   // What the semester and Nebenfach count.
   const counts = () => page.evaluate(() => ({
@@ -960,6 +967,10 @@ if (current !== "2026W") {
   });
   check(once?.flag && !once.also, `the module beside the half says twice what it fills: ${JSON.stringify(once)}`);
   await step("the semester, its place filled", () => page.click(".st-wb-half .st-wb-done"), () => !document.querySelector(".st-wb-half") && document.querySelectorAll(".st-card-sem .st-row").length === 1);
+  // The catalog was the workbench's meanwhile, its filters the subgroup's: once left, the tab
+  // leads to the catalog as the student left it (until Folia 1.100.1 to the workbench's).
+  const catalogTab = await page.getAttribute('.rail a[data-area="catalog"]', "href");
+  check(catalogTab === ownCatalog, `after the workbench the catalog's tab leads to ${catalogTab}, not to the student's ${ownCatalog}`);
   const filled = await counts();
   check(filled.semester === "6 LP" && filled.nebenfach === "6/18", `one module for the place counts twice: ${JSON.stringify(filled)}`);
   const placed = await rows(page);
@@ -2038,6 +2049,8 @@ if (current !== "2026W") {
   await seed([[MINE, THIRD], [PLAN, FILLED]]);
   const HERE = ".st-pager > .st-slot:not([inert])";
   await page.waitForTimeout(600);
+  // No catalog in this session yet: its tab's first entry, the catalog of „Mein Studiengang".
+  const firstCatalog = await page.getAttribute('.bottomnav a.nav[data-area="catalog"]', "href");
   await step("Module hinzufügen, for the catalog", () => page.tap(`${HERE} .st-empty-add`), () => document.querySelector(".st-wb-sheet[data-sheet] #st-wb-takeover"));
   await page.waitForTimeout(600);
   // „Im Katalog suchen" leads into the tab „Module" with the semester as its target; on a phone the
@@ -2060,6 +2073,12 @@ if (current !== "2026W") {
   check((await page.evaluate((HERE) => document.querySelector(`${HERE} .st-sem-name`)?.textContent ?? "", HERE)).startsWith("WiSe 2026/27"), "„Abbrechen“ does not lead back to the semester the workbench plans");
   // The sheet has no button to end it: a tap above it does, as a throw and Back.
   await step("a tap above the sheet after the catalog", () => page.touchscreen.tap(195, 120), () => !document.querySelector(".st-wb-sheet") && !document.querySelector(".bench-dock"));
+  // The catalog was the workbench's meanwhile: „Module" leads to where it leads before, in this
+  // session that was never the catalog, not to the workbench's filters (owner, 2026-11-18: „Pass
+  // auf, dass nur die Filter von der aktuellen session wieder hergestellt werden"); neither its
+  // link nor its stack keeps them.
+  check((await page.getAttribute('.bottomnav a.nav[data-area="catalog"]', "href")) === firstCatalog, "after the workbench the tab „Module“ leads elsewhere than before it");
+  await step("Module after the workbench", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), (first) => location.pathname + location.search === first && !document.querySelector(".bench-dock"), firstCatalog);
   await context.close();
 }
 
