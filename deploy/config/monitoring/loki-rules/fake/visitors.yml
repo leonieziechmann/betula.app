@@ -79,6 +79,30 @@ groups:
             | keep who, crawler
             [1h]))
 
+      # The pass in front of the catalog (folia/crates/server/src/pass.rs, since Folia 1.107.0):
+      # requests for the catalog (/api/db) and for the pass (/api/pass) of the last hour by what
+      # they got. A browser's first visit is one refused (401, the challenge), one earned (204)
+      # and one downloaded (200); a client that runs no script stays at refused.
+      - record: betula:pass:1h
+        expr: |
+          sum by (result) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |~ `"RequestPath":"/api/(db|pass)"` !~ `"RouterName":"edge-(crawler|outside-europe)`
+            | json path="RequestPath", status="DownstreamStatus"
+            | label_format result=`{{ if eq .path "/api/pass" }}{{ if eq .status "204" }}pass earned{{ else }}solution refused{{ end }}{{ else if eq .status "401" }}catalog refused without a pass{{ else if eq .status "200" }}catalog downloaded{{ else if eq .status "304" }}catalog unchanged{{ else }}other{{ end }}`
+            | keep result
+            [1h]))
+
+      # The same by address: how many addresses got each (an address that is refused and never
+      # earns a pass ran no script).
+      - record: betula:pass_addresses:1h
+        expr: |
+          count by (result) (sum by (result, host) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |~ `"RequestPath":"/api/(db|pass)"` !~ `"RouterName":"edge-(crawler|outside-europe)`
+            | json host="ClientHost", path="RequestPath", status="DownstreamStatus"
+            | label_format result=`{{ if eq .path "/api/pass" }}{{ if eq .status "204" }}pass earned{{ else }}solution refused{{ end }}{{ else if eq .status "401" }}catalog refused without a pass{{ else if eq .status "200" }}catalog downloaded{{ else if eq .status "304" }}catalog unchanged{{ else }}other{{ end }}`
+            | keep result, host
+            [1h])))
+
   - name: visitors-1h
     interval: 1h
     rules:

@@ -30,7 +30,9 @@ const takeover = (page) => page.waitForFunction(() => window.__betulaApp === tru
 // ---- one tab: no catalog on the page's thread, no blank moment at the takeover
 const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
 let downloads = 0;
-context.on("request", (request) => { if (new URL(request.url()).pathname === "/api/db") downloads++; });
+// A download is one the catalog came with: the first ask of a browser without a pass is answered
+// with a challenge (folia/crates/server/src/pass.rs, e2e/pass.mjs).
+context.on("response", (response) => { if (new URL(response.url()).pathname === "/api/db" && response.status() !== 401) downloads++; });
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));

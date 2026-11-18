@@ -120,6 +120,13 @@ pub struct Config {
     #[arg(long, env = "FOLIA_ACCESS_GATE", default_value_t = false, num_args = 0..=1, default_missing_value = "true", value_parser = clap::builder::BoolishValueParser::new())]
     pub access_gate: bool,
 
+    /// The pass in front of the catalog (`/api/db`, src/pass.rs): the zero bits the browser's
+    /// proof of work must begin with, at most 32 (18: about 260,000 tries, a tenth of a second on a
+    /// laptop, half a second on a phone). Every added bit doubles the work. 0: no pass, the catalog
+    /// answers whoever asks.
+    #[arg(long, env = "FOLIA_PASS_DIFFICULTY", default_value_t = crate::pass::DEFAULT_DIFFICULTY, value_parser = clap::value_parser!(u8).range(0..=32))]
+    pub pass_difficulty: u8,
+
     /// `text` or `json`.
     #[arg(long, env = "FOLIA_LOG_FORMAT", default_value = "text")]
     pub log_format: String,
