@@ -4052,7 +4052,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     tabs' menus keep theirs) and nothing is called out or selected (`-webkit-touch-callout`,
     `user-select`, while editing); `pointercancel` gives the span up. A finger that moves before
     the half second scrolls the page as ever. Nothing of it while looking.
-    A real finger is no mouse, and the gesture holds up under one since 1.106.1 (owner, 2026-11-18,
+    A real finger is no mouse, and the gesture holds up under one since 1.106.2 (owner, 2026-11-18,
     of a real Android phone: „Ja das dragging funktioniert nicht dass ist richtig buggy."): it
     trembles while it rests, drifts while it is held and shifts by one to three millimetres as it
     lifts, and the checks' finger, standing still to the pixel, did none of it — a tremble of 9 px
