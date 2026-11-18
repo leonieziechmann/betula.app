@@ -5450,7 +5450,7 @@ Passwort noch Profil". What they are now:
   (five questions, one of them answered by „Ähnliche Module"), the filters and the Merkliste (its
   collections beside three marked modules, one with a note); „Studium planen" the
   Regelstudienpläne, „Mein Studium" (the credits passed over a bar of the areas, and the
-  semesters) and the Stundenplan (with a Termin of one's own in its week); „Deine Daten" the
+  semesters; its first point names „Notenübersicht einlesen", which came the same day) and the Stundenplan (with a Termin of one's own in its week); „Deine Daten" the
   profile (where things live: on the device; on the server nothing, or with Betula Sync the
   profile sealed; between them the address of a page), Betula Sync (two devices and the server
   between them, which holds bytes that say nothing), sharing (the three ways of the dialog „Teilen"

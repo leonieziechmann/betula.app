@@ -370,7 +370,7 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Was ist „Mein Studium“?",
-                "Dein Plan bis zum Abschluss. Betula füllt die Semester nach dem Regelstudienplan deines Studiengangs, du hakst ab, was bestanden ist, und planst, was kommt. Ein Balken zeigt für jeden Bereich, wie viele Leistungspunkte bestanden, geplant und noch offen sind. Beim Einplanen siehst du, ob ein Modul in dem Semester angeboten wird und ob seine Voraussetzungen davor liegen; Urlaubssemester, Wiederholungen und ein Wechsel des Studiengangs rechnet der Plan mit.",
+                "Dein Plan bis zum Abschluss. Betula füllt die Semester nach dem Regelstudienplan deines Studiengangs, du hakst ab, was bestanden ist, und planst, was kommt. Ein Balken zeigt für jeden Bereich, wie viele Leistungspunkte bestanden, geplant und noch offen sind. Beim Einplanen siehst du, ob ein Modul in dem Semester angeboten wird und ob seine Voraussetzungen davor liegen; Urlaubssemester, Wiederholungen und ein Wechsel des Studiengangs rechnet der Plan mit. Statt alles abzuhaken, kannst du mit „Notenübersicht einlesen“ die PDF aus dem Portal der BTU einlesen: Dein Browser liest sie auf deinem Gerät, sie erreicht keinen Server, und übernommen werden nur die Module und ihr Stand, keine Noten.",
             ),
             (
                 "Was kann der Stundenplan?",
@@ -630,7 +630,7 @@ pub const EN: Texts = Texts {
             ),
             (
                 "What is “My studies”?",
-                "Your plan up to your degree. Betula fills the semesters from the standard study plan of your programme, you tick off what you have passed and plan what comes. A bar shows for every area how many credit points are passed, planned and still open. While planning you see whether a module is offered in that semester and whether its prerequisites come before it; the plan allows for semesters of leave, retakes and a change of programme.",
+                "Your plan up to your degree. Betula fills the semesters from the standard study plan of your programme, you tick off what you have passed and plan what comes. A bar shows for every area how many credit points are passed, planned and still open. While planning you see whether a module is offered in that semester and whether its prerequisites come before it; the plan allows for semesters of leave, retakes and a change of programme. Instead of ticking everything off, you can use “Read your transcript” with the PDF from BTU's portal: your browser reads it on your device, it reaches no server, and only the modules and where they stand are taken, no grades.",
             ),
             (
                 "What can the timetable do?",
