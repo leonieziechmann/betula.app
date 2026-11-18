@@ -80,9 +80,9 @@ use self::aside::PlanModulePanel;
 use self::calendars::CalendarModules;
 use self::edit::EditDock;
 use self::exams::ExamsView;
-use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, PhoneSheets, SemesterHead};
+use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, PhoneBand, PhoneSheets, SemesterHead};
 use self::modules::ModuleList;
-use self::open::{OpenLine, OpenPanel, PickSheet};
+use self::open::{OpenPanel, PickSheet};
 use self::own::{OwnForm, OwnNote};
 use self::side::{PlanSidebar, SavedPlans};
 use self::termin::{PlanTerminFull, PlanTerminModal};
@@ -495,11 +495,13 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 Some(error) => view! { <ErrorState error/> }.into_any(),
                 None => view! {
                     <ExamAlerts ctx/>
+                    // On a phone one band over the week (`head.rs`): what is left to choose — a way
+                    // into the mode while looking, its rows while editing — and the overlaps'
+                    // figure. Wider, the status row under the head says both, and the choice in
+                    // focus stands there (`edit.rs`).
+                    {move || ctx.phone.get().then(|| view! { <PhoneBand ctx/> })}
+                    // What the overlaps' figure unfolds, under it.
                     <Overlaps ctx/>
-                    // On a phone what is left to choose, over the week (`open.rs`): a way into the
-                    // mode while looking, its rows while editing. Wider, the status row under the
-                    // head says it, and the choice in focus stands there (`edit.rs`).
-                    {move || ctx.phone.get().then(|| view! { <OpenLine ctx/> })}
                     <div class="sp-view">{view}</div>
                     // The choice in focus on a phone: a sheet under the week (H1 of
                     // folia/design/kalender/handy.html).
@@ -515,7 +517,7 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
             // „Teilen" (`share_dialog.rs`).
             <share_dialog::ShareDialog ctx/>
             // On a phone the sheets of the head's toolbar: the calendars and „Export" (`head.rs`).
-            {move || ctx.phone.get().then(|| view! { <PhoneSheets ctx/> })}
+            {move || ctx.phone.get().then(|| view! { <PhoneSheets ctx marked/> })}
         </div>
         {move || {
             fine.get().then(|| {

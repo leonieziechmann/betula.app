@@ -132,11 +132,14 @@ fn head_line(data: &StudyplanData) -> Option<HeadLine> {
     data.counts.is_empty().then_some(HeadLine::Unpublished)
 }
 
-/// The sheet a phone's head opens (`PlanCtx::sheet`): the calendars, or „Export".
+/// The sheet a phone's head opens (`PlanCtx::sheet`): the calendars, or „Export"; or „+ Modul" of
+/// the calendar of one's own numbered so (`calendars::AddSheet`), opened from the calendars' sheet
+/// (`back`: closing it returns there) or from the list beside the week.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PhoneSheet {
     Calendars,
     Export,
+    Adding { id: u8, back: bool },
 }
 
 /// The head: „Stundenplan WiSe 2026/27" (the one semester the page shows, owner's redesign of
@@ -152,9 +155,9 @@ pub(crate) enum PhoneSheet {
 /// the weeks as „A · B · A/B" at the left where the plan has Termine of A or B weeks (no word
 /// „Woche": its name says it), and at the right „Kalender" and „Export", which open their sheets
 /// (`PhoneSheets`). The same two rows in both states. The line of the program and the numbers is
-/// the wide status row's alone; under a phone's head stands only the overlaps' figure, where there
-/// are any. Until then a phone had three rows that shared no line: the title, „Woche [A|B|A/B] …
-/// Bearbeiten", and „Informatik B.Sc. · 5 Module".
+/// the wide status row's alone; under a phone's head one band says what is open and the overlaps
+/// (`PhoneBand`). Until then a phone had three rows that shared no line: the title, „Woche [A|B|A/B]
+/// … Bearbeiten", and „Informatik B.Sc. · 5 Module".
 #[component]
 pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -193,11 +196,9 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
             {move || phone.get().then(|| view! { <PhoneTools ctx ab=Signal::derive(move || weekly.get() && ab.get())/> })}
         </div>
         <p class="visually-hidden" role="status">{move || told.get()}</p>
-        {move || match phone.get() {
-            // On a phone the overlaps' figure alone, under the head, where there are any.
-            true => view! { <div class="sp-sum-row"><ClashFigure ctx/></div> }.into_any(),
-            false => view! { <StatusRow ctx sum/> }.into_any(),
-        }}
+        // On a phone the overlaps' figure stands in the band over the week, beside the line of what
+        // is open (`mod.rs`, `PhoneBand`).
+        {move || (!phone.get()).then(|| view! { <StatusRow ctx sum/> })}
         {move || {
             let label = key.get().label(t.locale);
             match line.get() {
@@ -225,11 +226,16 @@ fn PhoneTools(ctx: PlanCtx, ab: Signal<bool>) -> impl IntoView {
     let h = &t.studyplan_head;
     let open = move |sheet: PhoneSheet| move |_| ctx.sheet.set(Some(sheet));
     let expanded = move |sheet: PhoneSheet| move || if ctx.sheet.get() == Some(sheet) { "true" } else { "false" };
+    // Calendars of one's own: their number as a badge at the sign, as the tab bar counts, and in
+    // the button's name („Kalender, 1 weiterer"); the button no wider for it.
+    let more = Memo::new(move |_| ctx.calendars.with(Vec::len));
     view! {
         {move || ab.get().then(|| view! { <WeekSwitch weeks=ctx.weeks short=true/> })}
-        <div class="sp-tools" role="toolbar" aria-label=t.studyplan.title>
-            <button class="ghost sp-tool" type="button" data-action="calendars" aria-haspopup="dialog" aria-expanded=expanded(PhoneSheet::Calendars) title=h.calendars_title on:click=open(PhoneSheet::Calendars)>
-                <Icon name="layers"/>{t.studyplan_calendars.heading}
+        // A group of two buttons with a name of its own (a toolbar would promise arrow keys).
+        <div class="sp-tools" role="group" aria-label=h.tools>
+            <button class="ghost sp-tool" type="button" data-action="calendars" aria-haspopup="dialog" aria-expanded=expanded(PhoneSheet::Calendars) aria-label=move || (more.get() > 0).then(|| (h.calendars_more)(more.get())) title=h.calendars_title on:click=open(PhoneSheet::Calendars)>
+                <span class="sp-tool-ic"><Icon name="layers"/>{move || (more.get() > 0).then(|| view! { <span class="sp-badge" aria-hidden="true">{more.get()}</span> })}</span>
+                {t.studyplan_calendars.heading}
             </button>
             <button class="ghost sp-tool" type="button" data-action="export" aria-haspopup="dialog" aria-expanded=expanded(PhoneSheet::Export) title=h.export_title on:click=open(PhoneSheet::Export)>
                 <Icon name="download"/>{t.studyplan_export.calendar}
@@ -238,14 +244,31 @@ fn PhoneTools(ctx: PlanCtx, ab: Signal<bool>) -> impl IntoView {
     }
 }
 
-/// The two sheets a phone's head opens: the calendars (`calendars::CalendarSheet`) and „Export"
-/// (`side::ExportSheet`). (They close when the page is no longer a phone's, whose sidebar holds
-/// both: `mod.rs`.)
+/// The sheets a phone's head opens: the calendars (`calendars::CalendarSheet`), „+ Modul" of a
+/// calendar of one's own in its place (`calendars::AddSheet`) and „Export" (`side::ExportSheet`).
+/// (They close when the page is no longer a phone's, whose sidebar holds them: `mod.rs`.)
 #[component]
-pub(super) fn PhoneSheets(ctx: PlanCtx) -> impl IntoView {
+pub(super) fn PhoneSheets(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     view! {
         <super::calendars::CalendarSheet ctx/>
+        <super::calendars::AddSheet ctx marked/>
         <super::side::ExportSheet ctx/>
+    }
+}
+
+/// One band under a phone's head, there while it has something to say: the amber line of what is
+/// still open (`OpenLine`) and at its right the overlaps' figure, compact (the sign and the number);
+/// the figure alone with its words where nothing is open. What the figure unfolds opens under the
+/// band, over the week (`Overlaps`; owner, 2026-10-27: „Wenn man solche Buttons hat, dann ändern
+/// die nur den Inhalt unter ihnen"). Until 2026-11-18 the figure had a row of its own between the
+/// head and the amber line: two bands, and the week moved by a row with the first overlap.
+#[component]
+pub(super) fn PhoneBand(ctx: PlanCtx) -> impl IntoView {
+    view! {
+        <div class="sp-band">
+            <super::open::OpenLine ctx/>
+            <ClashFigure ctx compact=true/>
+        </div>
     }
 }
 
@@ -658,7 +681,7 @@ fn kept_notes(ctx: PlanCtx, built: Memo<Summary>) -> Memo<Vec<KeptNote>> {
 /// plan is edited and the list stays unfolded after the last overlap went, „Keine Überschneidung
 /// mehr", the button that folds it.
 #[component]
-pub(super) fn ClashFigure(ctx: PlanCtx) -> impl IntoView {
+pub(super) fn ClashFigure(ctx: PlanCtx, #[prop(optional)] compact: bool) -> impl IntoView {
     let t = i18n::t();
     let built = overlap_summary(ctx);
     let kept = kept_notes(ctx, built);
@@ -670,18 +693,25 @@ pub(super) fn ClashFigure(ctx: PlanCtx) -> impl IntoView {
         let n = count.get();
         (n > 0 || staying).then(|| {
             let words = if n > 0 { (t.studyplan_head.clashes)(n) } else { t.studyplan_head.no_clash_left.to_string() };
+            // Compact (a phone's band, beside the line of what is open): the sign and the number,
+            // its name the whole words; the stylesheet shows the words where it stands alone.
+            let number = (compact && n > 0).then(|| view! { <span class="n" aria-hidden="true">{n}</span> });
+            let name = compact.then(|| words.clone());
             view! {
                 <button
                     class="sp-clash-fig"
                     class:none=n == 0
+                    class:compact=compact
                     type="button"
+                    aria-label=name
                     aria-expanded=move || if ctx.clashes.get() { "true" } else { "false" }
                     aria-controls=OVERLAPS_ID
                     title=move || said.get()
                     on:click=move |_| ctx.clashes.update(|open| *open = !*open)
                 >
                     <Icon name="triangle-alert"/>
-                    <span>{words}</span>
+                    {number}
+                    <span class="w">{words}</span>
                     <Icon name="chevron-down" class="chev"/>
                 </button>
             }

@@ -55,7 +55,7 @@ use super::share_dialog::{ShareOpen, ShareTab};
 use super::{picture, week, PlanCtx};
 
 /// The id of „Abonnieren", which takes the focus from a note that goes once it is answered.
-const ABO_ID: &str = "sp-abo";
+pub(super) const ABO_ID: &str = "sp-abo";
 
 /// How long the plan is left alone before its file is written anew: longer than the gap between
 /// two clicks of a burst.

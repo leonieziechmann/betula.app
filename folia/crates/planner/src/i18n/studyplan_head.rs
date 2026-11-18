@@ -109,8 +109,14 @@ pub struct Texts {
     /// The tooltip of „Export" beside it, which opens the sheet of the file, the picture, the
     /// subscription and „Teilen …": „Export: Datei, Bild, Abo und Teilen".
     pub export_title: &'static str,
-    /// The line under the calendars' sheet's title: „Welche Kalender die Woche zeigt, und wie".
+    /// The line under the calendars' sheet's title, what a calendar is for: „Dein Studium und
+    /// weitere Kalender daneben – von Freunden, für ein Nebenfach oder aus einem Link."
     pub calendars_sub: &'static str,
+    /// The name of „Kalender" in a phone's head where calendars of one's own exist, whose number
+    /// stands as a badge at its sign: „Kalender, 1 weiterer".
+    pub calendars_more: fn(usize) -> String,
+    /// The name of the group of „Kalender" and „Export" in a phone's head.
+    pub tools: &'static str,
     /// The line under the export sheet's title, the semester's name in it: „WiSe 2026/27 als
     /// Datei, Bild oder Abo".
     pub export_sub: fn(&str) -> String,
@@ -179,7 +185,9 @@ pub const DE: Texts = Texts {
     option_of: |module, option| format!("{module}: {option}"),
     calendars_title: "Kalender: Mein Studiengang, eigene Kalender, Gemeinsam frei",
     export_title: "Export: Datei, Bild, Abo und Teilen",
-    calendars_sub: "Welche Kalender die Woche zeigt, und wie",
+    calendars_sub: "Dein Studium und weitere Kalender daneben – von Freunden, für ein Nebenfach oder aus einem Link.",
+    calendars_more: |n| if n == 1 { "Kalender, 1 weiterer".to_string() } else { format!("Kalender, {n} weitere") },
+    tools: "Kalender und Export",
     export_sub: |semester| format!("{semester} als Datei, Bild oder Abo"),
 };
 
@@ -246,6 +254,8 @@ pub const EN: Texts = Texts {
     option_of: |module, option| format!("{module}: {option}"),
     calendars_title: "Calendars: my programme, calendars of your own, free together",
     export_title: "Export: file, picture, subscription and sharing",
-    calendars_sub: "Which calendars the week shows, and how",
+    calendars_sub: "Your study and other calendars beside it – from friends, for a minor subject or from a link.",
+    calendars_more: |n| if n == 1 { "Calendars, 1 more".to_string() } else { format!("Calendars, {n} more") },
+    tools: "Calendars and export",
     export_sub: |semester| format!("{semester} as a file, a picture or a subscription"),
 };

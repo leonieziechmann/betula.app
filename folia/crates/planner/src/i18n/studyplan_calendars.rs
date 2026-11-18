@@ -84,6 +84,9 @@ pub struct Texts {
     pub full_up: &'static str,
     /// After „Anlegen" and „Als Kalender": „Als Kalender angelegt: Lena".
     pub created: fn(&str) -> String,
+    /// The note after „Anlegen" with a link that could not be read: the calendar is made all the same,
+    /// empty, and the note says so: „Link nicht lesbar – leerer Kalender angelegt: Max".
+    pub created_unread: fn(&str) -> String,
 
     // ---- the shared plan's offer ----
     /// „Als Kalender": the plan of the link beside one's own, not in it.
@@ -180,6 +183,7 @@ pub const DE: Texts = Texts {
     link_wrong_still: "Anlegen geht trotzdem, dann leer.",
     full_up: "Acht eigene Kalender sind das Höchste.",
     created: |name| format!("Als Kalender angelegt: {name}"),
+    created_unread: |name| format!("Link nicht lesbar – leerer Kalender angelegt: {name}"),
 
     as_calendar: "Als Kalender",
     as_calendar_title: "Den Plan als eigenen Kalender neben deinen legen, mit seinen Gruppen. Er zählt nicht für dein Studium.",
@@ -264,6 +268,7 @@ pub const EN: Texts = Texts {
     link_wrong_still: "You can still create it, empty.",
     full_up: "Eight calendars of your own are the most.",
     created: |name| format!("Created as a calendar: {name}"),
+    created_unread: |name| format!("Link not readable – empty calendar created: {name}"),
 
     as_calendar: "As a calendar",
     as_calendar_title: "Put the plan beside yours as a calendar of its own, with its groups. It does not count for your study.",

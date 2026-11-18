@@ -36,6 +36,7 @@ use folia_calendar::day::{clock, minutes, Day};
 use folia_calendar::kind::EventKind;
 use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT, OWN_EVENT_BASE};
 use folia_calendar::rowkey::RowKey;
+use folia_calendar::semester::SemesterKey;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
@@ -79,6 +80,9 @@ const KINDS: [EventKind; 6] = [EventKind::Lecture, EventKind::Exercise, EventKin
 pub(crate) struct OwnAsk {
     pub number: Option<u32>,
     pub draft: Draft,
+    /// Opened by a button of the plan's calendar („+ Termin" of the bar, the dock, a module's row),
+    /// not from the week: the form says quietly that a span drawn in the week is quicker (`OwnForm`).
+    pub hint: bool,
 }
 
 /// The fields of the form as they stand, as typed: times as `HH:MM` and dates as `YYYY-MM-DD`, as
@@ -239,7 +243,7 @@ pub(super) fn ask_new(ctx: PlanCtx, calendar: u8, weekday: u8, from: u16, module
     let mut draft = Draft::at(calendar, weekday, from);
     draft.module = module.unwrap_or_default();
     draft.module_name = module_called(ctx, calendar, &draft.module);
-    ctx.own.set(Some(OwnAsk { number: None, draft }));
+    ctx.own.set(Some(OwnAsk { number: None, draft, hint: false }));
 }
 
 /// „+ Termin": the form for a new Termin of calendar `calendar` today's weekday (Monday at the
@@ -247,6 +251,14 @@ pub(super) fn ask_new(ctx: PlanCtx, calendar: u8, weekday: u8, from: u16, module
 pub(super) fn ask_today(ctx: PlanCtx, calendar: u8, module: Option<String>) {
     let weekday = ctx.today.map(Day::weekday).filter(|day| *day <= 5).unwrap_or(1);
     ask_new(ctx, calendar, weekday, 16 * 60, module);
+    // A span drawn in the week is the plan's calendar's.
+    if calendar == 0 {
+        ctx.own.update(|ask| {
+            if let Some(ask) = ask {
+                ask.hint = true;
+            }
+        });
+    }
 }
 
 /// „Bearbeiten": the form of the Termin numbered `number`.
@@ -255,7 +267,7 @@ pub(super) fn ask_edit(ctx: PlanCtx, number: u32) {
     let draft = plan.with_untracked(|doc| doc.own_termin(number).map(|(calendar, own)| Draft::of(calendar, &own.termin)));
     if let Some(mut draft) = draft {
         draft.module_name = module_called(ctx, draft.calendar, &draft.module);
-        ctx.own.set(Some(OwnAsk { number: Some(number), draft }));
+        ctx.own.set(Some(OwnAsk { number: Some(number), draft, hint: false }));
     }
 }
 
@@ -543,7 +555,7 @@ pub(super) fn ask_makeup(ctx: PlanCtx, key: RowKey, day: Day) {
     }
     let module_name = module_called(ctx, 0, &module);
     let draft = Draft { kind, rhythm: OwnRhythm::Dates, dates: vec![day.iso()], to: clock(to), place, module, module_name, ..Draft::at(0, day.weekday(), from) };
-    ctx.own.set(Some(OwnAsk { number: None, draft }));
+    ctx.own.set(Some(OwnAsk { number: None, draft, hint: false }));
 }
 
 /// The day and the minute (down to a quarter of an hour) of a click on a free stretch of a day of
@@ -553,8 +565,14 @@ pub(super) fn free_at(ev: &leptos::ev::MouseEvent) -> Option<(u8, u16)> {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
+        // What the pointer is over: the week holds a mouse's pointer from its press on
+        // (`Drag::down`), and the click that ends it is the week's then, not the column's.
         let element = ev.target()?.dyn_into::<web_sys::Element>().ok()?;
-        let column = column_of(&element)?;
+        let element = match element.closest(".week .col").ok().flatten() {
+            Some(_) => element,
+            None => web_sys::window()?.document()?.element_from_point(ev.client_x() as f32, ev.client_y() as f32)?,
+        };
+        let (column, _) = column_of(&element)?;
         Some((column.day, quarter(column.minute(f64::from(ev.client_y())))))
     }
     #[cfg(not(feature = "csr"))]
@@ -596,9 +614,10 @@ fn quarter(minute: f64) -> u16 {
     at
 }
 
-/// The column of the week grid `element` is a free stretch of (not a slot, its buttons or a link).
+/// The column of the week grid `element` is a free stretch of (not a slot, its buttons or a link),
+/// and its element.
 #[cfg(feature = "csr")]
-fn column_of(element: &web_sys::Element) -> Option<Column> {
+fn column_of(element: &web_sys::Element) -> Option<(Column, web_sys::Element)> {
     if element.closest(".slot, .slot-acts, .slot-frame, a, button").ok().flatten().is_some() {
         return None;
     }
@@ -609,7 +628,7 @@ fn column_of(element: &web_sys::Element) -> Option<Column> {
     let columns = week.query_selector_all(".col").ok()?;
     let day = (0..columns.length()).find(|at| columns.item(*at).is_some_and(|node| node.is_same_node(Some(column.as_ref()))))?;
     let rect = column.get_bounding_client_rect();
-    Some(Column { day: u8::try_from(day + 1).ok()?, top: rect.top(), height: rect.height(), first, last })
+    Some((Column { day: u8::try_from(day + 1).ok()?, top: rect.top(), height: rect.height(), first, last }, column))
 }
 
 /// The span a drag on a free stretch draws, as its start and end in minutes (owner, 2026-11-18:
@@ -656,40 +675,128 @@ pub(crate) struct Sketch {
     pub to: u16,
 }
 
-/// The span being drawn as a slot of the week: dashed as the form's draft, its times written in it
-/// („09:15 – 10:45"), which a phone's narrow column shows too (its slots' small line is not shown):
-/// there the end goes under the start, the dash spaced so that the line may break at it.
-pub(super) fn sketch_slot(sketch: Sketch, t: &'static Texts) -> GridSlot {
-    let times = format!("{} – {}", clock(sketch.from), clock(sketch.to));
-    GridSlot {
-        day: sketch.day,
-        from: sketch.from,
-        to: sketch.to,
-        title: format!("{} · {}–{}", t.studyplan_own.draft, clock(sketch.from), clock(sketch.to)),
-        label: times,
-        class: "draft",
-        own: true,
-        ..GridSlot::default()
+/// A box in the window's pixels: a day's column, the week that holds the span drawn, what the
+/// window shows.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct Boxed {
+    pub left: f64,
+    pub top: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+impl Boxed {
+    fn right(self) -> f64 {
+        self.left + self.width
+    }
+
+    fn bottom(self) -> f64 {
+        self.top + self.height
+    }
+}
+
+/// The span being drawn as it stands over its column (`SketchView`), in pixels of the week that
+/// holds it: its box, its times written in it where they fit whole (`label`), and the tag with its
+/// times that stands outside it (`tag_x`, `tag_y`, `times`).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Drawn {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub label: Option<String>,
+    pub tag_x: f64,
+    pub tag_y: f64,
+    pub times: String,
+}
+
+/// The tag's size (px), as the stylesheet draws it (`.sp-sketch-tag`), and its distance from the
+/// span; further from an edge a finger is at, whose pad reaches over its point.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const TAG_WIDTH: f64 = 96.0;
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const TAG_HEIGHT: f64 = 24.0;
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const TAG_GAP: f64 = 4.0;
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const TAG_GAP_FINGER: f64 = 14.0;
+
+/// Where the span `from`–`to` drawn in `column` (whose hours are `hours`) stands in `area` (the
+/// week that holds it), the pointer at the height `pointer`, the window showing `seen`. The times
+/// are always readable while a span is drawn (owner, 2026-11-18: of a phone's narrow column, where
+/// a short span showed „16:00 …" alone): a tag with them stands above the span's top edge, inside
+/// the week as far as it is seen; where there is no room above, below its bottom edge where the
+/// pointer is at the top, else beside the column at the top edge — never where the finger is. The
+/// span's own text only where it fits whole: a line of a wide column, two of a narrow one.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+pub(super) fn drawn_at(column: Boxed, area: Boxed, seen: Boxed, hours: (u16, u16), span: (u16, u16), pointer: f64) -> Drawn {
+    let (first, last) = hours;
+    let (from, to) = span;
+    let minutes = f64::from(last.saturating_sub(first)).max(1.0);
+    let at = |minute: u16| column.top + (f64::from(minute) - f64::from(first)) / minutes * column.height;
+    let (top, bottom) = (at(from), at(to));
+    let height = (bottom - top).max(1.0);
+    // Lines of 13 px and their padding (`.sp-sketch`); a narrow column breaks „09:15 – 10:45" at its
+    // dash.
+    let lines = if column.width >= 92.0 { 1.0 } else { 2.0 };
+    let label = (height >= lines * 13.0 + 6.0).then(|| format!("{} – {}", clock(from), clock(to)));
+    let (ceiling, floor) = (area.top.max(seen.top), area.bottom().min(seen.bottom()));
+    let (lo, hi) = (area.left.max(seen.left) + 2.0, area.right().min(seen.right()) - 2.0 - TAG_WIDTH);
+    let inside = |x: f64| x.clamp(lo, hi.max(lo));
+    let finger_at_top = (pointer - top).abs() < (pointer - bottom).abs();
+    let above = top - (if finger_at_top { TAG_GAP_FINGER } else { TAG_GAP }) - TAG_HEIGHT;
+    let centred = inside(column.left + column.width / 2.0 - TAG_WIDTH / 2.0);
+    let (tag_x, tag_y) = if above >= ceiling {
+        (centred, above)
+    } else if finger_at_top && bottom + TAG_GAP + TAG_HEIGHT <= floor {
+        (centred, bottom + TAG_GAP)
+    } else {
+        // Beside the column at the span's top edge: right of it, or left where the week ends.
+        let right = column.right() + TAG_GAP;
+        let x = if right <= hi { right } else { column.left - TAG_GAP - TAG_WIDTH };
+        (inside(x), top.max(ceiling))
+    };
+    Drawn {
+        x: column.left - area.left,
+        y: top - area.top,
+        width: column.width,
+        height,
+        label,
+        tag_x: tag_x - area.left,
+        tag_y: tag_y - area.top,
+        times: format!("{}–{}", clock(from), clock(to)),
     }
 }
 
 /// The form for a new Termin of the plan's calendar on `weekday` from `from` to `to` (minutes): what
 /// a drag drew.
 pub(super) fn ask_span(ctx: PlanCtx, weekday: u8, from: u16, to: u16) {
-    let mut draft = Draft::at(0, weekday, from);
-    draft.to = clock(to);
-    ctx.own.set(Some(OwnAsk { number: None, draft }));
+    ask_new(ctx, 0, weekday, from, None);
+    ctx.own.update(|ask| {
+        if let Some(ask) = ask {
+            ask.draft.to = clock(to);
+        }
+    });
 }
 
 /// How far (px) a mouse moves before its press draws a span: less is a click.
 const DRAG_SLOP: f64 = 4.0;
 
-/// A press on a free stretch of the week while it lasts: the pointer, the column it began in, the
-/// quarter of an hour pressed, where it began, whether the span is drawn (`live`) and whether it
-/// follows the pointer yet (a finger's hold draws a new Termin's length until the finger moves).
+/// How far (px) a held finger moves before the span follows it: less is the finger's own trembling,
+/// and the span stays a new Termin's length; more, and a quarter of an hour on a phone's grid (about
+/// 11 px) can be drawn.
+const FOLLOW_SLOP: f64 = 6.0;
+
+/// A press on a free stretch of the week while it lasts: the pointer and whether it is a finger, the
+/// column it began in, the quarter of an hour pressed, where it began, whether the span is drawn
+/// (`live`) and whether it follows the pointer yet (a finger's hold draws a new Termin's length
+/// until the finger moves).
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Press {
     pointer: i32,
+    touch: bool,
     column: Column,
     anchor: u16,
     y: f64,
@@ -702,19 +809,29 @@ struct Press {
 /// the quarter of an hour pressed to the pointer, a finger after it was held (`Hold`); letting go
 /// opens the form with the day, the start and the end, and the drawn span stays in the week as the
 /// form's draft. A press that does not move is a click, which opens the form at its time as before.
-/// The pointer is held by the week (`setPointerCapture`), so that leaving the column does not end
-/// it; the span stays in its day's column and the grid's hours; Esc gives it up. While a finger
-/// draws, the page does not scroll (a `touchmove` listener that is not passive cancels it).
+/// While it is drawn the span lies over its column, not in its lanes, so that nothing under it moves
+/// (`SketchView`), its times in a tag outside it (`drawn_at`).
+///
+/// The week holds the pointer from the press on (`setPointerCapture`), so that leaving the column,
+/// or a first move already past the grid's end, does not lose it; the span stays in its day's column
+/// and the grid's hours. Every way a drag can end without its pointer let go over the week gives it
+/// up and leaves nothing behind — no press, no hold of the pointer, no span, no click swallowed: Esc,
+/// a mouse moving with its button up (its up went to a menu or another window), the browser taking
+/// the pointer (`pointercancel`, `lostpointercapture`), a second pointer coming down, the window
+/// losing the focus, the mode left, another semester or week, the page turning a phone's or a wide
+/// one's.
 #[derive(Clone, Copy)]
 pub(super) struct Drag {
     ctx: PlanCtx,
     press: StoredValue<Option<Press>>,
-    /// The click that ends a drag opens nothing (the form is open already).
+    /// The click that ends a press that drew opens nothing: the form is open already, or the drag
+    /// was given up while the button was still down.
     swallow: StoredValue<bool>,
-    /// The listener that keeps a finger's drag from scrolling the page, put on what the finger
-    /// pressed (a touch's events stay with it even where the grid draws itself anew under it).
+    /// The span as it stands over its column, and its tag.
+    drawn: RwSignal<Option<Drawn>>,
+    /// What holds the pointer (the week) and the column pressed, while a press lasts.
     #[cfg(feature = "csr")]
-    still: StoredValue<Option<send_wrapper::SendWrapper<web_sys::js_sys::Function>>>,
+    held_by: StoredValue<Option<send_wrapper::SendWrapper<(web_sys::Element, web_sys::Element)>>>,
 }
 
 impl Drag {
@@ -723,11 +840,31 @@ impl Drag {
             ctx,
             press: StoredValue::new(None),
             swallow: StoredValue::new(false),
+            drawn: RwSignal::new(None),
             #[cfg(feature = "csr")]
-            still: StoredValue::new(None),
+            held_by: StoredValue::new(None),
         };
         #[cfg(feature = "csr")]
         drag.listen();
+        // What the press was made in changes: the mode, the page's layout (a phone's carousel or the
+        // wide grid), the semester, the week shown, a choice in focus. Each its own effect: the
+        // semester and the mode are made of the address (R16).
+        let give_up = move |was: Option<bool>, now: bool| {
+            if was.is_some_and(|was| was != now) {
+                untrack(|| drag.cancel());
+            }
+            now
+        };
+        Effect::new(move |was: Option<bool>| give_up(was, ctx.edit.get()));
+        Effect::new(move |was: Option<bool>| give_up(was, ctx.phone.get()));
+        Effect::new(move |was: Option<bool>| give_up(was, ctx.url.with(|url| url.wahl.is_some())));
+        Effect::new(move |was: Option<(SemesterKey, Weeks)>| {
+            let now = (ctx.key.get(), ctx.weeks.get());
+            if was.is_some_and(|was| was != now) {
+                untrack(|| drag.cancel());
+            }
+            now
+        });
         drag
     }
 
@@ -742,19 +879,36 @@ impl Drag {
         self.press.try_get_value().flatten().is_some_and(|press| press.live)
     }
 
-    /// A mouse's or a pen's press on a free stretch: noted, drawn once it moves.
+    /// A finger's drag is drawing: the page holds still under it, and its long press opens no menu.
+    pub(super) fn live_touch(self) -> bool {
+        self.press.try_get_value().flatten().is_some_and(|press| press.live && press.touch)
+    }
+
+    /// A pointer came down on the week. A press that never heard its pointer let go gives way, and
+    /// a second pointer while one draws gives that drawing up and starts none (a finger on a
+    /// laptop's screen while the mouse draws). A mouse's or a pen's press on a free stretch is
+    /// noted and drawn once it moves; the week holds its pointer from now on.
     pub(super) fn down(self, ev: &leptos::ev::PointerEvent) {
-        self.press.set_value(None);
+        // A new press: the click of the one before is past.
+        self.swallow.set_value(false);
+        let another = self.press.get_value().map(|press| {
+            self.cancel();
+            press.pointer != ev.pointer_id()
+        });
         #[cfg(feature = "csr")]
-        if ev.pointer_type() != "touch" && ev.button() == 0 && self.may() {
+        if another != Some(true) && ev.pointer_type() != "touch" && ev.button() == 0 && self.may() {
             use wasm_bindgen::JsCast;
-            let Some(column) = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|element| column_of(&element)) else { return };
+            let Some(element) = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return };
+            let Some((column, at)) = column_of(&element) else { return };
+            let Some(holder) = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) else { return };
+            let _ = holder.set_pointer_capture(ev.pointer_id());
+            self.held_by.set_value(Some(send_wrapper::SendWrapper::new((holder, at))));
             let y = f64::from(ev.client_y());
             let anchor = quarter(column.minute(y));
-            self.press.set_value(Some(Press { pointer: ev.pointer_id(), column, anchor, y, live: false, follows: false }));
+            self.press.set_value(Some(Press { pointer: ev.pointer_id(), touch: false, column, anchor, y, live: false, follows: false }));
         }
         #[cfg(not(feature = "csr"))]
-        let _ = ev;
+        let _ = (ev, another);
     }
 
     /// A finger held on a free stretch at `x`, `y` (`Hold`): the span of a new Termin's length is
@@ -763,15 +917,16 @@ impl Drag {
         #[cfg(feature = "csr")]
         {
             let Some(element) = web_sys::window().and_then(|window| window.document()).and_then(|document| document.element_from_point(x as f32, y as f32)) else { return false };
-            let Some(column) = column_of(&element) else { return false };
+            let Some((column, at)) = column_of(&element) else { return false };
             let anchor = quarter(column.minute(f64::from(y)));
-            // The week holds the finger's pointer, wherever it goes and whatever is drawn under it.
-            if let Some(holder) = element.closest(".sp-carousel, .sp-week").ok().flatten() {
-                let _ = holder.set_pointer_capture(pointer);
-            }
-            self.press.set_value(Some(Press { pointer, column, anchor, y: f64::from(y), live: true, follows: false }));
-            let (from, to) = held_span(anchor, column.first, column.last);
-            self.draw(column.day, from, to);
+            // The week holds the finger's pointer, wherever it goes and whatever is drawn under it:
+            // a phone's carousel, which the span drawn lies in (`SketchView`), not its slide.
+            let Some(holder) = element.closest(".sp-carousel").ok().flatten().or_else(|| element.closest(".sp-week").ok().flatten()) else { return false };
+            let _ = holder.set_pointer_capture(pointer);
+            self.held_by.set_value(Some(send_wrapper::SendWrapper::new((holder, at))));
+            let press = Press { pointer, touch: true, column, anchor, y: f64::from(y), live: true, follows: false };
+            self.press.set_value(Some(press));
+            self.draw(press, press.y);
             true
         }
         #[cfg(not(feature = "csr"))]
@@ -788,35 +943,65 @@ impl Drag {
         if ev.pointer_id() != press.pointer {
             return false;
         }
+        // A mouse that moves with its button up was let go where the week did not hear it (a menu,
+        // another window): the press is over, and nothing follows the bare pointer.
+        if !press.touch && ev.buttons() & 1 == 0 {
+            self.cancel();
+            return false;
+        }
         let y = f64::from(ev.client_y());
         if !press.follows {
-            let slop = if press.live { f64::from(HOLD_SLOP) } else { DRAG_SLOP };
+            let slop = if press.live { FOLLOW_SLOP } else { DRAG_SLOP };
             if (y - press.y).abs() < slop {
                 return press.live;
             }
             press.follows = true;
-            if !press.live {
-                press.live = true;
-                #[cfg(feature = "csr")]
-                {
-                    use wasm_bindgen::JsCast;
-                    if let Some(holder) = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()) {
-                        let _ = holder.set_pointer_capture(press.pointer);
-                    }
-                }
-            }
+            press.live = true;
         }
         self.press.set_value(Some(press));
         ev.prevent_default();
-        let (from, to) = span_of(press.anchor, press.column.minute(y), press.column.first, press.column.last);
-        self.draw(press.column.day, from, to);
+        self.draw(press, y);
         true
     }
 
-    fn draw(self, day: u8, from: u16, to: u16) {
-        let next = Some(Sketch { day, from, to });
+    /// The column of `press` where it stands now: the page may have scrolled since the press (a
+    /// wheel while the mouse draws), and every minute with it.
+    fn column_now(self, press: Press) -> Column {
+        #[cfg(feature = "csr")]
+        {
+            if let Some(held) = self.held_by.get_value() {
+                let rect = held.1.get_bounding_client_rect();
+                if held.1.is_connected() && rect.height() > 0.0 {
+                    return Column { top: rect.top(), height: rect.height(), ..press.column };
+                }
+            }
+        }
+        press.column
+    }
+
+    /// The span of `press` with the pointer at `y`, in the week and over its column.
+    fn draw(self, press: Press, y: f64) {
+        let column = self.column_now(press);
+        let (from, to) = if press.follows { span_of(press.anchor, column.minute(y), column.first, column.last) } else { held_span(press.anchor, column.first, column.last) };
+        let next = Some(Sketch { day: column.day, from, to });
         if self.ctx.sketch.get_untracked() != next {
             self.ctx.sketch.set(next);
+        }
+        #[cfg(feature = "csr")]
+        {
+            let Some(held) = self.held_by.get_value() else { return };
+            let (holder, at) = &*held;
+            let boxed = |rect: web_sys::DomRect| Boxed { left: rect.left(), top: rect.top(), width: rect.width(), height: rect.height() };
+            let seen = web_sys::window().map_or(Boxed { left: 0.0, top: 0.0, width: f64::MAX, height: f64::MAX }, |window| Boxed {
+                left: 0.0,
+                top: 0.0,
+                width: window.inner_width().ok().and_then(|width| width.as_f64()).unwrap_or(f64::MAX),
+                height: window.inner_height().ok().and_then(|height| height.as_f64()).unwrap_or(f64::MAX),
+            });
+            let drawn = drawn_at(boxed(at.get_bounding_client_rect()), boxed(holder.get_bounding_client_rect()), seen, (column.first, column.last), (from, to), y);
+            if self.drawn.get_untracked().as_ref() != Some(&drawn) {
+                self.drawn.set(Some(drawn));
+            }
         }
     }
 
@@ -827,38 +1012,57 @@ impl Drag {
         if ev.pointer_id() != press.pointer {
             return false;
         }
-        self.press.set_value(None);
+        let drawn = self.ctx.sketch.get_untracked();
+        self.cancel();
         if !press.live {
             return false;
         }
-        let drawn = self.ctx.sketch.get_untracked();
-        self.ctx.sketch.set(None);
         if let Some(sketch) = drawn {
             ask_span(self.ctx, sketch.day, sketch.from, sketch.to);
         }
-        self.swallow.set_value(true);
-        // A click comes right after the pointer is let go, or none (let go outside the window).
-        let swallow = self.swallow;
-        set_timeout(
-            move || {
-                let _ = swallow.try_set_value(false);
-            },
-            std::time::Duration::from_millis(400),
-        );
         true
     }
 
-    /// The drag given up (Esc, the browser took the pointer): nothing drawn, nothing opened.
-    pub(super) fn cancel(self) {
-        self.press.set_value(None);
-        if self.ctx.sketch.with_untracked(Option::is_some) {
-            self.ctx.sketch.set(None);
+    /// The browser took the pointer from the week (`lostpointercapture`): its drag is given up.
+    pub(super) fn lost(self, ev: &leptos::ev::PointerEvent) {
+        if self.press.get_value().is_some_and(|press| press.pointer == ev.pointer_id()) {
+            self.cancel();
         }
     }
 
-    /// Whether `ev` is the click that ends a drag, which opens nothing.
+    /// The drag given up: no press, no hold of the pointer, nothing drawn, nothing opened. Safe
+    /// from a listener that outlives the week.
+    pub(super) fn cancel(self) {
+        let press = self.press.try_get_value().flatten();
+        let _ = self.press.try_set_value(None);
+        // The click that ends a press that drew opens nothing (the form is open, or the drag was
+        // given up); the next press clears it, so that no later click is lost.
+        if press.is_some_and(|press| press.live) {
+            let _ = self.swallow.try_set_value(true);
+        }
+        #[cfg(feature = "csr")]
+        {
+            if let (Some(press), Some(held)) = (press, self.held_by.try_get_value().flatten()) {
+                if held.0.has_pointer_capture(press.pointer) {
+                    let _ = held.0.release_pointer_capture(press.pointer);
+                }
+            }
+            let _ = self.held_by.try_set_value(None);
+        }
+        #[cfg(not(feature = "csr"))]
+        let _ = press;
+        if self.ctx.sketch.try_with_untracked(Option::is_some) == Some(true) {
+            self.ctx.sketch.set(None);
+        }
+        if self.drawn.try_with_untracked(Option::is_some) == Some(true) {
+            self.drawn.set(None);
+        }
+    }
+
+    /// Whether `ev` is the click that ends a drag, which opens nothing. A click of the keyboard
+    /// (`detail` 0) ends no press.
     pub(super) fn swallow(self, ev: &leptos::ev::MouseEvent) -> bool {
-        if !self.swallow.get_value() {
+        if !self.swallow.get_value() || ev.detail() == 0 {
             return false;
         }
         self.swallow.set_value(false);
@@ -867,32 +1071,59 @@ impl Drag {
         true
     }
 
-    /// A finger came down on the week: what it pressed keeps the page from scrolling while it draws.
-    fn touched(self, ev: &leptos::ev::PointerEvent) {
-        #[cfg(feature = "csr")]
-        {
-            let (Some(target), Some(still)) = (ev.target(), self.still.get_value()) else { return };
-            let options = web_sys::AddEventListenerOptions::new();
-            options.set_passive(false);
-            let _ = target.add_event_listener_with_callback_and_add_event_listener_options("touchmove", &still, &options);
-        }
-        #[cfg(not(feature = "csr"))]
-        let _ = ev;
+    /// The span being drawn as it stands, for `SketchView`.
+    pub(super) fn drawn(self) -> Option<Drawn> {
+        self.drawn.get()
     }
 
-    /// Esc while drawing gives the span up, before anything else hears it (the mode would be left);
-    /// a finger that draws does not scroll the page. Both taken off with the week.
+    /// A phone's week holds still under a finger that draws: one listener on it, not passive, there
+    /// as long as the week (`node`) is, which cancels the page's scrolling only while a finger's span
+    /// is drawn. A listener put on at the press itself would come too late for WebKit, which decides
+    /// at the touch's start whether its moves may be cancelled.
     #[cfg(feature = "csr")]
-    fn listen(self) {
+    pub(super) fn keep_still(self, node: NodeRef<leptos::html::Div>) {
+        use send_wrapper::SendWrapper;
         use wasm_bindgen::{closure::Closure, JsCast};
-        let press = self.press;
         let still = Closure::<dyn Fn(web_sys::Event)>::new(move |ev: web_sys::Event| {
-            if press.try_get_value().flatten().is_some_and(|press| press.live) && ev.cancelable() {
+            if self.live_touch() && ev.cancelable() {
                 ev.prevent_default();
             }
         });
         let still: web_sys::js_sys::Function = still.into_js_value().unchecked_into();
-        self.still.set_value(Some(send_wrapper::SendWrapper::new(still)));
+        let still = SendWrapper::new(still);
+        let on = StoredValue::new(None::<SendWrapper<web_sys::Element>>);
+        let off = {
+            let still = still.clone();
+            move || {
+                if let Some(element) = on.try_get_value().flatten() {
+                    let _ = element.remove_event_listener_with_callback("touchmove", &still);
+                }
+                let _ = on.try_set_value(None);
+            }
+        };
+        Effect::new({
+            let off = off.clone();
+            move |_| {
+                let Some(element) = node.get() else { return };
+                let element: web_sys::Element = element.into();
+                if on.get_value().is_some_and(|before| before.is_same_node(Some(element.as_ref()))) {
+                    return;
+                }
+                off();
+                let options = web_sys::AddEventListenerOptions::new();
+                options.set_passive(false);
+                let _ = element.add_event_listener_with_callback_and_add_event_listener_options("touchmove", &still, &options);
+                on.set_value(Some(SendWrapper::new(element)));
+            }
+        });
+        on_cleanup(off);
+    }
+
+    /// Esc while drawing gives the span up, before anything else hears it (the mode would be left);
+    /// so does the window losing the focus. Both taken off with the week.
+    #[cfg(feature = "csr")]
+    fn listen(self) {
+        use wasm_bindgen::{closure::Closure, JsCast};
         let keys = Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |ev: web_sys::KeyboardEvent| {
             if ev.key() != "Escape" || !self.live() {
                 return;
@@ -902,15 +1133,37 @@ impl Drag {
             self.cancel();
         });
         let keys: web_sys::js_sys::Function = keys.into_js_value().unchecked_into();
+        let blur = Closure::<dyn Fn(web_sys::Event)>::new(move |_: web_sys::Event| self.cancel());
+        let blur: web_sys::js_sys::Function = blur.into_js_value().unchecked_into();
         if let Some(window) = web_sys::window() {
             let _ = window.add_event_listener_with_callback_and_bool("keydown", &keys, true);
+            let _ = window.add_event_listener_with_callback("blur", &blur);
         }
-        let held = send_wrapper::SendWrapper::new(keys);
+        let held = send_wrapper::SendWrapper::new((keys, blur));
         on_cleanup(move || {
             if let Some(window) = web_sys::window() {
-                let _ = window.remove_event_listener_with_callback_and_bool("keydown", &held, true);
+                let _ = window.remove_event_listener_with_callback_and_bool("keydown", &held.0, true);
+                let _ = window.remove_event_listener_with_callback("blur", &held.1);
             }
         });
+    }
+}
+
+/// The span being drawn, over its column (`Drag`): dashed as the form's draft, its times written in
+/// it where they fit whole, and the tag with its times outside it. It lies over the week, not in a
+/// day's lanes, so that no slot under it changes its width while it grows; it takes a lane once it
+/// is the form's draft. Gone as the pointer lets go: the form says the times then.
+#[component]
+pub(super) fn SketchView(drag: Drag) -> impl IntoView {
+    move || {
+        drag.drawn().map(|drawn| {
+            let place = format!("--x:{:.1}px;--y:{:.1}px;--w:{:.1}px;--h:{:.1}px", drawn.x, drawn.y, drawn.width, drawn.height);
+            let tag = format!("--x:{:.1}px;--y:{:.1}px", drawn.tag_x, drawn.tag_y);
+            view! {
+                <div class="sp-sketch" style=place aria-hidden="true">{drawn.label.map(|label| view! { <span class="l">{label}</span> })}</div>
+                <div class="sp-sketch-tag" style=tag aria-hidden="true">{drawn.times}</div>
+            }
+        })
     }
 }
 
@@ -918,11 +1171,14 @@ impl Drag {
 const HOLD_MS: u64 = 500;
 const HOLD_SLOP: i32 = 10;
 
-/// A finger held on a free stretch of a phone's week (owner, the first question: „am Handy langes
-/// Drücken"): after `HOLD_MS` without moving, the span of a new Termin stands there, which the
-/// finger stretches as it moves and which opens the form as it lifts (`Drag`); a finger that moves
-/// before scrolls the page. The click that ends the hold opens nothing. A mouse or a pen does not
-/// hold: a click and a drag are theirs.
+/// A finger held on a free stretch of a phone's week (owner, 2026-11-18: „Das soll so sein, dass man
+/// lange gedrückt hält, dann bekommt man ein vib feedback, und danach kann man draggen oder einfach
+/// los lassen. Und erst veim los lassen wird der termin erstellt. Beim draggen in dem bereich und
+/// wenn man direkt los lässt dann ein 90min termin."): after `HOLD_MS` without moving the phone
+/// vibrates and the span of a new Termin's 90 minutes stands there, which the finger stretches as it
+/// moves; only the lift opens the form with what stands, whose „Anlegen" makes the Termin. A finger
+/// that moves before the hold completes scrolls the page. The click that ends the hold opens
+/// nothing. A mouse or a pen does not hold: a click and a drag are theirs.
 #[derive(Clone, Copy)]
 pub(super) struct Hold {
     drag: Drag,
@@ -944,7 +1200,6 @@ impl Hold {
         if ev.pointer_type() != "touch" || !self.drag.may() {
             return;
         }
-        self.drag.touched(ev);
         let (x, y, pointer) = (ev.client_x(), ev.client_y(), ev.pointer_id());
         self.at.set_value(Some((x, y)));
         let hold = self;
@@ -978,6 +1233,11 @@ impl Hold {
             timer.clear();
             self.timer.set_value(None);
         }
+    }
+
+    /// A finger is held on the week, or draws: its long press opens no menu of the browser's.
+    pub(super) fn pressing(self) -> bool {
+        self.at.get_value().is_some() || self.drag.live_touch()
     }
 
     /// Whether `ev` is the click that ends a hold, which opens nothing.
@@ -1137,6 +1397,10 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         });
     };
 
+    // Opened by a button while the plan is edited: one quiet line by „Wann" that a span drawn in the
+    // week is quicker (the gesture cannot be seen otherwise, on a phone least); none where the form
+    // came from the week.
+    let quicker = Memo::new(move |_| shown.with(|ask| ask.as_ref().is_some_and(|ask| ask.hint)) && ctx.edit.get());
     // „Wann": what picks stands above what it changes (the day or the dates, the period).
     let when = move || {
         let pick = |value: OwnRhythm, label: &'static str| {
@@ -1164,6 +1428,7 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                     {pick(OwnRhythm::BWeek, o.b_week)}
                     {pick(OwnRhythm::Dates, o.on_dates)}
                 </div>
+                {move || quicker.get().then(|| view! { <p class="own-quicker">{move || if ctx.phone.get() { o.quicker_hold } else { o.quicker_drag }}</p> })}
             </div>
         }
     };
@@ -1638,13 +1903,13 @@ mod tests {
 
     #[test]
     fn the_draft_stands_on_its_days_in_the_plans_week() {
-        let ask = OwnAsk { number: None, draft: Draft::at(0, 3, 16 * 60) };
+        let ask = OwnAsk { number: None, draft: Draft::at(0, 3, 16 * 60), hint: false };
         assert_eq!(draft_days(&ask), [(3, 960, 1050)]);
-        let dates = OwnAsk { number: None, draft: Draft { rhythm: OwnRhythm::Dates, dates: vec!["2026-11-12".into(), "2026-11-19".into(), "2026-11-20".into()], ..Draft::at(0, 3, 16 * 60) } };
+        let dates = OwnAsk { number: None, draft: Draft { rhythm: OwnRhythm::Dates, dates: vec!["2026-11-12".into(), "2026-11-19".into(), "2026-11-20".into()], ..Draft::at(0, 3, 16 * 60) }, hint: false };
         assert_eq!(draft_days(&dates), [(4, 960, 1050), (5, 960, 1050)]);
-        let lenas = OwnAsk { number: None, draft: Draft::at(1, 3, 16 * 60) };
+        let lenas = OwnAsk { number: None, draft: Draft::at(1, 3, 16 * 60), hint: false };
         assert!(draft_days(&lenas).is_empty(), "another calendar's draft stands in its own");
-        let broken = OwnAsk { number: None, draft: Draft { to: "15:00".into(), ..Draft::at(0, 3, 16 * 60) } };
+        let broken = OwnAsk { number: None, draft: Draft { to: "15:00".into(), ..Draft::at(0, 3, 16 * 60) }, hint: false };
         assert!(draft_days(&broken).is_empty());
     }
 
@@ -1652,14 +1917,14 @@ mod tests {
     /// module as the slots call it, else „Neuer Termin".
     #[test]
     fn the_draft_is_named_as_its_termin_will_be() {
-        let ask = |draft: Draft| OwnAsk { number: None, draft };
+        let ask = |draft: Draft| OwnAsk { number: None, draft, hint: false };
         let evs = Draft { module: "12104".into(), module_name: "EvS".into(), kind: Some(EventKind::Lecture), ..Draft::at(0, 2, 9 * 60 + 15) };
         let label = |ask: &OwnAsk| draft_slots(ask, Weeks::All, &i18n::DE).first().map(|slot| slot.label.clone()).unwrap();
         assert_eq!(label(&ask(evs.clone())), "VL EvS");
         assert_eq!(label(&ask(Draft { kind: None, ..evs.clone() })), "EvS");
         assert_eq!(label(&ask(Draft { name: "Tafelübung".into(), ..evs.clone() })), "Tafelübung");
         assert_eq!(label(&ask(Draft::at(0, 2, 600))), "Neuer Termin");
-        assert_eq!(label(&OwnAsk { number: Some(3), draft: Draft::at(0, 2, 600) }), "Eigener Termin");
+        assert_eq!(label(&OwnAsk { number: Some(3), draft: Draft::at(0, 2, 600), hint: false }), "Eigener Termin");
         // Its module's name is not stored.
         assert_eq!(evs.termin(1).map(|termin| termin.module), Ok(Some("12104".to_string())));
     }
@@ -1735,12 +2000,41 @@ mod tests {
         assert_eq!(quarter(column.minute(461.0)), 780);
     }
 
-    /// The span drawn stands in the week as the form's draft does, its times written in it.
+    /// The span being drawn lies over its column; its times stand in a tag outside it, above its
+    /// top edge, inside the week and the window — on a phone's last column too —, below or beside it
+    /// where there is no room above, never where the pointer is; its own text only where it fits.
     #[test]
-    fn the_span_drawn_says_its_times() {
-        let slot = sketch_slot(Sketch { day: 3, from: 555, to: 645 }, &i18n::DE);
-        assert_eq!((slot.day, slot.from, slot.to, slot.class, slot.own), (3, 555, 645, "draft", true));
-        assert_eq!(slot.label, "09:15 – 10:45");
-        assert_eq!(slot.title, "Neuer Termin · 09:15–10:45");
+    fn the_span_drawn_says_its_times_outside_it() {
+        let boxed = |left: f64, top: f64, width: f64, height: f64| Boxed { left, top, width, height };
+        // Wide: a column of 140 px, a pixel a minute from 07:00 to 19:00, in a week at 360, 80.
+        let (column, week, window) = (boxed(500.0, 100.0, 140.0, 720.0), boxed(360.0, 80.0, 730.0, 760.0), boxed(0.0, 0.0, 1440.0, 900.0));
+        let drawn = drawn_at(column, week, window, (420, 1140), (960, 1005), 685.0);
+        assert_eq!((drawn.x, drawn.y, drawn.width, drawn.height), (140.0, 560.0, 140.0, 45.0));
+        assert_eq!((drawn.tag_x, drawn.tag_y, drawn.times.as_str()), (162.0, 532.0, "16:00–16:45"));
+        assert_eq!(drawn.label.as_deref(), Some("16:00 – 16:45"));
+        // A quarter of an hour: no text cut in half, the tag says it.
+        let short = drawn_at(column, week, window, (420, 1140), (960, 975), 975.0);
+        assert_eq!((short.label, short.times.as_str()), (None, "16:00–16:15"));
+        // Drawn upward, the pointer at the top edge: the tag further up, clear of a finger's pad.
+        assert_eq!(drawn_at(column, week, window, (420, 1140), (960, 1005), 640.0).tag_y, 522.0);
+        // A phone's last column of 70 px in a carousel that bleeds 26 px past the window: the tag
+        // stays inside what the window shows.
+        let (column, carousel, phone) = (boxed(310.0, 280.0, 70.0, 560.0), boxed(-26.0, 256.0, 442.0, 560.0), boxed(0.0, 0.0, 390.0, 844.0));
+        let last = drawn_at(column, carousel, phone, (420, 1140), (960, 1005), 700.0);
+        assert_eq!(last.tag_x + carousel.left, 292.0);
+        assert!(last.tag_x + carousel.left + TAG_WIDTH <= 390.0);
+        // Two lines in a narrow column: 45 minutes fit them, 30 do not.
+        assert_eq!(last.label.as_deref(), Some("16:00 – 16:45"));
+        assert_eq!(drawn_at(column, carousel, phone, (420, 1140), (960, 990), 700.0).label, None);
+        // At the grid's top, no room above: drawn upward the tag goes below; drawn downward beside
+        // the column (left of the last one), at the span's top edge.
+        let up = drawn_at(column, carousel, phone, (420, 1140), (420, 480), 280.0);
+        assert_eq!(up.tag_x + carousel.left, 292.0);
+        assert!((up.tag_y + carousel.top - (280.0 + 60.0 * 560.0 / 720.0 + TAG_GAP)).abs() < 1e-6);
+        let down = drawn_at(column, carousel, phone, (420, 1140), (420, 480), 326.0);
+        assert_eq!((down.tag_x + carousel.left, down.tag_y + carousel.top), (210.0, 280.0));
+        // A first column: beside it to the right.
+        let first = drawn_at(boxed(40.0, 280.0, 70.0, 560.0), carousel, phone, (420, 1140), (420, 480), 326.0);
+        assert_eq!(first.tag_x + carousel.left, 114.0);
     }
 }

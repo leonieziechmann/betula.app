@@ -13,8 +13,10 @@
 //   without a menu; „Bearbeiten" brings both.
 // - „Neuer Kalender" from the link pasted, with a name; its menu renames it and deletes it, and
 //   „Rückgängig" brings it back where it stood. A calendar made by its name alone, without a link.
-// - A phone: the head's „Kalender" opens a sheet, in both states, with the rows, „Gemeinsam frei", each
-//   calendar's menu and „+ Kalender"; Esc closes the menu first.
+// - A phone: the head's „Kalender" with the number of calendars of one's own as its badge („Kalender, 1
+//   weiterer") opens a sheet, in both states, its line saying what a calendar is for, with the rows,
+//   „Gemeinsam frei", each calendar's menu and „+ Kalender", a finger's 44 px each; Esc closes the menu
+//   first; a link that cannot be read makes an empty calendar and says so.
 // History: 2026-11-17, the edit mode. Lena ticks her group in its card („Diese Gruppe anhaken"), not by
 // the click on the hatched slot that took it into focus with the group ticked (that preselection went);
 // „+ Kalender" and the calendars' menus are the mode's; „Neuer Kalender" takes a name alone.
@@ -173,12 +175,21 @@ let link = "";
   const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, plan, INFORMATIK);
   await until(page, "the head's „Kalender“", () => Boolean(onPage(".sp-head .sp-tool[data-action='calendars']")));
   check(await page.evaluate(() => !document.querySelector(".sp-cal-line, .sp-cal-newrow:not(dialog *)")), "a phone still has the line over the week or „+ Kalender“ in the list");
+  // The head's „Kalender" says that a calendar of one's own exists: its number as a badge at the
+  // sign, in its name „Kalender, 1 weiterer".
+  const badge = await page.evaluate(() => { const b = onPage(".sp-head .sp-tool[data-action='calendars']"); return { name: b?.getAttribute("aria-label"), badge: b?.querySelector(".sp-badge")?.textContent }; });
+  check(badge.name === "Kalender, 1 weiterer" && badge.badge === "1", `the head's „Kalender“ does not say that a calendar exists: ${JSON.stringify(badge)}`);
   // While looking: it is opened on purpose, so it has everything.
   await page.tap("#content > .page-stage.front .sp-tool[data-action='calendars']");
   await until(page, "the sheet", () => Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal:not(.mine)")));
   const words = await page.evaluate(() => [...document.querySelectorAll("dialog.sp-cal-sheet[open] .sp-cal-seg button")].map((b) => b.textContent.trim()));
   const has = await page.evaluate(() => ({ mine: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal.mine")), free: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-free")), more: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-more")), add: Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-add")), title: document.querySelector("dialog.sp-cal-sheet[open] h2")?.textContent.trim() }));
   check(JSON.stringify(words) === JSON.stringify(["Voll", "Spur", "Aus"]) && has.mine && has.free && has.more && has.add && has.title === "Kalender", `the sheet: the rows with their words, „Gemeinsam frei“, the menu and „+ Kalender“, looking: ${JSON.stringify({ words, has })}`);
+  // What a calendar is for, in one sentence under the title; a finger's 44 px for „…" and the switch.
+  const sub = await page.evaluate(() => document.querySelector("dialog.sp-cal-sheet[open] .st-dlg-head p")?.textContent.trim());
+  check(sub === "Dein Studium und weitere Kalender daneben – von Freunden, für ein Nebenfach oder aus einem Link.", `the sheet's line: ${sub}`);
+  const sizes = await page.evaluate(() => [...document.querySelectorAll("dialog.sp-cal-sheet[open] :is(.sp-cal-more, .sp-cal-seg button)")].map((b) => Math.round(b.getBoundingClientRect().height)));
+  check(sizes.length >= 4 && sizes.every((h) => h >= 44), `targets of the sheet under 44 px: ${JSON.stringify(sizes)}`);
   // Its menu: a question's answers each a row (the app's rule for sheets).
   await page.tap("dialog.sp-cal-sheet[open] .sp-cal-more");
   await until(page, "the menu", () => Boolean(document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-menu")));
@@ -193,6 +204,17 @@ let link = "";
   await page.fill("#sp-cal-new-name", "WG");
   await page.tap("dialog.sp-cal-sheet[open] .sp-cal-new button[type=submit]");
   await until(page, "a calendar by its name in the sheet", ([key]) => /^l\t2\t\t\tWG$/m.test(localStorage.getItem(key) ?? "") && document.querySelectorAll("dialog.sp-cal-sheet[open] .sp-cal:not(.mine)").length === 2, [PLAN]);
+  check(await page.evaluate(() => onPage(".sp-head .sp-tool[data-action='calendars'] .sp-badge")?.textContent === "2"), "the badge does not count the new calendar");
+  // A link that cannot be read: the calendar is made, empty, and the note says so (Betula does not
+  // say no, but it does not keep quiet either).
+  await page.tap("dialog.sp-cal-sheet[open] .sp-cal-add");
+  await until(page, "the form once more", () => Boolean(document.querySelector("dialog.sp-cal-sheet[open] #sp-cal-new-name")));
+  const fields = await page.evaluate(() => [...document.querySelectorAll("dialog.sp-cal-sheet[open] .sp-cal-new input")].map((i) => Math.round(i.getBoundingClientRect().height)));
+  check(fields.length === 2 && fields.every((h) => h >= 44), `the fields of „+ Kalender“ under 44 px: ${JSON.stringify(fields)}`);
+  await page.fill("#sp-cal-new-name", "Max");
+  await page.fill("dialog.sp-cal-sheet[open] .sp-cal-new input >> nth=1", "hello world");
+  await page.tap("dialog.sp-cal-sheet[open] .sp-cal-new button[type=submit]");
+  await until(page, "an empty calendar from a link not read, and the note says so", ([key]) => /^l\t3\t\t\tMax$/m.test(localStorage.getItem(key) ?? "") && document.querySelector("dialog.sp-cal-sheet[open] .sp-cal-note.warn")?.textContent.trim() === "Link nicht lesbar – leerer Kalender angelegt: Max", [PLAN]);
   if (shots) await page.screenshot({ path: `${shots}/calendars-phone.png` });
   await page.keyboard.press("Escape");
   await until(page, "the sheet closed", () => !document.querySelector("dialog.sp-cal-sheet[open]"));

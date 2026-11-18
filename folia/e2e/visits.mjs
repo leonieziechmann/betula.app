@@ -14,7 +14,7 @@
 // - A calendar of one's own, while editing: its „…" has „Modul aufnehmen", the panel „Modul in
 //   „Lena“", what it takes in is an `n` line and a row of its part, whose bin takes it out with
 //   „Rückgängig". While looking the part has neither „+ Modul" nor the bin.
-// - A phone: a calendar's „+ Modul" opens in view.
+// - A phone: a calendar's „+ Modul" is a sheet of its own, in view, closed by Esc to the page.
 // History: 2026-11-17, the edit mode. „+ Modul" of „Mein Studiengang" went (visits are made in „Mein
 // Studium"), and with it the list's „×" of a visit and its credits; the first block seeds the visit
 // and keeps what the week, „Offen" and the head say of it. A calendar's „+ Modul" is the mode's. „Mein
@@ -175,11 +175,14 @@ const wide = { viewport: { width: 1440, height: 900 } };
   const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, FS1 + VISIT + LENA, "/studyplan?edit=1");
   await until(page, "the phone's calendar part", () => Boolean(onPage(".sp-cal-mods .sp-add-mod")));
   await page.tap(".sp-cal-mods .sp-add-mod >> visible=true");
-  await until(page, "„+ Modul“ in view on a phone", () => {
-    const panel = onPage(".sp-cal-mods .sp-addp")?.getBoundingClientRect();
-    return panel && panel.top >= 0 && panel.top < innerHeight - 80 && panel.right <= innerWidth + 0.5;
+  // A sheet of its own, named for the calendar, its search in view; Esc closes it to the page.
+  await until(page, "„+ Modul“ a sheet on a phone", () => {
+    const panel = document.querySelector("dialog.sp-add-sheet[open] .sp-addp")?.getBoundingClientRect();
+    return panel && panel.top >= 0 && panel.top < innerHeight - 80 && panel.right <= innerWidth + 0.5 && document.querySelector("#sp-add-sheet-title")?.textContent === "Modul in „Lena“" && !onPage(".sp-cal-mods .sp-addp");
   });
   if (shots) await page.screenshot({ path: `${shots}/visits-phone.png` });
+  await page.keyboard.press("Escape");
+  await until(page, "Esc closes „+ Modul“ to the page", () => !document.querySelector("dialog[open]") && /[?&]edit=1/.test(location.search));
   await context.close();
 }
 

@@ -41,6 +41,9 @@ use super::export::CalendarGroup;
 use super::share_dialog::{ShareOpen, ShareTab};
 use super::{key_of, PlanCtx};
 
+/// The id of „Teilen …".
+const SHARE_ID: &str = "sp-share";
+
 /// The id of „Ersetzen" when loading a saved plan would replace an unsaved one.
 const LOAD_ID: &str = "sp-load-yes";
 
@@ -75,7 +78,7 @@ pub(super) fn ShareGroup(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     view! {
         <div class="fgroup actions sp-share-group">
-            <button class="action" type="button" id="sp-share" on:click=move |_| ctx.sharing.set(Some(ShareOpen { calendar: 0, tab: ShareTab::People }))>
+            <button class="action" type="button" id=SHARE_ID on:click=move |_| ctx.sharing.set(Some(ShareOpen { calendar: 0, tab: ShareTab::People }))>
                 <Icon name="share-2"/>
                 <span><span>{t.studyplan_share_dialog.open}</span><small>{t.studyplan_share_dialog.open_hint}</small></span>
             </button>
@@ -87,16 +90,36 @@ pub(super) fn ShareGroup(ctx: PlanCtx) -> impl IntoView {
 /// handy wahrscheinlich auch ein modal werden oder so"), with what the sidebar's groups hold —
 /// „.ics herunterladen", „Als Bild speichern", „Abonnieren" with what it unfolds — and „Teilen …".
 /// Until then they stood in a section under the Termine. „Abonnieren" and „Teilen …" open the dialog
-/// „Teilen", which takes the sheet's place: one sheet at a time.
+/// „Teilen", which takes the sheet's place: one sheet at a time. Closing that dialog — its ×, Esc,
+/// Back as Android has it — brings the sheet back with the keyboard on the row that opened it; the
+/// sheet's own way out then leaves it. Opened from a wide screen's sidebar the dialog closes as ever.
 #[component]
 pub(super) fn ExportSheet(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let open = Signal::derive(move || ctx.sheet.get() == Some(super::head::PhoneSheet::Export));
-    let close = Callback::new(move |()| ctx.sheet.set(None));
-    Effect::new(move |_| {
-        if ctx.sharing.with(Option::is_some) && open.get_untracked() {
+    let close = Callback::new(move |()| {
+        if open.get_untracked() {
             ctx.sheet.set(None);
         }
+    });
+    // The id of the row that opened „Teilen" from the sheet, while the dialog stands in its place.
+    let from = StoredValue::new(None::<&'static str>);
+    Effect::new(move |_| match ctx.sharing.get() {
+        Some(asked) if open.get_untracked() => {
+            from.set_value(Some(if asked.tab == ShareTab::App { super::export::ABO_ID } else { SHARE_ID }));
+            ctx.sheet.set(None);
+        }
+        None => {
+            let Some(row) = from.get_value() else { return };
+            from.set_value(None);
+            if !ctx.phone.get_untracked() {
+                return;
+            }
+            ctx.sheet.set(Some(super::head::PhoneSheet::Export));
+            // After the dialog has put the keyboard on its first button.
+            nav::after_paint(move || request_animation_frame(move || nav::focus_by_id(row)));
+        }
+        Some(_) => {}
     });
     let sub = move || (t.studyplan_head.export_sub)(&ctx.key.get().label(t.locale));
     view! {

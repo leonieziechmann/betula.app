@@ -255,13 +255,12 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
             });
             layer.with(|(calendars, _)| grid.extend(calendars.iter().cloned()));
             grid.extend(draft);
-            grid.extend(ctx.sketch.get().map(|sketch| super::own::sketch_slot(sketch, t)));
             grid
         });
         let bands = Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
         view! {
-            // The week holds the pointer of a drag (`setPointerCapture`): it outlasts the grid
-            // drawn anew with every quarter of an hour the span grows.
+            // The week holds the pointer of a press on a free stretch (`setPointerCapture`), and
+            // the span drawn lies over it (`SketchView`).
             <div
                 class="sp-week"
                 class:drawing=move || ctx.sketch.with(Option::is_some)
@@ -274,9 +273,11 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
                     drag.up(&ev);
                 }
                 on:pointercancel=move |_| drag.cancel()
+                on:lostpointercapture=move |ev| drag.lost(&ev)
             >
                 <WeekGrid slots=grid bands fit=true/>
                 {nothing}
+                <super::own::SketchView drag/>
             </div>
         }
         .into_any()
@@ -327,8 +328,6 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             });
             layer.with(|(calendars, _)| grid.extend(calendars.iter().cloned()));
             grid.extend(draft);
-            // The span a finger draws, in the week shown.
-            grid.extend(ctx.sketch.get().filter(|_| ctx.weeks.get() == week).map(|sketch| super::own::sketch_slot(sketch, t)));
             grid
         })
     };
@@ -336,6 +335,17 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
     // by the finger before it lifts (owner: „am Handy langes Drücken"; 2026-11-18: „drag placement um
     // gleich eine Zeitspanne zu machen").
     let hold = super::own::Hold::new(drag);
+    // The week holds still under a finger that draws: one listener on it for as long as it is there.
+    let node = NodeRef::<leptos::html::Div>::new();
+    #[cfg(feature = "csr")]
+    drag.keep_still(node);
+    // While a finger is held on the week or draws, its long press opens no menu of the browser's (a
+    // mouse's right click keeps its menu: the hold is a finger's alone).
+    let menu = move |ev: leptos::ev::MouseEvent| {
+        if hold.pressing() {
+            ev.prevent_default();
+        }
+    };
     let bands = |layer: Layer| Signal::derive(move || layer.with(|(_, bands)| bands.clone()));
     // To the week at `to` of `WEEKS`; the ends stay where they are.
     let go = move |to: usize| {
@@ -354,6 +364,8 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
     let down = move |ev: leptos::ev::PointerEvent| {
         carried.set_value(false);
         start.set_value(Some((ev.client_x(), ev.client_y())));
+        // A mouse or a pen draws here as on a wide week; a finger holds first.
+        drag.down(&ev);
         hold.down(&ev);
     };
     let moving = move |ev: leptos::ev::PointerEvent| {
@@ -402,7 +414,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
         drag_x.set(0);
     };
     let click = move |ev: leptos::ev::MouseEvent| {
-        if hold.swallow(&ev) {
+        if hold.swallow(&ev) | drag.swallow(&ev) {
             return;
         }
         if carried.get_value() {
@@ -438,7 +450,11 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             return view! {
                 <div
                     class="sp-carousel"
-                    on:pointerdown=move |ev| hold.down(&ev)
+                    node_ref=node
+                    on:pointerdown=move |ev| {
+                        drag.down(&ev);
+                        hold.down(&ev);
+                    }
                     on:pointermove=move |ev| {
                         if !drag.moved(&ev) {
                             hold.moved(&ev);
@@ -457,14 +473,17 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                         hold.up();
                         drag.cancel();
                     }
+                    on:lostpointercapture=move |ev| drag.lost(&ev)
+                    on:contextmenu=menu
                     on:click=move |ev| {
-                        if hold.swallow(&ev) {
+                        if hold.swallow(&ev) | drag.swallow(&ev) {
                             return;
                         }
                         remember(Within::Grid, &ev);
                     }
                 >
                     {slide(Signal::stored(0), None, shown, layer, ctx.weeks.get_untracked())}
+                    <super::own::SketchView drag/>
                 </div>
             }
             .into_any();
@@ -486,6 +505,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
             // cancels the pointer): the slots are not dragged.
             <div
                 class="sp-carousel"
+                node_ref=node
                 class:dragging=move || dragging.get()
                 aria-roledescription=t.studyplan_week.carousel_role
                 aria-label=t.studyplan_week.weeks
@@ -498,10 +518,13 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                     }
                 }
                 on:pointercancel=cancel
+                on:lostpointercapture=move |ev| drag.lost(&ev)
+                on:contextmenu=menu
                 on:click=click
                 on:dragstart=|ev| ev.prevent_default()
             >
                 {slides}
+                <super::own::SketchView drag/>
             </div>
         }
         .into_any()
