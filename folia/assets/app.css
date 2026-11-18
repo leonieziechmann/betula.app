@@ -6980,6 +6980,67 @@ div.st-col-head.past { cursor: default; }
 .st-transcript .st-area-nm small { display: block; }
 .st-tr-missing .st-wmk .icon { width: 16px; height: 16px; color: var(--text-3); }
 .st-tr-problem { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--warn); font-weight: 560; line-height: 1.5; text-wrap: pretty; }
+/* Its first view (owner, 2026-11-18: „ganz kurz erklärt … dass die Module aus dem Dokument lokal
+   ausgelesen werden, auch mit einem link zur seite wo man das runterladen kann"): a sentence of what
+   it does, three numbered steps — the first with the way to the BTU's Online-Portal —, and that the
+   file stays on the device, in the green of what is done. */
+.st-tr-lead { margin: 0; font-size: 14px; line-height: 1.55; text-wrap: pretty; }
+.st-tr-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+.st-tr-steps > li { display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: 12px; align-items: start; }
+.st-tr-n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.st-tr-step { display: grid; gap: 1px; padding-top: 3px; min-width: 0; }
+.st-tr-step b { font-size: 14px; font-weight: 650; }
+.st-tr-step small { color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
+.st-tr-portal { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--accent-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
+.st-tr-portal:hover { background: var(--panel-3); text-decoration: none; }
+.st-tr-portal .icon { width: 15px; height: 15px; }
+.st-tr-stays { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0 0; padding: 11px 12px; border-radius: var(--r-panel); background: var(--ok-soft); font-size: 12.5px; line-height: 1.5; text-wrap: pretty; }
+.st-tr-stays .icon { flex: none; width: 17px; height: 17px; margin-top: 1px; color: var(--ok); }
+.st-tr-stays b { font-weight: 650; }
+.st-dlg-foot .btn .icon { width: 16px; height: 16px; }
+/* The file being read (owner: „wenn das dann eingelesen wird mach bitte eine progressbar … dass es
+   sich gut und satisfying anfühlt"): the file and what happens to it, a bar that fills step by
+   step (from nothing as it appears) with a light running over it while it works and turns green
+   at its end, and the steps ticked off one after the other, each saying what it found. With less
+   motion asked for, the bar jumps and nothing runs over it (`PACE` is a quarter then). */
+.st-tr-reading { display: flex; flex-direction: column; }
+.st-tr-file { display: flex; gap: 12px; align-items: center; }
+.st-tr-file > span:last-child { display: grid; gap: 1px; min-width: 0; }
+.st-tr-file b { font-size: 15px; font-weight: 650; }
+.st-tr-file small { color: var(--text-2); font-size: 12.5px; }
+.st-tr-progress { margin-block: auto; padding-block: 8px; }
+.st-tr-icon.done { background: var(--ok); color: var(--panel); animation: st-tr-pop .42s cubic-bezier(.3, 1.6, .5, 1); }
+.st-tr-icon.done .icon { stroke-width: 3; }
+@keyframes st-tr-pop { 0% { transform: scale(.6); } 100% { transform: none; } }
+.st-tr-bar { position: relative; height: 10px; margin: 20px 0 0; border-radius: 999px; background: var(--panel-3); overflow: hidden; }
+.st-tr-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); transform-origin: left center; transform: scaleX(var(--share, 0)); transition: transform .55s cubic-bezier(.3, .7, .25, 1), background-color .35s; overflow: hidden; animation: st-tr-grow .45s cubic-bezier(.3, .7, .25, 1); }
+.st-tr-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, white 45%, transparent) 50%, transparent 100%); transform: translateX(-100%); animation: st-tr-shine 1.15s ease-in-out infinite; }
+.st-tr-bar.done .st-tr-fill { background: var(--ok); }
+.st-tr-bar.done .st-tr-fill::after { animation: none; opacity: 0; }
+@keyframes st-tr-shine { to { transform: translateX(100%); } }
+@keyframes st-tr-grow { from { transform: scaleX(0); } }
+.st-tr-stages { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 10px; }
+.st-tr-stage { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--text-3); transition: color .25s; }
+.st-tr-stage.now { color: var(--text); font-weight: 560; }
+.st-tr-stage.done { color: var(--text); }
+.st-tr-tick { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 1.75px currentColor; color: var(--text-3); }
+.st-tr-tick .icon { width: 12px; height: 12px; stroke-width: 3.2; opacity: 0; transform: scale(.4); transition: opacity .2s, transform .28s cubic-bezier(.3, 1.6, .5, 1); }
+.st-tr-stage.now .st-tr-tick { color: var(--accent-ink); animation: st-tr-pulse 1.1s ease-in-out infinite; }
+.st-tr-stage.done .st-tr-tick { background: var(--ok); box-shadow: none; color: var(--panel); }
+.st-tr-stage.done .st-tr-tick .icon { opacity: 1; transform: none; }
+@keyframes st-tr-pulse { 50% { box-shadow: inset 0 0 0 1.75px currentColor, 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); } }
+.st-tr-reading > .st-safe { margin-top: 18px; }
+/* What was read comes in after the bar: its parts rise into place, the first rows one after the
+   other. */
+.st-transcript:not(.st-tr-intro):not(.st-tr-reading) > * { animation: st-tr-in .32s ease-out both; }
+.st-transcript:not(.st-tr-intro):not(.st-tr-reading) .st-area-items > li:nth-child(-n + 10) { animation: st-tr-in .3s ease-out both; animation-delay: calc(var(--n, 0) * 35ms + 120ms); }
+@keyframes st-tr-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .st-tr-fill { transition: none; animation: none; }
+  .st-tr-fill::after, .st-tr-stage.now .st-tr-tick, .st-tr-icon.done { animation: none; }
+  .st-tr-tick .icon { transition: none; }
+  .st-transcript > *, .st-transcript .st-area-items > li { animation: none !important; }
+}
 .st-tr-problem .icon { flex: none; width: 16px; height: 16px; margin-top: 3px; }
 .st-transcript > .st-safe { margin-top: 16px; line-height: 1.5; }
 .st-area-items, .st-area-list { list-style: none; margin: 0; padding: 0; }

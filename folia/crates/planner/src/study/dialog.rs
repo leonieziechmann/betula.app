@@ -23,7 +23,7 @@ use super::{count, overview, side, size, transcript, Dialog, StudyCtx};
 /// form or an overview.
 fn size_of(dialog: &Dialog) -> ModalSize {
     match dialog {
-        Dialog::Switch | Dialog::Area(_) | Dialog::CountFor { .. } | Dialog::Size { .. } | Dialog::Transcript(_) => ModalSize::M,
+        Dialog::Switch | Dialog::Area(_) | Dialog::CountFor { .. } | Dialog::Size { .. } | Dialog::Transcript => ModalSize::M,
     }
 }
 
@@ -39,7 +39,7 @@ fn size_of(dialog: &Dialog) -> ModalSize {
 /// list as long as the study.
 fn sheet_of(dialog: &Dialog) -> Sheet {
     match dialog {
-        Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } | Dialog::Transcript(_) => Sheet::Full,
+        Dialog::Switch | Dialog::CountFor { .. } | Dialog::Size { .. } | Dialog::Transcript => Sheet::Full,
         Dialog::Area(_) => size_of(dialog).sheet(),
     }
 }
@@ -57,7 +57,7 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
                 Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),
                 Dialog::CountFor { semester, id } => view! { <count::CountDialog ctx semester id/> }.into_any(),
                 Dialog::Size { semester, pid } => view! { <size::SizeDialog ctx semester pid/> }.into_any(),
-                Dialog::Transcript(reading) => view! { <transcript::TranscriptDialog ctx reading=*reading/> }.into_any(),
+                Dialog::Transcript => view! { <transcript::TranscriptDialog ctx/> }.into_any(),
             })}
         </Modal>
     }

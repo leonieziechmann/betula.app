@@ -8,21 +8,31 @@
 // repository).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node transcript.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // 1 a fresh browser on its first visit: the box „Aus deiner Notenübersicht einrichten" beside the
-//   one that fills from the plan; a file that is no PDF says so, with „Andere Datei wählen".
-// 2 the made-up file: its dialog names the program, since when and that it becomes the study's,
-//   what was read (12 modules: 9 passed, 2 not, 1 registered), each module with its mark, its
-//   semester and „neu", the thesis registered in the summer under way now; „Studium anlegen" sets
-//   up Informatik B.Sc. since WiSe 2022/23 with its modules: passed ones planned and marked in their
+//   one that fills from the plan opens the dialog at what it does (the same day: „ein Dialog …, bei
+//   dem ganz kurz erklärt wird, dass die Module aus dem Dokument lokal ausgelesen werden, auch mit
+//   einem link zur seite wo man das runterladen kann"): its three steps, the way to the BTU's
+//   Online-Portal (btu.rs `ONLINE_PORTAL`, in a tab of its own), that the file stays on the device,
+//   and „Notenübersicht auswählen", which opens the browser's picker for one file; a file that is no
+//   PDF says so, with „Andere Datei wählen", which opens the picker again.
+// 2 the made-up file: the bar fills 24, 58, 86, 100 % with its steps ticked off one after the other
+//   („PDF geöffnet", „12 Module gelesen", „Alle 12 im Katalog gefunden"), about two seconds in all
+//   (`PACE`); then the dialog names the program, since when and that it becomes the study's, what
+//   was read (12 modules: 9 passed, 2 not, 1 registered), each module with its mark, its semester
+//   and „neu", the thesis registered in the summer under way now; „Studium anlegen" sets up
+//   Informatik B.Sc. since WiSe 2022/23 with its modules: passed ones planned and marked in their
 //   semesters, the recognised one in the Studienbeginn, the ones not passed planned and not marked,
-//   the thesis in the current semester; the note says so, and „Rückgängig" takes all of it back,
-//   the first visit again.
+//   the thesis in the current semester; the note says so, and „Rückgängig" takes all of it back, the
+//   first visit again.
 // 3 taken over again and read once more from the sidebar's „Notenübersicht einlesen": „12 schon so",
-//   nothing changes.
+//   nothing changes. „Abbrechen" while a file is read closes the dialog, and nothing of that reading
+//   comes back: the dialog opens anew at what it does.
 // 4 nothing of it leaves the browser or stays in it: every request while reading is a GET of the
 //   reader's two files, none carries a body; no worker is left once it has answered; nothing in
 //   local or session storage holds the file or a title in the other language.
-// 5 a phone: the overview's „Notenübersicht einlesen", the dialog a sheet.
+// 5 a phone: the dialog a sheet, the way to the portal in it; with less motion asked for, the reading
+//   stands a quarter as long; the overview's „Notenübersicht einlesen".
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
@@ -31,6 +41,8 @@ const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 const PLAN = "betula.studyplan.v1";
 const MINE = "betula.myprogram.v1";
+// What was read, or why nothing was: the dialog past its first view and past the bar.
+const READ = "dialog[open] .st-transcript:not(.st-tr-intro):not(.st-tr-reading)";
 
 const current = await fetch(base + "/api/status").then((r) => r.json()).then((status) => status?.snapshot?.current_semester).catch(() => null);
 if (current !== "2026W") {
@@ -38,11 +50,13 @@ if (current !== "2026W") {
   process.exit(0);
 }
 
-// The made-up Notenübersicht, made by the crate that reads it.
+// The made-up Notenübersicht, made by the crate that reads it; the portal as btu.rs has it.
 const folia = fileURLToPath(new URL("..", import.meta.url));
 const pdf = execFileSync("cargo", ["run", "-q", "-p", "folia-transcript", "--features", "fixture", "--example", "fixture"], { cwd: folia, maxBuffer: 1 << 24 });
 check(pdf.subarray(0, 5).toString() === "%PDF-", "the fixture is no PDF");
 const file = { name: "Notenuebersicht.pdf", mimeType: "application/pdf", buffer: pdf };
+const portal = readFileSync(folia + "crates/planner/src/study/btu.rs", "utf8").match(/ONLINE_PORTAL: &str = "([^"]+)"/)?.[1];
+check(portal?.startsWith("https://www.b-tu.de/"), `btu.rs's ONLINE_PORTAL: ${portal}`);
 
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
 let during = "start";
@@ -57,14 +71,52 @@ const open = async (options) => {
   await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
   return { context, page, requests };
 };
-const dialog = (page) => page.waitForSelector("dialog[open] .st-transcript", { timeout: 30000 }).then(() => page.waitForTimeout(300)).catch(() => problems.push(`${during}: no dialog`));
+const intro = (page) => page.waitForSelector("dialog[open] .st-tr-intro", { timeout: 20000 }).then(() => page.waitForTimeout(300)).catch(() => problems.push(`${during}: the dialog does not open at what it does`));
+const outcome = (page) => page.waitForSelector(READ, { timeout: 30000 }).then(() => page.waitForTimeout(400)).catch(() => problems.push(`${during}: nothing read`));
 const text = (page) => page.evaluate(() => document.querySelector("dialog[open] .st-transcript")?.innerText ?? "");
 const stored = (page, key) => page.evaluate((key) => localStorage.getItem(key) || "", key);
 const closed = (page) => page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 5000 }).catch(() => problems.push(`${during}: the dialog stays`));
+const workers = (page) => page.workers().filter((worker) => worker.url().includes("transcript-worker")).length;
+
+// Picks `file` with a button of the open dialog, which opens the browser's picker.
+const choose = async (page, file, button = "#st-transcript-pick") => {
+  const chooser = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
+  const clicked = await page.click(`dialog[open] ${button}`, { timeout: 8000 }).then(() => true, () => false);
+  const picker = await chooser;
+  if (!clicked || !picker) return problems.push(`${during}: ${button} opens no picker`);
+  check(!picker.isMultiple(), `${during}: the picker takes several files`);
+  await picker.setFiles(file);
+};
+
+// What the bar shows from the file picked to what was read: each change of its share, its steps
+// and the file's line, with the milliseconds since it was watched; `end` when what was read came
+// after it (not what the dialog showed before the file was picked).
+const watch = (page) => page.evaluate((read) => new Promise((done) => {
+  const seen = [];
+  const t0 = performance.now();
+  const tick = () => {
+    const at = Math.round(performance.now() - t0);
+    const bar = document.querySelector("dialog[open] .st-tr-bar[role=progressbar]");
+    if (bar) {
+      const state = {
+        share: Number(bar.getAttribute("aria-valuenow")),
+        stages: [...document.querySelectorAll("dialog[open] .st-tr-stage")].map((li) => ["done", "now", "next"].find((s) => li.classList.contains(s)) + " " + li.innerText.trim()),
+        file: document.querySelector("dialog[open] .st-tr-file")?.innerText.replace(/\s+/g, " ").trim(),
+        done: bar.classList.contains("done"),
+      };
+      if (JSON.stringify(state) !== JSON.stringify(seen.at(-1)?.state)) seen.push({ at, state });
+    }
+    if (seen.length && !bar && document.querySelector(read)) return done({ seen, end: at });
+    if (at > 20000) return done({ seen, end: null });
+    setTimeout(tick, 20);
+  };
+  tick();
+}), READ);
+const took = (watched) => (watched.end != null && watched.seen.length ? watched.end - watched.seen[0].at : null);
 
 // ---------- 1, 2, 4: a fresh browser ----------
 {
-  const { page, requests } = await open({ viewport: { width: 1440, height: 900 } });
+  const { page, requests } = await open({ viewport: { width: 1440, height: 900 }, reducedMotion: "no-preference" });
   during = "first visit";
   await page.waitForSelector(".st-setup", { timeout: 20000 }).catch(() => problems.push("no first visit"));
   const box = await page.evaluate(() => {
@@ -74,20 +126,39 @@ const closed = (page) => page.waitForFunction(() => !document.querySelector("dia
     return box && fill && { text: box.innerText, width: Math.round(r.width) === Math.round(f.width), below: r.top > f.top };
   });
   check(box && box.text.includes("Aus deiner Notenübersicht einrichten") && box.width && box.below, `the box on the first visit: ${JSON.stringify(box)}`);
+  await page.click("#st-transcript-setup");
+  await intro(page);
+  const told = await page.evaluate(() => document.querySelector("dialog[open]")?.innerText ?? "");
+  for (const part of ["Notenübersicht einlesen", "Dein Studium in einem Schritt", "Notenübersicht herunterladen", "Zum Online-Portal", "Hier auswählen", "Prüfen und übernehmen", "Die Datei bleibt bei dir.", "nicht hochgeladen", "Notenübersicht auswählen"]) {
+    check(told.includes(part), `the dialog's first view lacks „${part}“: ${told.slice(0, 500)}`);
+  }
+  const way = await page.evaluate(() => { const a = document.querySelector("dialog[open] #st-transcript-portal"); return a && { href: a.href, target: a.target, rel: a.rel }; });
+  check(way && way.href === portal && way.target === "_blank" && way.rel.includes("noopener"), `the way to the Online-Portal: ${JSON.stringify(way)}`);
+  check(!(await page.$("dialog[open] .st-tr-bar")), "a bar before a file is picked");
 
   during = "no pdf";
-  await page.setInputFiles(".st-setup input[type=file]", { name: "x.pdf", mimeType: "application/pdf", buffer: Buffer.from("no pdf at all") });
-  await dialog(page);
+  await choose(page, { name: "x.pdf", mimeType: "application/pdf", buffer: Buffer.from("no pdf at all") });
+  await outcome(page);
   const refused = await text(page);
   check(refused.includes("Das ist keine PDF-Datei"), `a file that is no PDF: ${refused}`);
-  check(!!(await page.$("dialog[open] #st-transcript-again")), "no „Andere Datei wählen“");
-  await page.keyboard.press("Escape");
-  await closed(page);
 
   during = "read";
   const before = requests.length;
-  await page.setInputFiles(".st-setup input[type=file]", file);
-  await dialog(page);
+  const watching = watch(page);
+  // „Andere Datei wählen" opens the picker again.
+  await choose(page, file, "#st-transcript-again");
+  const watched = await watching;
+  await outcome(page);
+  const shares = watched.seen.map(({ state }) => state.share).filter((share, i, all) => i === 0 || share !== all[i - 1]);
+  check(JSON.stringify(shares) === "[24,58,86,100]", `the bar went ${JSON.stringify(shares)}`);
+  const at = (share) => watched.seen.find(({ state }) => state.share === share)?.state;
+  const marks = (share) => at(share)?.stages.map((stage) => stage.split(" ")[0]).join(" ");
+  check(marks(24) === "now next next" && marks(58) === "done now next" && marks(86) === "done done now", `the steps one after the other: ${JSON.stringify([24, 58, 86].map(marks))}`);
+  const end = watched.seen.at(-1)?.state;
+  check(JSON.stringify(end?.stages) === JSON.stringify(["done PDF geöffnet", "done 12 Module gelesen", "done Alle 12 im Katalog gefunden"]), `the steps at the end: ${JSON.stringify(end?.stages)}`);
+  check(end?.done && (end?.file || "").startsWith("Deine Notenübersicht ist gelesen") && (at(24)?.file || "").startsWith("Deine Notenübersicht wird gelesen"), `the file's line: ${at(24)?.file} → ${end?.file}`);
+  const reading = took(watched);
+  check(reading != null && reading >= 1900 && reading < 10000, `reading took ${reading} ms (about two seconds: PACE)`);
   const read = await text(page);
   for (const part of ["Informatik B.Sc.", "seit WiSe 2022/23", "Wird dein Studiengang", "12 Module gelesen · 9 bestanden · 2 nicht bestanden · 1 angemeldet", "12 neu", "Kommt in dein Studium"]) {
     check(read.toLowerCase().includes(part.toLowerCase()), `the dialog lacks „${part}“: ${read.slice(0, 400)}`);
@@ -106,13 +177,13 @@ const closed = (page) => page.waitForFunction(() => !document.querySelector("dia
   check(row("Sicherheitsengineering").line === "WiSe 22/23 · neu · anerkannt", `the recognised module: ${JSON.stringify(row("Sicherheitsengineering"))}`);
   check((row("Einführung Information Retrieval").line || "").includes("endgültig nicht bestanden"), `finally failed: ${JSON.stringify(row("Einführung Information Retrieval"))}`);
   check(row("Graph Theory").name === "Graph Theory", "the module taught in English is not Graph Theory (14085)");
-  check(await page.$eval("dialog[open] #st-transcript-apply", (b) => b.textContent.trim()), "no „Studium anlegen“");
+  check(await page.$eval("dialog[open] #st-transcript-apply", (b) => b.textContent.trim()).catch(() => ""), "no „Studium anlegen“");
   const asked = requests.slice(before);
   check(asked.every((r) => r.method === "GET" && !r.body), `a request with a body while reading: ${JSON.stringify(asked.filter((r) => r.body).map((r) => r.url))}`);
   const reader = asked.filter((r) => r.url.includes("/pkg/transcript")).map((r) => new URL(r.url).pathname).sort();
   check(JSON.stringify(reader) === JSON.stringify(["/pkg/transcript-worker.js", "/pkg/transcript.wasm"]), `the reader's files: ${JSON.stringify(reader)}`);
   check(asked.every((r) => r.url.startsWith(base + "/pkg/transcript") || r.url.startsWith(base + "/assets/")), `another request while reading: ${JSON.stringify(asked.map((r) => r.url))}`);
-  check(!page.workers().some((worker) => worker.url().includes("transcript-worker")), "the reader's worker is still there");
+  check(!workers(page), "the reader's worker is still there");
 
   during = "take over";
   await page.click("dialog[open] #st-transcript-apply");
@@ -143,34 +214,61 @@ const closed = (page) => page.waitForFunction(() => !document.querySelector("dia
 
   // ---------- 3: once more ----------
   during = "again";
-  await page.setInputFiles(".st-setup input[type=file]", file);
-  await dialog(page);
+  await page.click("#st-transcript-setup");
+  await intro(page);
+  await choose(page, file);
+  await outcome(page);
   await page.click("dialog[open] #st-transcript-apply");
   await closed(page);
   await page.waitForSelector("#st-transcript", { timeout: 8000 }).catch(() => problems.push("no „Notenübersicht einlesen“ in the sidebar"));
   const sidebar = await page.evaluate(() => document.querySelector("#st-transcript")?.innerText);
   check((sidebar || "").startsWith("Notenübersicht einlesen"), `the sidebar's way: ${sidebar}`);
   const planBefore = await stored(page, PLAN);
-  await page.setInputFiles(".st-ways input[type=file]", file);
-  await dialog(page);
+  await page.click("#st-transcript");
+  await intro(page);
+  await choose(page, file);
+  await outcome(page);
   const again = await text(page);
   check(again.includes("Dein Studiengang") && again.includes("12 schon so") && !again.includes("neu ·"), `read again: ${again.slice(0, 300)}`);
-  check(await page.$eval("dialog[open] #st-transcript-apply", (b) => b.textContent.trim() === "Übernehmen"), "„Übernehmen“ the second time");
+  check(await page.$eval("dialog[open] #st-transcript-apply", (b) => b.textContent.trim() === "Übernehmen").catch(() => false), "„Übernehmen“ the second time");
   await page.click("dialog[open] .st-dlg-foot .btn.secondary");
   await closed(page);
   check((await stored(page, PLAN)) === planBefore, "reading again changed the plan");
+
+  during = "cancelled";
+  await page.click("#st-transcript");
+  await intro(page);
+  await choose(page, file);
+  await page.waitForSelector("dialog[open] .st-tr-bar[aria-valuenow='58']", { timeout: 8000 }).catch(() => problems.push("the bar never stands at 58 %"));
+  await page.click("dialog[open] .st-dlg-foot .btn.secondary");
+  await closed(page);
+  await page.waitForTimeout(2500);
+  check(!(await page.$("dialog[open]")), "a reading cancelled comes back");
+  check((await stored(page, PLAN)) === planBefore, "a reading cancelled changed the plan");
+  check(!workers(page), "the reader's worker is still there after „Abbrechen“");
+  await page.click("#st-transcript");
+  await intro(page);
+  await page.keyboard.press("Escape");
+  await closed(page);
   await page.context().close();
 }
 
 // ---------- 5: a phone ----------
 {
   during = "phone";
-  const { page } = await open({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const { page } = await open({ viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, reducedMotion: "reduce" });
   await page.waitForSelector(".st-setup", { timeout: 20000 }).catch(() => problems.push("no first visit on a phone"));
-  await page.setInputFiles(".st-setup input[type=file]", file);
-  await dialog(page);
+  await page.click("#st-transcript-setup");
+  await intro(page);
   const sheet = await page.evaluate(() => { const d = document.querySelector("dialog[open]"); const r = d?.getBoundingClientRect(); return r && { bottom: Math.round(r.bottom), width: Math.round(r.width) }; });
   check(sheet && sheet.width === 393 && sheet.bottom >= 851, `the dialog on a phone: ${JSON.stringify(sheet)}`);
+  check(await page.isVisible("dialog[open] #st-transcript-portal"), "no way to the Online-Portal on a phone");
+  const watching = watch(page);
+  await choose(page, file);
+  const watched = await watching;
+  const quick = took(watched);
+  check(quick != null && quick >= 450 && quick < 1500 && watched.seen.at(-1)?.state.share === 100, `with less motion, reading took ${quick} ms to ${watched.seen.at(-1)?.state.share} %`);
+  await outcome(page);
   await page.click("dialog[open] #st-transcript-apply");
   await closed(page);
   await page.waitForSelector("#st-transcript-phone", { state: "attached", timeout: 8000 }).catch(() => problems.push("no „Notenübersicht einlesen“ on a phone's overview"));
