@@ -36,15 +36,17 @@ pub struct Texts {
     pub contact: Contact,
     pub not_btu: Prose,
 
-    // Datenschutzerklärung
-    pub summary: Prose,
+    // Datenschutzerklärung, in the order of the page: what Betula is built to do with data, who
+    // answers for it, what stays on the device, what leaves it when the student says so (Betula
+    // Sync, sharing, a calendar subscription), what the server needs to run, and the rest.
+    pub summary: Summary,
     pub controller: Controller,
+    pub local: Local,
+    pub sync: Sync,
+    pub share: Share,
+    pub calendar: Calendar,
     pub hosting: Prose,
     pub access_log: AccessLog,
-    pub browser: Browser,
-    pub calendar: Calendar,
-    pub share: Share,
-    pub sync: Sync,
     pub cookies: Cookies,
     pub email: Prose,
     pub lecturers: Lecturers,
@@ -66,7 +68,7 @@ pub struct Facts {
     pub legal_basis: &'static str,
     /// „Speicherdauer".
     pub retention: &'static str,
-    /// „Ablauf": how a calendar subscription or a shared link works.
+    /// „Ablauf": how Betula Sync works between the devices.
     pub course: &'static str,
     /// „Protokolle".
     pub logs: &'static str,
@@ -80,9 +82,17 @@ pub struct Facts {
     pub recipients: &'static str,
     /// „Widerspruch".
     pub objection: &'static str,
+    /// „Geräte verbinden": how a profile's key gets from one device to another.
+    pub pairing: &'static str,
+    /// The ways of sharing and of a calendar subscription, by the names the dialog „Teilen" gives
+    /// them (`folia_app::quotes` holds them to it): „Fester Stand", „Bleibt aktuell",
+    /// „Einmal-Link".
+    pub fixed: &'static str,
+    pub live: &'static str,
+    pub once: &'static str,
 }
 
-/// A part that is only text: its heading and its paragraphs (or the points of its list).
+/// A part that is only text: its heading and its paragraphs.
 pub struct Prose {
     pub heading: &'static str,
     pub texts: &'static [&'static str],
@@ -100,10 +110,83 @@ pub struct Contact {
     pub hint: &'static str,
 }
 
+/// „Kurz gesagt": what Betula is built to do with data, and the points of the whole notice.
+pub struct Summary {
+    pub heading: &'static str,
+    /// The principle, before the points: as little data as possible.
+    pub intro: &'static str,
+    pub points: &'static [&'static str],
+}
+
 /// „Verantwortlich": the line before the postal address and the e-mail address.
 pub struct Controller {
     pub heading: &'static str,
     pub text: &'static str,
+}
+
+/// „Profile und lokale Daten": what a profile holds, what else the browser keeps, and that it
+/// stays on the device (owner, 2026-11-18: „wir reden nicht von konten, weil die gibt es ja nicht
+/// sondern von profilen und lokalen Daten").
+pub struct Local {
+    pub heading: &'static str,
+    /// What a profile is and where it is kept, before the list of what it holds …
+    pub intro: &'static str,
+    pub profile: &'static [&'static str],
+    /// … the line before the list of what the browser keeps besides the profiles …
+    pub beside_intro: &'static str,
+    pub beside: &'static [&'static str],
+    /// … and the paragraphs after it.
+    pub texts: &'static [&'static str],
+}
+
+/// „Betula Sync": what the service of Betula Sync (Phloem, docs/phloem/protocol.md) keeps of a
+/// profile switched on, and what it cannot see.
+pub struct Sync {
+    pub heading: &'static str,
+    pub intro: &'static str,
+    /// What the service keeps, one point each …
+    pub data: &'static [&'static str],
+    /// … and what it cannot read.
+    pub not_read: &'static str,
+    pub pairing: &'static str,
+    pub course: &'static str,
+    pub logs: &'static str,
+    pub legal_basis: &'static str,
+    pub retention: &'static str,
+    pub ending: &'static str,
+}
+
+/// „Stundenplan und Merkliste teilen": the three ways of the dialog „Teilen", each with what it
+/// carries and what a server keeps of it.
+pub struct Share {
+    pub heading: &'static str,
+    pub intro: &'static str,
+    /// A copy of now, in the link itself: the Stundenplan's, then the Merkliste's.
+    pub fixed: &'static [&'static str],
+    /// What stays current: the part at the service, what it holds, what the service keeps of it.
+    pub live: &'static [&'static str],
+    /// A link for one person.
+    pub once: &'static str,
+    pub logs: &'static str,
+    pub legal_basis: &'static str,
+    pub disclosure: &'static str,
+    pub ending: &'static str,
+}
+
+/// „Kalender-Abo".
+pub struct Calendar {
+    pub heading: &'static str,
+    pub intro: &'static str,
+    /// An address that carries the plan of now as a code …
+    pub fixed: &'static str,
+    /// … and one that stays current, with Betula Sync.
+    pub live: &'static str,
+    pub logs: &'static str,
+    pub legal_basis: &'static str,
+    pub disclosure: &'static str,
+    pub ending: &'static str,
+    /// The .ics download, after the facts.
+    pub download: &'static str,
 }
 
 /// „Zugriffsprotokoll": the edge's access log and Folia's own.
@@ -119,56 +202,6 @@ pub struct AccessLog {
     pub retention: &'static str,
     /// Folia's own log, after the facts.
     pub app_log: &'static str,
-}
-
-/// „Speicher im Browser".
-pub struct Browser {
-    pub heading: &'static str,
-    /// The line before the list of what is kept …
-    pub intro: &'static str,
-    pub kept: &'static [&'static str],
-    /// … and the paragraphs after it.
-    pub texts: &'static [&'static str],
-}
-
-/// „Kalender-Abo".
-pub struct Calendar {
-    pub heading: &'static str,
-    pub intro: &'static str,
-    pub course: &'static str,
-    pub logs: &'static str,
-    pub legal_basis: &'static str,
-    pub disclosure: &'static str,
-    pub ending: &'static str,
-    /// The .ics download, after the facts.
-    pub download: &'static str,
-}
-
-/// „Stundenplan teilen".
-pub struct Share {
-    pub heading: &'static str,
-    pub intro: &'static str,
-    pub course: &'static str,
-    pub logs: &'static str,
-    pub legal_basis: &'static str,
-    pub disclosure: &'static str,
-    pub ending: &'static str,
-}
-
-/// „Abgleich zwischen deinen Geräten (Betula Sync)": what the service of Betula Sync (Phloem,
-/// docs/phloem/protocol.md) keeps of a profile switched on, and what it cannot see.
-pub struct Sync {
-    pub heading: &'static str,
-    pub intro: &'static str,
-    /// What the service keeps, one point each …
-    pub data: &'static [&'static str],
-    /// … and what it cannot read.
-    pub not_read: &'static str,
-    pub course: &'static str,
-    pub logs: &'static str,
-    pub legal_basis: &'static str,
-    pub retention: &'static str,
-    pub ending: &'static str,
 }
 
 /// „Cookies": the gate's cookie, whose name the page writes as code between `before` and
@@ -201,8 +234,9 @@ pub struct Rights {
     /// The rights, before and after the e-mail address.
     pub before: &'static str,
     pub after: &'static str,
-    /// Finding someone in the access log (Art. 11 DSGVO).
-    pub access_log: &'static str,
+    /// Whom Betula can find: nobody by name (Art. 11 DSGVO); an entry of the access log by its
+    /// address and time, a profile at Betula Sync not at all.
+    pub finding: &'static str,
     /// The line before the supervisory authority's address.
     pub complaint: &'static str,
 }
@@ -215,7 +249,7 @@ pub const DE: Texts = Texts {
     imprint_lead: "Wer Betula betreibt und wie du Kontakt aufnimmst.",
     privacy_title: "Datenschutz",
     privacy_heading: "Datenschutzerklärung",
-    privacy_lead: "Welche Daten beim Besuch von Betula anfallen, wozu und wie lange.",
+    privacy_lead: "Was du in Betula anlegst, liegt in deinem Profil auf deinem Gerät. Hier steht, welche Daten darüber hinaus anfallen, wozu und wie lange.",
     as_of: |day, month, year| format!("Stand: {day}. {} {year}", month_of(&MONTHS_DE, month)),
     translated: None,
     email_label: "E-Mail: ",
@@ -231,6 +265,10 @@ pub const DE: Texts = Texts {
         source: "Quelle",
         recipients: "Empfänger",
         objection: "Widerspruch",
+        pairing: "Geräte verbinden",
+        fixed: "Fester Stand",
+        live: "Bleibt aktuell",
+        once: "Einmal-Link",
     },
 
     operator: Operator { heading: "Angaben nach § 5 DDG", run_by: "Betula wird betrieben von:" },
@@ -244,12 +282,15 @@ pub const DE: Texts = Texts {
         ],
     },
 
-    summary: Prose {
+    summary: Summary {
         heading: "Kurz gesagt",
-        texts: &[
-            "Kein Konto, keine Werbung, kein Tracking: Betula nutzt keine Analysedienste und setzt keine Cookies, die dich wiedererkennen. Schrift, Symbole und Skripte liefert betula.app selbst aus; von fremden Servern wird nichts geladen.",
-            "Deine Profile mit Merkliste, Stundenplan, „Mein Studium“ und „Mein Studiengang“ liegen nur in deinem Browser. Schaltest du für ein Profil Betula Sync ein, liegt es zusätzlich verschlüsselt auf dem Server, und nur deine Geräte können es öffnen.",
+        intro: "Betula erhebt so wenig Daten wie möglich: nur, was der Betrieb der Seite und die Funktionen brauchen, die du selbst nutzt.",
+        points: &[
+            "Dein Profil liegt auf deinem Gerät. Merkliste, Stundenplan, „Mein Studium“ und „Mein Studiengang“ speichert dein Browser; nach deinem Namen oder einer E-Mail-Adresse fragt Betula nicht.",
+            "Auf den Server kommt ein Profil nur, wenn du Betula Sync dafür einschaltest, und dann verschlüsselt: Nur deine Geräte können es öffnen, der Server nicht.",
+            "Geteilt wird nur, was du selbst teilst, als Link oder als Kalender-Abo, und nur mit dem, was dafür nötig ist.",
             "Der Server protokolliert jeden Aufruf mit IP-Adresse, um Betula zu betreiben und vor Missbrauch zu schützen, und löscht die Einträge nach 7 Tagen.",
+            "Keine Werbung, kein Tracking: Betula nutzt keine Analysedienste und setzt keine Cookies, die dich wiedererkennen. Schrift, Symbole und Skripte liefert betula.app selbst aus; von fremden Servern wird nichts geladen.",
             "Betula zeigt die Namen von Lehrenden, die die BTU in ihren Modulbeschreibungen veröffentlicht.",
         ],
     },
@@ -257,10 +298,84 @@ pub const DE: Texts = Texts {
         heading: "Verantwortlich",
         text: "Verantwortlich für die Verarbeitung personenbezogener Daten auf betula.app im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:",
     },
+    local: Local {
+        heading: "Profile und lokale Daten",
+        intro: "Was du in Betula anlegst, gehört zu einem Profil, und ein Profil liegt lokal auf deinem Gerät, im Speicher deines Browsers. Wer du bist, muss Betula dafür nicht wissen: Es fragt weder nach deinem Namen noch nach einer E-Mail-Adresse. Du kannst mehrere Profile anlegen; jedes hat seine eigenen Daten. Zu einem Profil gehören:",
+        profile: &[
+            "sein Name und der Zeitpunkt, an dem du es angelegt hast,",
+            "deine Merkliste mit ihren Sammlungen, deinen Notizen zu den gemerkten Modulen und dem Standard für neue Merker,",
+            "dein Stundenplan mit geplanten Modulen, Platzhaltern, Ausgeblendetem und ausgewählten Terminen, deinen eigenen Terminen, deinen Änderungen an Terminen aus QIS und deinen Notizen zu Terminen, deine gespeicherten Pläne und Kalender und die Adressen deiner Kalender-Abos,",
+            "„Mein Studiengang“ mit Studienrichtung, Studienbeginn, Urlaubssemestern und Standort,",
+            "„Mein Studium“ mit den Modulen, die du als bestanden abhakst, und den Semestern, in die du Module legst,",
+            "was du teilst und wem du folgst: deine Freigaben mit ihren Schlüsseln und dem Namen, den du ihnen in der Liste „Geteilt“ gibst, und die geteilten Kalender und Listen, denen du folgst, mit ihren Links und dem letzten Stand einer Liste.",
+        ],
+        beside_intro: "Daneben speichert Betula lokal, was es zum Arbeiten braucht:",
+        beside: &[
+            "welches Profil gerade aktiv ist, und für die Startseite eine fertige Ansicht deiner nächsten Tage aus seinem Stundenplan, damit „Als Nächstes“ sofort dasteht, wenn du Betula öffnest; sie geht, wenn du ein Profil leerst oder löschst,",
+            "Einstellungen, etwa die Sprache (beim ersten Besuch die deines Browsers), hell oder dunkel, die Breite der Seitenleisten, die Ansicht der Semester in „Mein Studium“ und was „Passt in meinen Stundenplan“ vergleicht,",
+            "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst, welchen Studiengang du im Stundenplan gewählt hast und wie weit du gescrollt hast,",
+            "ob Betula hier als App installiert ist, an welchen Tagen du die Startseite geöffnet hast (die letzten 16) und ob du „Später“ oder „Nicht mehr anzeigen“ gewählt hast, damit Betula nur selten anbietet, sich zu installieren,",
+            "eine Kopie des Katalogs, das Sprachmodell der Suche (sie läuft ganz in deinem Browser), die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert,",
+            "für ein Profil mit Betula Sync seinen Schlüssel, eine zufällige Kennung dieses Geräts und den Stand des Abgleichs, mit den Änderungen, die noch nicht beim Dienst sind, und den Fassungen einer Notiz, die auf zwei Geräten gleichzeitig geändert wurde, und für einen Tag, welche deiner anderen Geräte nur über die Weiterleitung des Dienstes zu erreichen waren.",
+        ],
+        texts: &[
+            "Das alles liegt auf deinem Gerät, und ich kann es nicht einsehen. Ein anderes Gerät oder ein anderer Browser hat seine eigenen Profile. Sicherst du ein Profil als Datei, entsteht die Datei in deinem Browser, und auch eine Sicherung, die du lädst, liest nur dein Browser. Legst du Betula auf einem iPhone oder Mac auf den Home-Bildschirm oder ins Dock, legt Betula dein Profil in die Zwischenablage deines Geräts, weil die App dort ihren eigenen Speicher hat, und die App liest es nur, wenn du „Studium einfügen“ tippst; auch das bleibt auf deinem Gerät.",
+            "Den Server erreicht davon nur, was in der Adresse einer Seite steht, wenn du sie aufrufst, neu lädst oder teilst. Eine Adresse sagt, was gerade angezeigt wird, aber nie, was auf deiner Merkliste oder in deinem Stundenplan steht, was du bestanden hast oder in deiner Merkliste suchst; eine Sammlung nennt sie nur bei ihrer Nummer, nie bei ihrem Namen. In einer Adresse steht etwa der Studiengang, nach dem der Katalog gefiltert ist (auch „Mein Studiengang“, wenn du den Katalog darüber öffnest), das Modul, das neben Merkliste, Stundenplan oder „Mein Studium“ offen ist, oder Semester und Platzhalter, für die du Module suchst. Solche Adressen stehen wie alle anderen im Zugriffsprotokoll.",
+            "Mehr verlässt dein Gerät nur, wenn du es selbst auslöst: wenn du Betula Sync einschaltest, etwas teilst oder deinen Stundenplan als Kalender abonnierst. Was dann wohin geht, steht in den nächsten drei Teilen.",
+            "Für all das nutzt Betula den Speicher deines Browsers (Local Storage, Session Storage, IndexedDB und Cache Storage). Die Speicherung ist für die Funktionen nötig, die du nutzt, und braucht deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG). Ein Profil leeren oder löschen kannst du auf der Seite „Profil“, alles zusammen jederzeit in den Einstellungen deines Browsers, indem du die Websitedaten von betula.app löschst.",
+        ],
+    },
+    sync: Sync {
+        heading: "Betula Sync",
+        intro: "Betula Sync hält ein Profil auf deinen Geräten gleich. Es ist aus, bis du es für ein Profil einschaltest: auf der Seite „Profil“ oder dort, wo du etwas nutzt, das Sync braucht, etwa ein weiteres Gerät oder eine Freigabe, die aktuell bleibt. Betula sagt es dir jedes Mal vorher. Dann verschlüsselt dein Browser jede Änderung mit einem Schlüssel, den er selbst erzeugt und nur an deine eigenen Geräte weitergibt, und schickt sie an den Dienst von Betula Sync auf dem Server von Betula. Der Dienst bewahrt sie auf und reicht sie an deine anderen Geräte weiter; öffnen kann er sie nicht.",
+        data: &[
+            "die verschlüsselten Änderungen und einen verschlüsselten Gesamtstand des Profils, jeweils mit Größe und Zeitpunkt,",
+            "zufällige Kennungen für das Profil und für jedes verbundene Gerät, mit der Nummer, die ein Gerät im Profil hat, dem Zeitpunkt, zu dem das Profil beim Dienst eingerichtet wurde, und dem des letzten Abrufs,",
+            "einen Prüfwert, mit dem deine Geräte zeigen, dass sie zum Profil gehören; dein Browser leitet ihn aus dem Schlüssel ab, der Schlüssel selbst erreicht den Server nie,",
+            "wenn du ein weiteres Gerät verbindest, für zehn Minuten ein verschlüsseltes Päckchen mit dem Schlüssel, das nur das neue Gerät öffnen kann und das nach dem Abholen gelöscht wird,",
+            "was du mit Betula Sync teilst, als verschlüsselte Teile und Päckchen („Stundenplan und Merkliste teilen“).",
+        ],
+        not_read: "Was in deinem Profil steht, also Merkliste, Sammlungen, Notizen, Stundenplan, „Mein Studium“ und „Mein Studiengang“, kann der Dienst nicht lesen. Das gilt auch für die Liste deiner Geräte auf der Seite „Profil“: Jedes Gerät legt verschlüsselt im Profil ab, was es ist (Browser, System, bei manchen Handys das Modell, wie der Browser es nennt) und wann es zuletzt verbunden war, für deine anderen Geräte. Wem ein Profil gehört, weiß der Dienst nicht: Einen Namen, eine E-Mail-Adresse oder ein Passwort gibt es dafür nicht.",
+        pairing: "Den Schlüssel bringt der Link oder QR-Code von „Gerät verbinden“ hinter dem „#“ auf dein anderes Gerät, und diesen Teil einer Adresse sendet kein Browser an einen Server. Bei „Mit dem Handy verbinden“ (/pair) geht es andersherum: Der Computer zeigt einen QR-Code mit einem öffentlichen Schlüssel hinter dem „#“, den er nur dafür macht, dein Handy legt damit verschlüsselt den Schlüssel des Profils beim Dienst ab, höchstens zehn Minuten, und der Computer holt ihn einmal ab; bis dahin fragt er alle paar Sekunden beim Dienst nach. Öffnen kann ihn nur dieser Computer, auch wer den QR-Code sieht, nicht. Die Kamera nutzt Betula dafür nur, wenn du einen Code scannst; das Bild bleibt auf deinem Gerät. Der Wiederherstellungscode ist derselbe Schlüssel zum Aufschreiben; er bleibt bei dir.",
+        course: "Solange ein Gerät verbunden ist, hält es eine Verbindung zum Dienst offen; der Dienst sagt deinen anderen Geräten, wie viele Geräte des Profils gerade online sind. Sind zwei Geräte eines Profils zugleich online, verbinden sie sich auch direkt miteinander (WebRTC), und jede Änderung geht zugleich an das andere Gerät und an den Dienst. Dafür tauschen sie über den Dienst verschlüsselte Angaben zum Verbindungsaufbau aus, darunter ihre Netzadressen; der Dienst kann sie nicht lesen, und sie gehen nur an deine eigenen Geräte. Wo kein direkter Weg möglich ist, etwa im Mobilfunk, leitet der Dienst die verschlüsselten Datenpakete zwischen deinen Geräten weiter (TURN), ohne sie öffnen zu können: nur an die Adressen deiner anderen verbundenen Geräte und mit einem Zugang, der nur gilt, solange die Verbindung des Geräts steht.",
+        logs: "Im Zugriffsprotokoll stehen die Anfragen an den Dienst wie jeder andere Aufruf, mit IP-Adresse, aber ohne Kennungen und ohne Inhalt; wie alles dort werden sie nach 7 Tagen gelöscht. Der Dienst selbst bewahrt keine IP-Adressen auf: Er kennt die Adresse eines Geräts, solange dessen Verbindung steht, und zählt im Arbeitsspeicher, wie viele Profile in der letzten Stunde von einer Adresse eingerichtet und wie viele Päckchen, geteilte Kalender und Listen von ihr abgerufen wurden, um Missbrauch zu bremsen. Für die Weiterleitung kennt er die Adressen der beteiligten Geräte nur im Arbeitsspeicher, solange sie läuft, und zählt, wie viel er weitergeleitet hat, ohne Adressen.",
+        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir den Abgleich anzubieten, den du selbst einschaltest. Schlüssel, Gerätekennung und Stand des Abgleichs im Speicher deines Browsers braucht diese Funktion und deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG).",
+        retention: "Bis du Sync beendest. Ältere Änderungen fasst ein Gerät von Zeit zu Zeit zu einem neuen Gesamtstand zusammen, und der Dienst löscht sie dann. Ruft 13 Monate lang kein Gerät das Profil ab, löscht der Dienst alles dazu. Eine Sicherung beim Dienst gibt es nicht: Gehen seine Daten verloren, legen deine Geräte das Profil beim nächsten Verbinden mit dem, was sie haben, von selbst wieder an.",
+        ending: "„Sync beenden“ auf der Seite „Profil“ löscht alles zu diesem Profil sofort beim Dienst; jedes Gerät behält seine Kopie und ist wieder privat. „Nur dieses Gerät trennen“ nimmt nur dieses Gerät heraus.",
+    },
+    share: Share {
+        heading: "Stundenplan und Merkliste teilen",
+        intro: "Du kannst deinen Stundenplan, deine Merkliste oder eine Sammlung weitergeben, an andere oder an dein eigenes anderes Gerät. Geteilt wird nur, was du selbst teilst, und du wählst, wie:",
+        fixed: &[
+            "Eine Kopie von jetzt, als Link, der alles selbst enthält. Der Link zu deinem Stundenplan beginnt mit betula.app/studyplan?share= und enthält als Code das Semester, die geplanten Module in ihrer Reihenfolge, die Gruppen, die du angehakt hast, deine Änderungen an Terminen aus QIS (Tag, Zeit und den Raum, den du eingibst) und den Studiengang, dessen Modulkürzel verwendet werden; was du ausgeblendet hast, deine Notizen und deine eigenen Termine enthält er nicht. Wer ihn öffnet, sieht die Module und kann sie in den eigenen Stundenplan übernehmen oder deinen Plan mit deinen Gruppen und Änderungen als eigenen Kalender neben den eigenen legen; der bleibt in seinem Browser. Schickst du den Link über einen Messenger oder ein soziales Netzwerk, ruft dieses, je nach Dienst von deinem Gerät oder von den Servern des Anbieters, die Seite und ihr Vorschaubild ab, auf dem die Module stehen. Betula erstellt Seite und Bild bei jedem Abruf aus dem Code und den aktuellen Daten und speichert dazu nichts.",
+            "Der Link zu deiner Merkliste trägt sie mit ihren Sammlungen und Notizen hinter dem „#“, und diesen Teil einer Adresse sendet kein Browser an einen Server; der Link einer Sammlung trägt ihren Namen, Notizen nur, wenn du sie mitnimmst.",
+        ],
+        live: &[
+            "Mit Betula Sync kannst du so teilen, dass der Stundenplan, die Merkliste oder die Sammlung bei den anderen aktuell bleibt. Dann legt dein Browser beim Dienst von Betula Sync einen verschlüsselten Teil ab und erneuert ihn bei jeder Änderung; der Link trägt hinter dem „#“, den kein Browser an einen Server sendet, eine zufällige Kennung und den Schlüssel dazu. Der Dienst kann den Teil nicht öffnen.",
+            "Der Teil eines Stundenplans enthält das Semester, die Module, die angehakten Gruppen und deine Änderungen an Terminen aus QIS, auf deinen Wunsch auch deine eigenen Termine und Notizen; der Teil einer Merkliste oder Sammlung die gemerkten Module, die Namen der Sammlungen und, wenn du sie mitnimmst, deine Notizen.",
+            "Der Dienst bewahrt den Teil mit einer zufälligen Kennung, Größe und Zeitpunkt auf, bis du nicht mehr teilst, und danach 13 Monate lang nur die Kennung mit dem Vermerk, dass er nicht mehr geteilt wird. Folgst du einem geteilten Kalender oder einer geteilten Liste, kennt der Dienst, solange dein Gerät verbunden ist, im Arbeitsspeicher die Kennungen der Teile, über deren Änderungen es Bescheid bekommt.",
+        ],
+        once: "Ein Link für eine Person, ebenfalls mit Betula Sync: ein verschlüsseltes Päckchen beim Dienst, das höchstens 7 Tage wartet und beim ersten Öffnen gelöscht wird; auch sein Schlüssel steht hinter dem „#“. Danach bewahrt der Dienst 30 Tage lang nur auf, ob es geöffnet wurde, abgelaufen ist oder zurückgezogen wurde.",
+        logs: "Einen festen Link zu deinem Stundenplan hält das Zugriffsprotokoll bei jedem Abruf mit der vollständigen Adresse und der IP-Adresse fest, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht. Was hinter dem „#“ steht, erreicht kein Protokoll, und die Anfragen an den Dienst von Betula Sync stehen ohne Kennungen und ohne Inhalt im Zugriffsprotokoll („Betula Sync“).",
+        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Teilen anzubieten, das du selbst auslöst.",
+        disclosure: "Betula selbst gibt nichts weiter. Wer einen Link kennt, sieht, was er zeigt: Gib ihn nur an Menschen weiter, denen du deinen Plan oder deine Liste zeigen möchtest.",
+        ending: "Ein fester Link lässt sich nicht zurückholen. Er zeigt aber nur, was beim Kopieren geplant oder gemerkt war; was du danach änderst, erreicht ihn nicht. „Nicht mehr teilen“ löscht einen Teil, der aktuell bleibt, sofort beim Dienst, „Zurückziehen“ ein Päckchen, das noch niemand geöffnet hat. Wer einem Kalender oder einer Liste folgte, behält den letzten Stand.",
+    },
+    calendar: Calendar {
+        heading: "Kalender-Abo",
+        intro: "Du kannst deinen Stundenplan als Kalender abonnieren. Dein Kalenderdienst, etwa von Apple, Google oder Microsoft, bekommt dafür eine Adresse und ruft sie regelmäßig ab, je nach Dienst von deinem Gerät oder von den Servern des Anbieters.",
+        fixed: "Die Adresse beginnt mit betula.app/calendar/ und enthält als Code das Semester, die geplanten Module, den Studiengang, dessen Modulkürzel die Einträge verwenden, den Standort, was du ausgeblendet oder ausgewählt hast, und deine Änderungen an Terminen aus QIS: Tag, Zeit und den Raum, den du eingibst. Deine Notizen und deine eigenen Termine enthält sie nicht. Betula erstellt den Kalender bei jedem Abruf neu aus dem Code und den aktuellen Terminen und speichert dazu nichts.",
+        live: "Mit Betula Sync kann ein Abo aktuell bleiben, ohne dass sich seine Adresse ändert. Sie beginnt dann mit betula.app/calendar/s/ und enthält statt eines Codes eine zufällige Kennung und den Schlüssel zu genau diesem Kalender, weil ein Kalenderdienst keinen eigenen Schlüssel mitschicken kann. Dein Browser legt beim Dienst von Betula Sync einen verschlüsselten Teil ab und erneuert ihn bei jeder Änderung; er enthält, was der Code eines Abos enthält, und auf deinen Wunsch deine eigenen Termine und Notizen. Bei jedem Abruf holt Betula den Teil beim Dienst, öffnet ihn mit dem Schlüssel aus der Adresse nur im Arbeitsspeicher, erstellt den Kalender und vergisst Schlüssel und Inhalt. Was der Dienst zu einem Teil aufbewahrt und wie lange, steht unter „Stundenplan und Merkliste teilen“.",
+        logs: "Den Abruf einer Adresse mit festem Stand hält das Zugriffsprotokoll mit der vollständigen Adresse und der IP-Adresse fest, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht. Für Adressen, die aktuell bleiben, schreibt das Zugriffsprotokoll keine Zeile, und das Protokoll der Anwendung enthält sie nicht.",
+        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Abo anzubieten, das du selbst anlegst.",
+        disclosure: "Wählst du „Google Kalender“ oder „Outlook“, öffnet dein Browser die Seite dieses Dienstes und übergibt ihm die Adresse; ab da gilt dessen Datenschutzerklärung. Betula selbst gibt nichts weiter. Wer die Adresse kennt, kann den Kalender ebenfalls abrufen: Gib sie nur an Menschen weiter, denen du deinen Plan zeigen möchtest.",
+        ending: "Entferne den Kalender in deinem Kalenderdienst; dann wird die Adresse nicht mehr abgerufen. Ein Abo, das aktuell bleibt, nimmst du im Dialog „Teilen“ mit „Nicht mehr teilen“ zurück: Danach zeigt die Adresse nichts mehr.",
+        download: "Eine heruntergeladene .ics-Datei entsteht in deinem Browser, mit deinen Notizen zu Terminen, und erreicht den Server nicht.",
+    },
     hosting: Prose {
         heading: "Wo Betula läuft",
         texts: &[
-            "Betula läuft auf einem gemieteten Server der Contabo GmbH, Welfenstraße 22, 81541 München, in einem Rechenzentrum in Deutschland. Dort wird alles verarbeitet, was beim Besuch anfällt, auch die Protokolle und ihre Auswertung; andere Dienste sind daran nicht beteiligt.",
+            "Betula läuft auf einem gemieteten Server der Contabo GmbH, Welfenstraße 22, 81541 München, in einem Rechenzentrum in Deutschland. Dort wird alles verarbeitet, was beim Besuch anfällt, auch die Protokolle und ihre Auswertung, und dort läuft der Dienst von Betula Sync; andere Dienste sind daran nicht beteiligt.",
             "Contabo stellt den Server bereit und verarbeitet die Daten darauf nur in meinem Auftrag; dafür besteht ein Vertrag zur Auftragsverarbeitung (Art. 28 DSGVO). Die Verbindung zwischen deinem Browser und Betula ist verschlüsselt (HTTPS).",
         ],
     },
@@ -279,65 +394,6 @@ pub const DE: Texts = Texts {
         legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist ein sicherer und funktionierender Betrieb.",
         retention: "Die Einträge stehen im Systemprotokoll des Servers und in einer Protokollauswertung auf demselben Server und werden an beiden Stellen nach 7 Tagen automatisch gelöscht.",
         app_log: "Daneben führt die Anwendung ein eigenes Protokoll: welche Seite wann aufgerufen wurde, ohne den Teil nach dem „?“, mit Statuscode und Dauer, aber ohne IP-Adresse und ohne Browserkennung. In der Protokollauswertung wird es nach 30 Tagen gelöscht.",
-    },
-    browser: Browser {
-        heading: "Speicher im Browser",
-        intro: "Vieles, was du in Betula tust, passiert direkt in deinem Browser. Damit das geht, speichert Betula auf deinem Gerät, im Speicher des Browsers (Local Storage, Session Storage, IndexedDB und Cache Storage):",
-        kept: &[
-            "deine Merkliste mit ihren Sammlungen, deinen Notizen zu den gemerkten Modulen und dem Standard für neue Merker,",
-            "deinen Stundenplan mit geplanten Modulen, Platzhaltern, Ausgeblendetem und ausgewählten Terminen, deinen eigenen Terminen, deinen Änderungen an Terminen aus QIS und deinen Notizen zu Terminen, deine gespeicherten Pläne und Kalender und die Adressen deiner Kalender-Abos,",
-            "„Mein Studiengang“ mit Studienrichtung, Studienbeginn, Urlaubssemestern und Standort,",
-            "„Mein Studium“ mit den Modulen, die du als bestanden abhakst, und den Semestern, in die du Module legst,",
-            "deine Profile mit ihren Namen und dem Zeitpunkt, an dem du sie angelegt hast, und welches gerade aktiv ist: Jedes Profil hat seine eigene Merkliste mit Sammlungen und Notizen, seinen Stundenplan mit den gespeicherten Plänen, „Mein Studium“ und „Mein Studiengang“,",
-            "für ein Profil mit Betula Sync seinen Schlüssel, eine zufällige Kennung dieses Geräts und den Stand des Abgleichs, mit den Änderungen, die noch nicht beim Dienst sind, und den Fassungen einer Notiz, die auf zwei Geräten gleichzeitig geändert wurde, dazu die Freigaben, die du erteilt hast, mit ihren Schlüsseln und dem Namen, den du ihnen in der Liste „Geteilt“ gibst, und die geteilten Kalender und Listen, denen du folgst, mit ihren Links und dem letzten Stand einer Liste, und für einen Tag, welche deiner anderen Geräte nur über die Weiterleitung des Dienstes zu erreichen waren,",
-            "für die Startseite eine fertige Ansicht deiner nächsten Tage aus dem Stundenplan des aktiven Profils, damit „Als Nächstes“ sofort dasteht, wenn du Betula öffnest; sie geht, wenn du ein Profil leerst oder löschst,",
-            "ob Betula hier als App installiert ist, an welchen Tagen du die Startseite geöffnet hast (die letzten 16) und ob du „Später“ oder „Nicht mehr anzeigen“ gewählt hast, damit Betula nur selten anbietet, sich zu installieren,",
-            "Einstellungen, etwa die Sprache (beim ersten Besuch die deines Browsers), hell oder dunkel, die Breite der Seitenleisten, die Ansicht der Semester in „Mein Studium“ und was „Passt in meinen Stundenplan“ vergleicht,",
-            "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst, welchen Studiengang du im Stundenplan gewählt hast und wie weit du gescrollt hast,",
-            "eine Kopie des Katalogs, das Sprachmodell der Suche (sie läuft ganz in deinem Browser), die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert.",
-        ],
-        texts: &[
-            "Das alles liegt nur auf deinem Gerät; ich kann es nicht einsehen, und ein Konto gibt es nicht. Ein anderes Gerät hat seine eigenen Daten. Der Link, mit dem du deine Merkliste auf ein anderes Gerät bringst, trägt sie mit ihren Sammlungen und Notizen hinter dem „#“, und diesen Teil einer Adresse sendet kein Browser an einen Server; der Link einer Sammlung trägt ihren Namen und Notizen nur, wenn du sie mitnimmst. Mit Betula Sync kannst du deine Merkliste oder eine Sammlung im Dialog „Teilen“ auch so teilen, dass sie aktuell bleibt, oder mit einem Einmal-Link für eine Person: Dann liegt beim Dienst ein verschlüsselter Teil mit den gemerkten Modulen, den Namen der Sammlungen und, wenn du sie mitnimmst, deinen Notizen, den er nicht öffnen kann („Abgleich zwischen deinen Geräten“); wer der Liste folgt, behält den letzten Stand, wenn du nicht mehr teilst. Sicherst du ein Profil als Datei, entsteht die Datei in deinem Browser, und auch eine Sicherung, die du lädst, liest nur dein Browser. Legst du Betula auf einem iPhone oder Mac auf den Home-Bildschirm oder ins Dock, legt Betula dein Profil in die Zwischenablage deines Geräts, weil die App dort ihren eigenen Speicher hat, und die App liest es nur, wenn du „Studium einfügen“ tippst; auch das bleibt auf deinem Gerät. Ein Profil mit Betula Sync liegt zusätzlich verschlüsselt beim Dienst von Betula Sync („Abgleich zwischen deinen Geräten“).",
-            "Den Server erreicht nur, was in der Adresse einer Seite steht, wenn du sie aufrufst, neu lädst oder teilst. Eine Adresse sagt, was gerade angezeigt wird, aber nie, was auf deiner Merkliste oder in deinem Stundenplan steht, was du bestanden hast oder in deiner Merkliste suchst; eine Sammlung nennt sie nur bei ihrer Nummer, nie bei ihrem Namen. In einer Adresse steht etwa den Studiengang, nach dem der Katalog gefiltert ist (auch „Mein Studiengang“, wenn du den Katalog darüber öffnest), das Modul, das neben Merkliste, Stundenplan oder „Mein Studium“ offen ist, oder Semester und Platzhalter, für die du Module suchst. Solche Adressen stehen wie alle anderen im Zugriffsprotokoll. Deinen Stundenplan bekommt der Server nur, wenn du ihn als Kalender abonnierst oder einen Link zum Teilen weitergibst und dieser aufgerufen wird.",
-            "Die Speicherung ist für die Funktionen nötig, die du nutzt, und braucht deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG). Ein Profil leeren oder löschen kannst du auf der Seite „Profil“, alles zusammen jederzeit in den Einstellungen deines Browsers, indem du die Websitedaten von betula.app löschst.",
-        ],
-    },
-    calendar: Calendar {
-        heading: "Kalender-Abo",
-        intro: "Du kannst deinen Stundenplan als Kalender abonnieren. Dein Kalenderdienst bekommt dafür eine Adresse, die mit betula.app/calendar/ beginnt. Sie enthält als Code das Semester, die geplanten Module, den Studiengang, dessen Modulkürzel die Einträge verwenden, den Standort, was du ausgeblendet oder ausgewählt hast, und deine Änderungen an Terminen aus QIS: Tag, Zeit und den Raum, den du eingibst. Deine Notizen und deine eigenen Termine enthält sie nicht.",
-        course: "Dein Kalender, etwa von Apple, Google oder Microsoft, ruft die Adresse regelmäßig ab, je nach Dienst von deinem Gerät oder von den Servern des Anbieters. Betula erstellt den Kalender bei jedem Abruf neu aus dem Code und den aktuellen Terminen und speichert dazu nichts.",
-        logs: "Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht.",
-        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Abo anzubieten, das du selbst anlegst.",
-        disclosure: "Wählst du „Google Kalender“ oder „Outlook“, öffnet dein Browser die Seite dieses Dienstes und übergibt ihm die Adresse; ab da gilt dessen Datenschutzerklärung. Betula selbst gibt nichts weiter. Wer die Adresse kennt, kann den Kalender ebenfalls abrufen: Gib sie nur an Menschen weiter, denen du deinen Plan zeigen möchtest.",
-        ending: "Entferne den Kalender in deinem Kalenderdienst; dann wird die Adresse nicht mehr abgerufen. Ein Abo, das aktuell bleibt, nimmst du im Dialog „Teilen“ mit „Nicht mehr teilen“ zurück: Danach zeigt die Adresse nichts mehr.",
-        download: "Eine heruntergeladene .ics-Datei entsteht in deinem Browser, mit deinen Notizen zu Terminen, und erreicht den Server nicht. Mit Betula Sync kann ein Abo auch aktuell bleiben: Seine Adresse beginnt mit betula.app/calendar/s/ und enthält statt eines Codes eine zufällige Kennung und einen Schlüssel. Dein Browser legt beim Dienst von Betula Sync einen verschlüsselten Teil ab und erneuert ihn bei jeder Änderung; er enthält, was der Code eines Abos enthält, und auf deinen Wunsch deine eigenen Termine und Notizen. Bei jedem Abruf holt Betula den Teil beim Dienst, öffnet ihn mit dem Schlüssel aus der Adresse nur im Arbeitsspeicher, erstellt den Kalender und vergisst Schlüssel und Inhalt. Für diese Adressen schreibt das Zugriffsprotokoll keine Zeile, und das Protokoll der Anwendung enthält sie nicht.",
-    },
-    share: Share {
-        heading: "Stundenplan teilen",
-        intro: "Du kannst einen Link zu deinem Stundenplan kopieren und weitergeben. Er beginnt mit betula.app/studyplan?share= und enthält als Code das Semester, die geplanten Module in ihrer Reihenfolge, die Gruppen, die du angehakt hast, deine Änderungen an Terminen aus QIS (Tag, Zeit und den Raum, den du eingibst) und den Studiengang, dessen Modulkürzel verwendet werden; was du ausgeblendet hast, deine Notizen und deine eigenen Termine enthält er nicht.",
-        course: "Wer den Link öffnet, sieht die Module und kann sie in den eigenen Stundenplan übernehmen oder deinen Plan mit deinen Gruppen und Änderungen als eigenen Kalender neben den eigenen legen; der bleibt in seinem Browser. Schickst du ihn über einen Messenger oder ein soziales Netzwerk, ruft dieses, je nach Dienst von deinem Gerät oder von den Servern des Anbieters, die Seite und ihr Vorschaubild ab, auf dem die Module stehen. Betula erstellt Seite und Bild bei jedem Abruf aus dem Code und den aktuellen Daten und speichert dazu nichts.",
-        logs: "Im Zugriffsprotokoll steht jeder Abruf mit der vollständigen Adresse und der IP-Adresse, von der er kommt; wie alles dort wird er nach 7 Tagen gelöscht. Das Protokoll der Anwendung enthält den Code nicht.",
-        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir das Teilen anzubieten, das du selbst auslöst.",
-        disclosure: "Betula selbst gibt nichts weiter. Wer den Link kennt, sieht die Module: Gib ihn nur an Menschen weiter, denen du deinen Plan zeigen möchtest.",
-        ending: "Ein weitergegebener Link lässt sich nicht zurückholen. Er zeigt aber nur, was beim Kopieren geplant war; was du danach änderst, erreicht ihn nicht. Mit Betula Sync kannst du im Dialog „Teilen“ auch so teilen, dass der Stundenplan aktuell bleibt, oder mit einem Einmal-Link für eine Person: Dann trägt der Link hinter dem „#“, den kein Browser an einen Server sendet, eine zufällige Kennung und einen Schlüssel. Dein Browser legt beim Dienst von Betula Sync einen verschlüsselten Teil ab, mit dem Semester, den Modulen, den angehakten Gruppen und deinen Änderungen an Terminen aus QIS, auf deinen Wunsch auch deinen eigenen Terminen und Notizen, und erneuert ihn bei jeder Änderung; der Dienst kann ihn nicht öffnen. Ein Einmal-Link ist ein verschlüsseltes Päckchen, das höchstens 7 Tage wartet und beim ersten Öffnen gelöscht wird. „Nicht mehr teilen“ löscht den Teil sofort, „Zurückziehen“ ein Päckchen, das noch niemand geöffnet hat; wer dem Kalender folgte, behält den letzten Stand.",
-    },
-    sync: Sync {
-        heading: "Abgleich zwischen deinen Geräten (Betula Sync)",
-        intro: "Betula Sync ist aus, bis du es auf der Seite „Profil“ für ein Profil einschaltest. Dann hält es dieses Profil auf deinen Geräten gleich: Dein Browser verschlüsselt jede Änderung mit einem Schlüssel, den er selbst erzeugt und nur an deine eigenen Geräte weitergibt, und schickt sie an den Dienst von Betula Sync auf dem Server von Betula. Der Dienst bewahrt sie auf und reicht sie an deine anderen Geräte weiter; öffnen kann er sie nicht.",
-        data: &[
-            "die verschlüsselten Änderungen und einen verschlüsselten Gesamtstand des Profils, jeweils mit Größe und Zeitpunkt,",
-            "zufällige Kennungen für das Profil und für jedes verbundene Gerät, mit der Nummer, die ein Gerät im Profil hat, und dem Zeitpunkt des letzten Abrufs,",
-            "einen Prüfwert, mit dem deine Geräte zeigen, dass sie zum Profil gehören; dein Browser leitet ihn aus dem Schlüssel ab, der Schlüssel selbst erreicht den Server nie,",
-            "wenn du ein weiteres Gerät verbindest, für zehn Minuten ein verschlüsseltes Päckchen mit dem Schlüssel, das nur das neue Gerät öffnen kann und das nach dem Abholen gelöscht wird,",
-            "wenn du einen Kalender, deine Merkliste oder eine Sammlung so teilst, dass sie aktuell bleiben, ihren verschlüsselten Teil mit einer zufälligen Kennung, Größe und Zeitpunkt, bis du nicht mehr teilst, und danach 13 Monate lang nur die Kennung mit dem Vermerk, dass er nicht mehr geteilt wird; für einen Einmal-Link bis zu 7 Tage ein verschlüsseltes Päckchen und danach 30 Tage lang nur, ob es geöffnet wurde, abgelaufen ist oder zurückgezogen wurde,",
-            "wenn du einem geteilten Kalender oder einer geteilten Liste folgst, solange dein Gerät verbunden ist, im Arbeitsspeicher die Kennungen der Teile, über deren Änderungen es Bescheid bekommt.",
-        ],
-        not_read: "Was in deinem Profil steht, also Merkliste, Sammlungen, Notizen, Stundenplan, „Mein Studium“ und „Mein Studiengang“, kann der Dienst nicht lesen. Das gilt auch für die Liste deiner Geräte auf der Seite „Profil“: Jedes Gerät legt verschlüsselt im Profil ab, was es ist (Browser, System, bei manchen Handys das Modell, wie der Browser es nennt) und wann es zuletzt verbunden war, für deine anderen Geräte. Ein Konto, einen Namen oder eine E-Mail-Adresse gibt es dafür nicht.",
-        course: "Solange ein Gerät verbunden ist, hält es eine Verbindung zum Dienst offen; der Dienst sagt deinen anderen Geräten, wie viele Geräte des Profils gerade online sind. Den Schlüssel bringt der Link oder QR-Code von „Weiteres Gerät verbinden“ hinter dem „#“ auf dein anderes Gerät, und diesen Teil einer Adresse sendet kein Browser an einen Server. Bei „Mit dem Handy verbinden“ (/pair) geht es andersherum: Der Computer zeigt einen QR-Code mit einem öffentlichen Schlüssel hinter dem „#“, den er nur dafür macht, dein Handy legt damit verschlüsselt den Schlüssel des Profils beim Dienst ab, höchstens zehn Minuten, und der Computer holt ihn einmal ab; bis dahin fragt er alle paar Sekunden beim Dienst nach. Öffnen kann ihn nur dieser Computer, auch wer den QR-Code sieht, nicht. Die Kamera nutzt Betula dafür nur, wenn du einen Code scannst; das Bild bleibt auf deinem Gerät. Der Wiederherstellungscode ist derselbe Schlüssel zum Aufschreiben; er bleibt bei dir. Sind zwei Geräte eines Profils zugleich online, verbinden sie sich auch direkt miteinander (WebRTC), und jede Änderung geht zugleich an das andere Gerät und an den Dienst. Dafür tauschen sie über den Dienst verschlüsselte Angaben zum Verbindungsaufbau aus, darunter ihre Netzadressen; der Dienst kann sie nicht lesen, und sie gehen nur an deine eigenen Geräte. Wo kein direkter Weg möglich ist, etwa im Mobilfunk, leitet der Dienst die verschlüsselten Datenpakete zwischen deinen Geräten weiter (TURN), ohne sie öffnen zu können: nur an die Adressen deiner anderen verbundenen Geräte und mit einem Zugang, der nur gilt, solange die Verbindung des Geräts steht.",
-        logs: "Im Zugriffsprotokoll stehen die Anfragen an den Dienst wie jeder andere Aufruf, mit IP-Adresse, aber ohne Kennungen und ohne Inhalt; wie alles dort werden sie nach 7 Tagen gelöscht. Der Dienst selbst bewahrt keine IP-Adressen auf: Er kennt die Adresse eines Geräts, solange dessen Verbindung steht, und zählt im Arbeitsspeicher, wie viele Profile in der letzten Stunde von einer Adresse eingerichtet und wie viele geteilte Kalender und Listen von ihr abgerufen wurden, um Missbrauch zu bremsen. Für die Weiterleitung kennt er die Adressen der beteiligten Geräte nur im Arbeitsspeicher, solange sie läuft, und zählt, wie viel er weitergeleitet hat, ohne Adressen.",
-        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir den Abgleich anzubieten, den du selbst einschaltest. Schlüssel, Gerätekennung und Stand des Abgleichs im Speicher deines Browsers braucht diese Funktion und deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG).",
-        retention: "Bis du Sync beendest. Ältere Änderungen fasst ein Gerät von Zeit zu Zeit zu einem neuen Gesamtstand zusammen, und der Dienst löscht sie dann. Ruft 13 Monate lang kein Gerät das Profil ab, löscht der Dienst alles dazu. Eine Sicherung beim Dienst gibt es nicht: Gehen seine Daten verloren, legen deine Geräte das Profil beim nächsten Verbinden mit dem, was sie haben, von selbst wieder an.",
-        ending: "„Sync beenden“ auf der Seite „Profil“ löscht alles zu diesem Profil sofort beim Dienst; jedes Gerät behält seine Kopie und ist wieder privat. „Nur dieses Gerät trennen“ nimmt nur dieses Gerät heraus.",
     },
     cookies: Cookies {
         heading: "Cookies",
@@ -364,7 +420,7 @@ pub const DE: Texts = Texts {
     recipients: Prose {
         heading: "Weitergabe und Links",
         texts: &[
-            "Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, und dein Kalenderdienst, wenn du ein Abo anlegst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU; für einen Kalenderdienst, den du wählst, gilt dessen Datenschutzerklärung. Es gibt keine automatisierten Entscheidungen und kein Profiling.",
+            "Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, dein Kalenderdienst, wenn du ein Abo anlegst, und wem du selbst einen Link gibst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU; für einen Kalenderdienst, den du wählst, gilt dessen Datenschutzerklärung. Es gibt keine automatisierten Entscheidungen und kein Profiling im Sinne der DSGVO; ein Profil in Betula ist nur der Ort, an dem deine eigenen Daten liegen.",
             "Du musst keine Daten angeben, um Betula zu nutzen. Ohne die Angaben, die dein Browser bei jedem Aufruf mitschickt, etwa die IP-Adresse, lassen sich die Seiten aber nicht ausliefern.",
             "Betula verlinkt auf die Originale bei der BTU und auf andere Seiten. Folgst du einem solchen Link, erfährt die andere Seite nur, dass du von betula.app kommst, nicht von welcher Seite; ab da gilt ihre Datenschutzerklärung.",
         ],
@@ -373,7 +429,7 @@ pub const DE: Texts = Texts {
         heading: "Deine Rechte",
         before: "Du hast das Recht auf Auskunft über deine Daten (Art. 15 DSGVO), auf Berichtigung (Art. 16), Löschung (Art. 17) und Einschränkung der Verarbeitung (Art. 18). Verarbeitungen, die auf Art. 6 Abs. 1 lit. f DSGVO beruhen – das sind alle hier beschriebenen –, kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen (Art. 21). Eine formlose E-Mail an ",
         after: " genügt.",
-        access_log: "Weil Betula keine Konten kennt, kann ich Einträge im Zugriffsprotokoll nur finden, wenn du mir sagst, von welcher IP-Adresse und wann du Betula aufgerufen hast (Art. 11 DSGVO).",
+        finding: "Betula weiß nicht, wer hinter einem Aufruf oder einem Profil steht (Art. 11 DSGVO). Einträge im Zugriffsprotokoll kann ich deshalb nur finden, wenn du mir sagst, von welcher IP-Adresse und wann du Betula aufgerufen hast. Ein Profil auf deinem Gerät kann ich nicht einsehen. Bei Betula Sync liegt ein Profil unter einer zufälligen Kennung, ohne Namen, und lesen kann ich es nicht: Was darin steht, zeigt dir dein eigenes Gerät, und löschen kannst du es jederzeit selbst mit „Sync beenden“.",
         complaint: "Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO), zum Beispiel bei der für Brandenburg zuständigen:",
     },
 };
@@ -388,7 +444,7 @@ pub const EN: Texts = Texts {
     imprint_lead: "Who runs Betula and how to get in touch.",
     privacy_title: "Privacy",
     privacy_heading: "Privacy policy",
-    privacy_lead: "What data arises when you visit Betula, what for and for how long.",
+    privacy_lead: "What you create in Betula is kept in your profile on your device. This page says what data arises beyond that, what for and for how long.",
     as_of: |day, month, year| format!("As of {day} {} {year}", month_of(&MONTHS_EN, month)),
     translated: Some(Translated {
         before: "This English version is a translation for your convenience. Only the German text is legally binding: ",
@@ -407,6 +463,10 @@ pub const EN: Texts = Texts {
         source: "Source",
         recipients: "Recipients",
         objection: "Objection",
+        pairing: "Connecting devices",
+        fixed: "Fixed copy",
+        live: "Stays current",
+        once: "One-time link",
     },
 
     operator: Operator { heading: "Information pursuant to § 5 DDG", run_by: "Betula is run by:" },
@@ -420,12 +480,15 @@ pub const EN: Texts = Texts {
         ],
     },
 
-    summary: Prose {
+    summary: Summary {
         heading: "In short",
-        texts: &[
-            "No account, no advertising, no tracking: Betula uses no analytics services and sets no cookies that recognise you. betula.app serves its fonts, icons and scripts itself; nothing is loaded from other servers.",
-            "Your profiles with their saved modules, timetable, “My studies” and “My programme” are kept only in your browser. If you switch on Betula Sync for a profile, it is also kept on the server, encrypted, and only your devices can open it.",
+        intro: "Betula collects as little data as possible: only what running the site and the functions you use yourself require.",
+        points: &[
+            "Your profile is kept on your device. Your browser stores your saved modules, timetable, “My studies” and “My programme”; Betula does not ask for your name or an e-mail address.",
+            "A profile reaches the server only if you switch on Betula Sync for it, and then encrypted: only your devices can open it, the server cannot.",
+            "Only what you share yourself is shared, as a link or as a calendar subscription, and only with what that takes.",
             "The server logs every request with its IP address, to run Betula and protect it from abuse, and deletes the entries after 7 days.",
+            "No advertising, no tracking: Betula uses no analytics services and sets no cookies that recognise you. betula.app serves its fonts, icons and scripts itself; nothing is loaded from other servers.",
             "Betula shows the names of lecturers that BTU publishes in its module descriptions.",
         ],
     },
@@ -433,10 +496,84 @@ pub const EN: Texts = Texts {
         heading: "Controller",
         text: "The controller for the processing of personal data on betula.app within the meaning of the General Data Protection Regulation (GDPR; in German, DSGVO) is:",
     },
+    local: Local {
+        heading: "Profiles and local data",
+        intro: "What you create in Betula belongs to a profile, and a profile is kept locally on your device, in your browser's storage. Betula does not need to know who you are for this: it asks neither for your name nor for an e-mail address. You can create several profiles; each has its own data. A profile holds:",
+        profile: &[
+            "its name and when you created it,",
+            "your saved modules with their collections, your notes on them and the default for new saves,",
+            "your timetable with planned modules, placeholders, what you have hidden and the dates you have selected, your own events, your changes to sessions from QIS and your notes on sessions, your saved plans and calendars and the addresses of your calendar subscriptions,",
+            "“My programme” with study track, start of studies, semesters of leave and location,",
+            "“My studies” with the modules you tick off as passed and the semesters you put modules into,",
+            "what you share and what you follow: your shares with their keys and the name you give them in the list “Shared”, and the shared calendars and lists you follow, with their links and a list's last state.",
+        ],
+        beside_intro: "Besides that, Betula stores locally what it needs to work:",
+        beside: &[
+            "which profile is active, and for the start page a ready view of your next days from its timetable, so that “Next” is there at once when you open Betula; it goes when you empty or delete a profile,",
+            "settings, such as the language (on your first visit, your browser's), light or dark, the width of the sidebars, the view of the semesters in “My studies” and what “Fits my timetable” compares,",
+            "for the current browser session, where you last were in each area, which degree programme you chose in the timetable and how far you had scrolled,",
+            "whether Betula is installed as an app here, on which days you opened the start page (the last 16) and whether you chose “Later” or “Don't show again”, so that Betula offers to install itself only now and then,",
+            "a copy of the catalogue, the language model of the search (it runs entirely in your browser), the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline,",
+            "for a profile with Betula Sync, its key, a random id of this device and the state of the syncing, with the changes not yet at the service and the versions of a note that was changed on two devices at the same time, and for one day which of your other devices could be reached only through the service's relay.",
+        ],
+        texts: &[
+            "All of this is kept on your device, and I cannot see it. Another device or another browser has its own profiles. If you save a profile as a file, the file is made in your browser, and a backup you load is read only by your browser too. If you put Betula on the home screen or in the Dock of an iPhone or a Mac, Betula puts your profile on your device's clipboard, because the app keeps storage of its own there, and the app reads it only when you tap “Paste study”; this too stays on your device.",
+            "Of all this, only what is in the address of a page reaches the server, when you open, reload or share it. An address says what is being shown, but never what is among your saved modules or in your timetable, what you have passed or what you search for among your saved modules; it names a collection only by its number, never by its name. An address holds for example the degree programme the catalogue is filtered by (also “My programme”, if you open the catalogue through it), the module open beside your saved modules, your timetable or “My studies”, or the semester and placeholder you are looking for modules for. Such addresses are in the access log like all others.",
+            "More than that leaves your device only when you start it yourself: when you switch on Betula Sync, share something or subscribe to your timetable as a calendar. The next three parts say what then goes where.",
+            "For all of this Betula uses your browser's storage (Local Storage, Session Storage, IndexedDB and Cache Storage). Storing it is necessary for the functions you use and therefore requires no consent (§ 25(2) no. 2 TDDDG). You can empty or delete a profile on the “Profile” page, and all of it at any time in your browser's settings by deleting the site data of betula.app.",
+        ],
+    },
+    sync: Sync {
+        heading: "Betula Sync",
+        intro: "Betula Sync keeps a profile the same on your devices. It is off until you switch it on for a profile: on the “Profile” page, or where you use something that needs Sync, such as another device or a share that stays current. Betula tells you each time before it does. Then your browser encrypts every change with a key it makes itself and passes only to your own devices, and sends it to the service of Betula Sync on Betula's server. The service keeps the changes and hands them on to your other devices; it cannot open them.",
+        data: &[
+            "the encrypted changes and an encrypted overall state of the profile, each with its size and time,",
+            "random ids for the profile and for every connected device, with the number a device has in the profile, the time the profile was set up at the service and the time of the last fetch,",
+            "a check value by which your devices show that they belong to the profile; your browser derives it from the key, and the key itself never reaches the server,",
+            "when you connect another device, for ten minutes an encrypted parcel with the key, which only the new device can open and which is deleted once it is fetched,",
+            "what you share with Betula Sync, as encrypted parts and parcels (“Sharing your timetable and saved modules”).",
+        ],
+        not_read: "What is in your profile, such as saved modules, collections, notes, timetable, “My studies” and “My programme”, the service cannot read. Nor the list of your devices on the “Profile” page: each device leaves in the profile, encrypted, what it is (browser, system and, for some phones, the model as the browser names it) and when it was last connected, for your other devices. The service does not know whose profile it is: there is no name, e-mail address or password for it.",
+        pairing: "The link or QR code of “Connect a device” takes the key to your other device after the “#”, and no browser sends that part of an address to a server. “Connect with your phone” (/pair) goes the other way round: the computer shows a QR code with a public key after the “#”, made for this alone, your phone uses it to leave the profile's key with the service, encrypted, for ten minutes at most, and the computer fetches it once; until then it asks the service every few seconds. Only this computer can open it, not even someone who sees the QR code. Betula uses the camera for this only while you scan a code; the picture stays on your device. The recovery code is the same key, to write down; it stays with you.",
+        course: "While a device is connected, it keeps a connection to the service open; the service tells your other devices how many devices of the profile are online right now. When two devices of a profile are online at the same time, they also connect with each other directly (WebRTC), and every change goes to the other device and to the service at once. For this they exchange encrypted details for setting up the connection through the service, among them their network addresses; the service cannot read them, and they go to your own devices only. Where no direct way is possible, for instance in a mobile network, the service relays the encrypted packets between your devices (TURN) without being able to open them: only to the addresses of your other connected devices, and with an access that holds only while the device's connection lasts.",
+        logs: "The access log records the requests to the service like every other request, with the IP address, but without ids and without content; like everything there, they are deleted after 7 days. The service itself keeps no IP addresses: it knows a device's address while its connection lasts, and counts in memory how many profiles were set up from one address in the last hour and how many parcels, shared calendars and lists were fetched from it, to slow down abuse. For relaying, it knows the addresses of the devices involved in memory only, while the relaying lasts, and counts how much it relayed, without addresses.",
+        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the syncing you switch on yourself. The key, the device's id and the state of the syncing in your browser's storage are necessary for this function and therefore require no consent (§ 25(2) no. 2 TDDDG).",
+        retention: "Until you end Sync. From time to time a device combines older changes into a new overall state, and the service then deletes them. If no device fetches the profile for 13 months, the service deletes everything about it. The service keeps no backup: if its data is lost, your devices set the profile up there again by themselves the next time they connect, from what they hold.",
+        ending: "“End Sync” on the “Profile” page deletes everything about this profile at the service at once; every device keeps its copy and is private again. “Disconnect only this device” takes only this device out.",
+    },
+    share: Share {
+        heading: "Sharing your timetable and saved modules",
+        intro: "You can pass on your timetable, your saved modules or a collection, to others or to another device of your own. Only what you share yourself is shared, and you choose how:",
+        fixed: &[
+            "A copy of now, as a link that holds everything itself. The link to your timetable begins with betula.app/studyplan?share= and contains, as a code, the semester, the planned modules in their order, the groups you have ticked, your changes to sessions from QIS (day, time and the room you enter) and the degree programme whose module abbreviations are used; it does not contain what you have hidden, your notes or your own events. Whoever opens it sees the modules and can add them to their own timetable or put your plan, with your groups and changes, beside theirs as a calendar of its own; it stays in their browser. If you send the link via a messenger or a social network, that service fetches the page and its preview image, which shows the modules, depending on the service from your device or from the provider's servers. Betula creates the page and the image from the code and the current data on every request and stores nothing for it.",
+            "The link to your saved modules carries them with their collections and notes after the “#”, and no browser sends that part of an address to a server; the link of a collection carries its name, and notes only if you include them.",
+        ],
+        live: &[
+            "With Betula Sync you can share so that the timetable, the saved modules or the collection stay current for the others. Then your browser leaves an encrypted part at the service of Betula Sync and renews it with every change; the link carries a random id and the key to it after the “#”, which no browser sends to a server. The service cannot open the part.",
+            "A timetable's part contains the semester, the modules, the groups you ticked and your changes to sessions from QIS, if you wish also your own events and notes; the part of your saved modules or of a collection contains the saved modules, the names of the collections and, if you include them, your notes.",
+            "The service keeps the part with a random id, its size and time until you stop sharing, and after that for 13 months only the id with a note that it is no longer shared. If you follow a shared calendar or list, the service knows in memory, while your device is connected, the ids of the parts whose changes it is told about.",
+        ],
+        once: "A link for one person, with Betula Sync as well: an encrypted parcel at the service that waits at most 7 days and is deleted when it is first opened; its key, too, is after the “#”. After that the service keeps for 30 days only whether it was opened, expired or withdrawn.",
+        logs: "The access log records every request of a fixed link to your timetable with the full address and the IP address it comes from; like everything there, it is deleted after 7 days. The application's log does not contain the code. What is after the “#” reaches no log, and the requests to the service of Betula Sync are in the access log without ids and without content (“Betula Sync”).",
+        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the sharing you start yourself.",
+        disclosure: "Betula itself passes nothing on. Anyone who knows a link sees what it shows: only give it to people you want to show your plan or your list to.",
+        ending: "A fixed link cannot be taken back. But it only shows what was planned or saved when it was copied; what you change afterwards does not reach it. “Stop sharing” deletes a part that stays current at the service at once, “Withdraw” a parcel nobody has opened yet. Whoever followed a calendar or a list keeps the last state.",
+    },
+    calendar: Calendar {
+        heading: "Calendar subscription",
+        intro: "You can subscribe to your timetable as a calendar. For this, your calendar service, for example from Apple, Google or Microsoft, gets an address and fetches it regularly, depending on the service from your device or from the provider's servers.",
+        fixed: "The address begins with betula.app/calendar/ and contains, as a code, the semester, the planned modules, the degree programme whose module abbreviations the entries use, the location, what you have hidden or selected, and your changes to sessions from QIS: day, time and the room you enter. It does not contain your notes or your own events. Betula creates the calendar anew from the code and the current dates on every request and stores nothing for it.",
+        live: "With Betula Sync a subscription can stay current without its address changing. The address then begins with betula.app/calendar/s/ and contains, instead of a code, a random id and the key to exactly this calendar, because a calendar service cannot send a key of its own. Your browser leaves an encrypted part at the service of Betula Sync and renews it with every change; it contains what the code of a subscription contains and, if you wish, your own events and notes. On every request Betula fetches the part from the service, opens it with the key from the address in memory only, creates the calendar and forgets key and content. What the service keeps of a part, and for how long, is under “Sharing your timetable and saved modules”.",
+        logs: "The access log records every request of an address with a fixed copy with the full address and the IP address it comes from; like everything there, it is deleted after 7 days. The application's log does not contain the code. For addresses that stay current the access log writes no line, and the application's log does not contain them.",
+        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the subscription you set up yourself.",
+        disclosure: "If you choose “Google Calendar” or “Outlook”, your browser opens that service's page and hands it the address; from then on, its privacy policy applies. Betula itself passes nothing on. Anyone who knows the address can fetch the calendar too: only give it to people you want to show your plan to.",
+        ending: "Remove the calendar in your calendar service; then the address is no longer fetched. A subscription that stays current you take back in the dialog “Share” with “Stop sharing”: after that the address shows nothing.",
+        download: "A downloaded .ics file is created in your browser, with your notes on sessions, and does not reach the server.",
+    },
     hosting: Prose {
         heading: "Where Betula runs",
         texts: &[
-            "Betula runs on a rented server of Contabo GmbH, Welfenstraße 22, 81541 München, in a data centre in Germany. Everything that arises during a visit is processed there, including the logs and their analysis; no other services are involved.",
+            "Betula runs on a rented server of Contabo GmbH, Welfenstraße 22, 81541 München, in a data centre in Germany. Everything that arises during a visit is processed there, including the logs and their analysis, and the service of Betula Sync runs there too; no other services are involved.",
             "Contabo provides the server and processes the data on it only on my behalf; there is a data processing agreement for this under Art. 28 GDPR (DSGVO). The connection between your browser and Betula is encrypted (HTTPS).",
         ],
     },
@@ -455,65 +592,6 @@ pub const EN: Texts = Texts {
         legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is secure and functioning operation.",
         retention: "The entries are kept in the server's system log and in a log analysis on the same server, and are deleted automatically in both places after 7 days.",
         app_log: "In addition, the application keeps a log of its own: which page was requested when, without the part after the “?”, with status code and duration, but without IP address and without browser identifier. In the log analysis it is deleted after 30 days.",
-    },
-    browser: Browser {
-        heading: "Storage in your browser",
-        intro: "Much of what you do in Betula happens directly in your browser. For this to work, Betula stores on your device, in the browser's storage (Local Storage, Session Storage, IndexedDB and Cache Storage):",
-        kept: &[
-            "your saved modules with their collections, your notes on them and the default for new saves,",
-            "your timetable with planned modules, placeholders, what you have hidden and the dates you have selected, your own events, your changes to sessions from QIS and your notes on sessions, your saved plans and calendars and the addresses of your calendar subscriptions,",
-            "“My programme” with study track, start of studies, semesters of leave and location,",
-            "“My studies” with the modules you tick off as passed and the semesters you put modules into,",
-            "your profiles with their names, when you created them and which one is active: each profile has its own saved modules with collections and notes, timetable with its saved plans, “My studies” and “My programme”,",
-            "for a profile with Betula Sync, its key, a random id of this device and the state of the syncing, with the changes not yet at the service and the versions of a note that was changed on two devices at the same time, and the shares you have made, with their keys and the name you give them in the list “Shared”, and the shared calendars and lists you follow, with their links and a list's last state, and for one day which of your other devices could be reached only through the service's relay,",
-            "for the start page, a ready view of your next days from the active profile's timetable, so that “Next” is there at once when you open Betula; it goes when you empty or delete a profile,",
-            "whether Betula is installed as an app here, on which days you opened the start page (the last 16) and whether you chose “Later” or “Don't show again”, so that Betula offers to install itself only now and then,",
-            "settings, such as the language (on your first visit, your browser's), light or dark, the width of the sidebars, the view of the semesters in “My studies” and what “Fits my timetable” compares,",
-            "for the current browser session, where you last were in each area, which degree programme you chose in the timetable and how far you had scrolled,",
-            "a copy of the catalogue, the language model of the search (it runs entirely in your browser), the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline.",
-        ],
-        texts: &[
-            "All of this is kept only on your device; I cannot see it, and there are no accounts. Another device has its own data. The link that takes your saved modules to another device carries them with their collections and notes after the “#”, and no browser sends that part of an address to a server; the link of a collection carries its name, and notes only if you include them. With Betula Sync you can also share your saved modules or a collection in the dialog “Share” so that they stay current, or with a one-time link for one person: then the service keeps an encrypted part with the saved modules, the names of the collections and, if you include them, your notes, which it cannot open (“Syncing between your devices”); whoever follows the list keeps its last state when you stop sharing. If you save a profile as a file, the file is made in your browser, and a backup you load is read only by your browser too. If you put Betula on the home screen or in the Dock of an iPhone or a Mac, Betula puts your profile on your device's clipboard, because the app keeps storage of its own there, and the app reads it only when you tap “Paste study”; this too stays on your device. A profile with Betula Sync is also kept, encrypted, at the service of Betula Sync (“Syncing between your devices”).",
-            "Only what is in the address of a page reaches the server, when you open, reload or share it. An address says what is being shown, but never what is among your saved modules or in your timetable, what you have passed or what you search for among your saved modules; it names a collection only by its number, never by its name. An address holds for example the degree programme the catalogue is filtered by (also “My programme”, if you open the catalogue through it), the module open beside your saved modules, your timetable or “My studies”, or the semester and placeholder you are looking for modules for. Such addresses are in the access log like all others. The server only gets your timetable if you subscribe to it as a calendar, or pass on a link to share it and that link is opened.",
-            "Storing this is necessary for the functions you use and therefore requires no consent (§ 25(2) no. 2 TDDDG). You can empty or delete a profile on the “Profile” page, and all of it at any time in your browser's settings by deleting the site data of betula.app.",
-        ],
-    },
-    calendar: Calendar {
-        heading: "Calendar subscription",
-        intro: "You can subscribe to your timetable as a calendar. For this, your calendar service gets an address that begins with betula.app/calendar/. As a code, it contains the semester, the planned modules, the degree programme whose module abbreviations the entries use, the location, what you have hidden or selected, and your changes to sessions from QIS: day, time and the room you enter. It does not contain your notes or your own events.",
-        course: "Your calendar, for example from Apple, Google or Microsoft, fetches the address regularly, depending on the service from your device or from the provider's servers. Betula creates the calendar anew from the code and the current dates on every request and stores nothing for it.",
-        logs: "The access log records every request with the full address and the IP address it comes from; like everything there, it is deleted after 7 days. The application's log does not contain the code.",
-        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the subscription you set up yourself.",
-        disclosure: "If you choose “Google Calendar” or “Outlook”, your browser opens that service's page and hands it the address; from then on, its privacy policy applies. Betula itself passes nothing on. Anyone who knows the address can fetch the calendar too: only give it to people you want to show your plan to.",
-        ending: "Remove the calendar in your calendar service; then the address is no longer fetched. A subscription that stays current you take back in the dialog “Share” with “Stop sharing”: after that the address shows nothing.",
-        download: "A downloaded .ics file is created in your browser, with your notes on sessions, and does not reach the server. With Betula Sync a subscription can also stay current: its address begins with betula.app/calendar/s/ and contains, instead of a code, a random id and a key. Your browser leaves an encrypted part at the service of Betula Sync and renews it with every change; it contains what the code of a subscription contains and, if you wish, your own events and notes. On every request Betula fetches the part from the service, opens it with the key from the address in memory only, creates the calendar and forgets key and content. For these addresses the access log writes no line, and the application's log does not contain them.",
-    },
-    share: Share {
-        heading: "Sharing your timetable",
-        intro: "You can copy a link to your timetable and pass it on. It begins with betula.app/studyplan?share= and contains, as a code, the semester, the planned modules in their order, the groups you have ticked, your changes to sessions from QIS (day, time and the room you enter) and the degree programme whose module abbreviations are used; it does not contain what you have hidden, your notes or your own events.",
-        course: "Whoever opens the link sees the modules and can add them to their own timetable or put your plan, with your groups and changes, beside theirs as a calendar of its own; it stays in their browser. If you send it via a messenger or a social network, that service fetches the page and its preview image, which shows the modules, depending on the service from your device or from the provider's servers. Betula creates the page and the image from the code and the current data on every request and stores nothing for it.",
-        logs: "The access log records every request with the full address and the IP address it comes from; like everything there, it is deleted after 7 days. The application's log does not contain the code.",
-        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the sharing you start yourself.",
-        disclosure: "Betula itself passes nothing on. Anyone who knows the link sees the modules: only give it to people you want to show your plan to.",
-        ending: "A link that has been passed on cannot be taken back. But it only shows what was planned when it was copied; what you change afterwards does not reach it. With Betula Sync you can also share in the dialog “Share” so that the timetable stays current, or with a one-time link for one person: then the link carries a random id and a key after the “#”, which no browser sends to a server. Your browser leaves an encrypted part at the service of Betula Sync, with the semester, the modules, the groups you ticked and your changes to sessions from QIS, if you wish also your own events and notes, and renews it with every change; the service cannot open it. A one-time link is an encrypted parcel that waits at most 7 days and is deleted when it is first opened. “Stop sharing” deletes the part at once, “Withdraw” a parcel nobody has opened yet; whoever followed the calendar keeps the last state.",
-    },
-    sync: Sync {
-        heading: "Syncing between your devices (Betula Sync)",
-        intro: "Betula Sync is off until you switch it on for a profile on the “Profile” page. Then it keeps that profile the same on your devices: your browser encrypts every change with a key it makes itself and passes only to your own devices, and sends it to the service of Betula Sync on Betula's server. The service keeps the changes and hands them on to your other devices; it cannot open them.",
-        data: &[
-            "the encrypted changes and an encrypted overall state of the profile, each with its size and time,",
-            "random ids for the profile and for every connected device, with the number a device has in the profile and the time it last fetched,",
-            "a check value by which your devices show that they belong to the profile; your browser derives it from the key, and the key itself never reaches the server,",
-            "when you connect another device, for ten minutes an encrypted parcel with the key, which only the new device can open and which is deleted once it is fetched,",
-            "when you share a calendar, your saved modules or a collection so that they stay current, their encrypted part with a random id, size and time, until you stop sharing, and after that for 13 months only the id with a note that it is no longer shared; for a one-time link, an encrypted parcel for up to 7 days and after that for 30 days only whether it was opened, expired or withdrawn,",
-            "when you follow a shared calendar or list, while your device is connected, in memory the ids of the parts whose changes it is told about.",
-        ],
-        not_read: "What is in your profile, such as saved modules, collections, notes, timetable, “My studies” and “My programme”, the service cannot read. Nor the list of your devices on the “Profile” page: each device leaves in the profile, encrypted, what it is (browser, system and, for some phones, the model as the browser names it) and when it was last connected, for your other devices. There is no account, name or e-mail address for it.",
-        course: "While a device is connected, it keeps a connection to the service open; the service tells your other devices how many devices of the profile are online right now. The link or QR code of “Connect another device” takes the key to your other device after the “#”, and no browser sends that part of an address to a server. “Connect with your phone” (/pair) goes the other way round: the computer shows a QR code with a public key after the “#”, made for this alone, your phone uses it to leave the profile's key with the service, encrypted, for ten minutes at most, and the computer fetches it once; until then it asks the service every few seconds. Only this computer can open it, not even someone who sees the QR code. Betula uses the camera for this only while you scan a code; the picture stays on your device. The recovery code is the same key, to write down; it stays with you. When two devices of a profile are online at the same time, they also connect with each other directly (WebRTC), and every change goes to the other device and to the service at once. For this they exchange encrypted details for setting up the connection through the service, among them their network addresses; the service cannot read them, and they go to your own devices only. Where no direct way is possible, for instance in a mobile network, the service relays the encrypted packets between your devices (TURN) without being able to open them: only to the addresses of your other connected devices, and with an access that holds only while the device's connection lasts.",
-        logs: "The access log records the requests to the service like every other request, with the IP address, but without ids and without content; like everything there, they are deleted after 7 days. The service itself keeps no IP addresses: it knows a device's address while its connection lasts, and counts in memory how many profiles were set up from one address in the last hour and how many shared calendars and lists were fetched from it, to slow down abuse. For relaying, it knows the addresses of the devices involved in memory only, while the relaying lasts, and counts how much it relayed, without addresses.",
-        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the syncing you switch on yourself. The key, the device's id and the state of the syncing in your browser's storage are necessary for this function and therefore require no consent (§ 25(2) no. 2 TDDDG).",
-        retention: "Until you end Sync. From time to time a device combines older changes into a new overall state, and the service then deletes them. If no device fetches the profile for 13 months, the service deletes everything about it. The service keeps no backup: if its data is lost, your devices set the profile up there again by themselves the next time they connect, from what they hold.",
-        ending: "“End Sync” on the “Profile” page deletes everything about this profile at the service at once; every device keeps its copy and is private again. “Disconnect only this device” takes only this device out.",
     },
     cookies: Cookies {
         heading: "Cookies",
@@ -540,7 +618,7 @@ pub const EN: Texts = Texts {
     recipients: Prose {
         heading: "Disclosure and links",
         texts: &[
-            "I do not sell your data and do not pass it on. Others only receive it as described above: Contabo as the operator of the server, my e-mail provider when you write to me, and your calendar service when you set up a subscription. Betula itself transfers no data to countries outside the EU; for a calendar service you choose, its privacy policy applies. There are no automated decisions and no profiling.",
+            "I do not sell your data and do not pass it on. Others only receive it as described above: Contabo as the operator of the server, my e-mail provider when you write to me, your calendar service when you set up a subscription, and whoever you give a link to yourself. Betula itself transfers no data to countries outside the EU; for a calendar service you choose, its privacy policy applies. There are no automated decisions and no profiling within the meaning of the GDPR (DSGVO); a profile in Betula is only the place where your own data is kept.",
             "You do not have to provide any data to use Betula. Without the information your browser sends with every request, such as the IP address, the pages cannot be delivered, though.",
             "Betula links to the originals at BTU and to other pages. If you follow such a link, the other site only learns that you come from betula.app, not from which page; from then on, its privacy policy applies.",
         ],
@@ -549,7 +627,7 @@ pub const EN: Texts = Texts {
         heading: "Your rights",
         before: "Under the GDPR (DSGVO), you have the right of access to your data (Art. 15), to rectification (Art. 16), to erasure (Art. 17) and to restriction of processing (Art. 18). You can object to processing based on Art. 6(1)(f) GDPR (DSGVO) – which is all the processing described here – on grounds relating to your particular situation (Art. 21). An informal e-mail to ",
         after: " is enough.",
-        access_log: "Because Betula has no accounts, I can only find entries in the access log if you tell me from which IP address and when you visited Betula; see Art. 11 GDPR (DSGVO).",
+        finding: "Betula does not know who is behind a request or a profile; see Art. 11 GDPR (DSGVO). I can therefore only find entries in the access log if you tell me from which IP address and when you visited Betula. A profile on your device I cannot see. At Betula Sync a profile is kept under a random id, without a name, and I cannot read it: your own device shows you what is in it, and you can delete it yourself at any time with “End Sync”.",
         complaint: "You also have the right to lodge a complaint with a data protection supervisory authority under Art. 77 GDPR (DSGVO), for example with the one responsible for Brandenburg:",
     },
 };
