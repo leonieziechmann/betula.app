@@ -120,7 +120,7 @@ pub const DE: Texts = Texts {
     done: "Erledigt: ",
 
     program_title: "Was studierst du?",
-    program_lead: "In drei Klicks zu deinem Stundenplan. Ohne Konto, alles bleibt in diesem Browser.",
+    program_lead: "In drei Klicks zu deinem Stundenplan. Alles bleibt in deinem Profil, auf diesem Gerät.",
     drawing: |programs, faculties| format!("{programs} Studiengänge in {faculties} Fakultäten, jeder ein Punkt"),
     across_faculties: "übergreifend",
     look_around: "Erst mal umschauen",
@@ -178,7 +178,7 @@ pub const DE: Texts = Texts {
     devices_lead_phone: "Mit Betula Sync hast du deinen Stundenplan und alles andere auch am Laptop. Was du auf einem Gerät änderst, ist sofort auf dem anderen.",
     devices_points: [
         "Verschlüsselt: Den Schlüssel haben nur deine Geräte. Der Server bewahrt deine Änderungen auf, kann sie aber nicht öffnen.",
-        "Ohne Konto: kein Name, keine E-Mail-Adresse. Der Server kennt nur zufällige Kennungen, Größen und Zeiten.",
+        "Kein Name, keine E-Mail-Adresse: Der Server kennt nur zufällige Kennungen, Größen und Zeiten.",
         "Jederzeit im Profil zu beenden: Dann ist alles auf dem Server weg, deine Geräte behalten ihre Kopie. Ebenso nach 13 Monaten ohne Abruf.",
     ],
     later: "Später",
@@ -208,7 +208,7 @@ pub const EN: Texts = Texts {
     done: "Done: ",
 
     program_title: "What do you study?",
-    program_lead: "Three clicks to your timetable. No account, everything stays in this browser.",
+    program_lead: "Three clicks to your timetable. Everything stays in your profile, on this device.",
     drawing: |programs, faculties| format!("{programs} degree programmes in {faculties} faculties, one dot each"),
     across_faculties: "across faculties",
     look_around: "Look around first",
@@ -266,7 +266,7 @@ pub const EN: Texts = Texts {
     devices_lead_phone: "With Betula Sync your timetable and everything else is on your laptop as well. What you change on one device is on the other at once.",
     devices_points: [
         "Encrypted: only your devices have the key. The server keeps your changes but cannot open them.",
-        "No account: no name, no e-mail address. The server knows only random ids, sizes and times.",
+        "No name, no e-mail address: the server knows only random ids, sizes and times.",
         "Can be ended at any time in the profile: then everything on the server is gone, and your devices keep their copy. The same after 13 months without a fetch.",
     ],
     later: "Later",

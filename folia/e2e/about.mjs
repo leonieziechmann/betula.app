@@ -56,8 +56,8 @@ const [finding, planning, technology, questions] = [await topic("finding"), awai
 check(/<svg[^>]*class="map map-wide"/.test(html) && /<svg[^>]*class="map map-tall"/.test(html), "server HTML has no map");
 check(/<svg[^>]*class="map map-preview map-wide"/.test(html), "server HTML has no picture of the map");
 check(/<a href="\/programs\/[^"]+\/plan"[^>]*class="map-dot /.test(html), "server HTML: dots are not links to programs");
-check((html.match(/class="cslide /g) || []).length === 5, "server HTML: not four pictures and the spacer");
-check((html.match(/loading="lazy"/g) || []).length === 6 && (technology.match(/loading="lazy"/g) || []).length === 4, "server HTML: the screenshots are not all lazy");
+check((html.match(/class="cslide /g) || []).length === 6, "server HTML: not five pictures and the spacer");
+check((html.match(/loading="lazy"/g) || []).length === 8 && (technology.match(/loading="lazy"/g) || []).length === 4, "server HTML: the screenshots are not all lazy");
 // A page of text without a sidebar: its own ground, besides the app's after the view (owner,
 // 2026-11-03: „alle seiten, die statischen content ohne sidebar haben können ruhig den footer
 // weiter haben"), with Impressum and Datenschutz, and not „Über Betula" (owner, 2026-10-27: „nimm
@@ -70,13 +70,20 @@ check(legal(html).includes('href="/imprint"') && legal(finding).includes('href="
 check([html, finding, planning, technology, questions].every((page) => /<a [^>]*href="\/"[^>]*data-action="back"/.test(page) && !page.includes('href="/about"')), "server HTML: a topic's page has no „Zurück\" to the start page, or leads to /about");
 check(!questions.includes("Was bedeutet FÜS?") && questions.includes("Wie finde ich die Module für mein Studium?") && questions.includes('"@type":"FAQPage"'), "server HTML: the questions are the old ones, or not the page's structured data");
 check(html.includes('"@type":"WebApplication"') && !html.includes('"@type":"FAQPage"') && !html.includes('class="panel feature t-') && !finding.includes('"@type":"WebApplication"'), "server HTML: the app is not in the overview's structured data alone, or the chapters and questions are on the overview");
-check(["finding", "planning", "data", "technology", "questions"].every((slug) => html.includes(`href="/about/${slug}"`)) && (finding.match(/class="panel feature t-/g) || []).length === 2, "server HTML: the overview does not lead to the topics, or a topic is without its chapters");
+check(["finding", "planning", "data", "technology", "questions"].every((slug) => html.includes(`href="/about/${slug}"`)) && (finding.match(/class="panel feature t-/g) || []).length === 3, "server HTML: the overview does not lead to the topics, or a topic is without its chapters");
+// The chapters by their anchors, US English, and the German ones of before still on their pages
+// (2026-11-18); „Deine Daten" speaks of the profile and of Betula Sync, and no page of an account.
+const data = await topic("data");
+const anchors = (page) => [...page.matchAll(/<section (?=[^>]*\bclass="panel feature[^"]*")[^>]*\bid="([a-z-]+)"/g)].map((section) => section[1]).join();
+check(anchors(finding) === "way,filters,saved" && anchors(planning) === "study-plans,my-studies,timetable" && anchors(data) === "profile,sync,sharing,sources" && anchors(technology) === "technology,devices", `server HTML: the chapters are not the topics': ${[finding, planning, data, technology].map(anchors).join(" | ")}`);
+check(["weg", "filter", "einstiege"].every((old) => finding.includes(`id="${old}"`)) && ["ohne-konto", "daten"].every((old) => data.includes(`id="${old}"`)) && questions.includes('id="fragen"'), "server HTML: an anchor of before leads nowhere");
+check([html, finding, planning, data, technology, questions].every((page) => !/konto|konten/i.test(page.replace(/ohne-konto/g, ""))), "server HTML: a page about Betula speaks of an account");
 // The ways into the catalog on „Module finden", eight with their counts, and the faculties on
 // „Studium planen", each leading to its programs; not on the overview any more.
 // Their attributes in any order: the server writes the class after the others (Leptos).
 const ways = [...finding.matchAll(/<a (?=[^>]*\bclass="day-way t-[a-z]+")(?=[^>]*\brel="nofollow")[^>]*\bhref="(\/catalog\?[^"]+)"[^>]*>.*?<span class="day-way-n num">([\d.]+)(?:<!>)?<\/span>/g)];
 check(ways.length === 8 && ways.every((way) => Number(way[2].replace(/\./g, "")) > 0), `server HTML: „Module finden" has not the eight ways into the catalog with their counts (${ways.length})`);
-check((planning.match(/<a (?=[^>]*\bclass="day-way")[^>]*\bhref="\/programs#(fakultaet-\d+|ohne-fakultaet)"/g) || []).length >= 6 && !html.includes('id="einstiege"') && !html.includes('id="fakultaeten"'), "server HTML: „Studium planen\" has not the faculties, or the overview still has the lists");
+check((planning.match(/<a (?=[^>]*\bclass="day-way")[^>]*\bhref="\/programs#(fakultaet-\d+|ohne-fakultaet)"/g) || []).length >= 6 && !html.includes('id="ways-in"') && !html.includes('id="faculties"'), "server HTML: „Studium planen\" has not the faculties, or the overview still has the lists");
 check(html.includes('<dl class="tree-figures">') && html.includes('class="hero-trunk"') && !html.includes('class="examples"'), "server HTML: the figures are not on the birch, or the example searches are still there");
 // „Studiengang wählen" of the first panel: without the app a link to all programs that carries both
 // words (the stylesheet shows the ones the app will); the wood behind the page, no branches out of
@@ -179,16 +186,18 @@ check(await page.evaluate(() => /^program\t079-82-2008$/m.test(localStorage.getI
 check(await page.evaluate(() => document.activeElement?.id === "home-program"), "the focus does not stay on the button after a pick");
 await page.evaluate(() => { localStorage.removeItem("betula.myprogram.v1"); document.activeElement?.blur(); });
 
-// The carousel: the map in the middle, a neighbour on each side.
-check((await current()) === "Die Karte", `the first picture is not the map: ${await current()}`);
+// The carousel: the day in the middle, a neighbour on each side — the catalog, and the map, the
+// last of the five, which comes round.
+check((await current()) === "Dein Tag", `the first picture is not the day: ${await current()}`);
 const places = await page.evaluate(() => [...allOnPage(".cslide:not(.spacer)")].map((slide) => getComputedStyle(slide).getPropertyValue("--at").trim()));
-check(JSON.stringify(places) === JSON.stringify(["0", "1", "-2", "-1"]), `the pictures are not placed around the current one: ${places}`);
+// The two that do not show wait out of the frame, on the side they come in from (`place`).
+check(JSON.stringify(places) === JSON.stringify(["0", "1", "-2", "-2", "-1"]), `the pictures are not placed around the current one: ${places}`);
 const sides = await page.evaluate(() => {
   const frame = onPage(".carousel").getBoundingClientRect();
   return [...allOnPage(".cslide.is-side")].map((slide) => { const r = slide.getBoundingClientRect(); return r.right > frame.left + 20 && r.left < frame.right - 20; });
 });
 check(sides.length === 2 && sides.every(Boolean), `the neighbours do not show at the sides: ${sides}`);
-// Lazy pictures: what shows beside the map is fetched, never the hidden theme or the phone's.
+// Lazy pictures: what shows is fetched, never the hidden theme or the phone's.
 check(images.every((path) => !path.includes("-dark") && !path.includes("-phone")), `pictures of the hidden theme or the phone were fetched: ${images}`);
 
 // The arrows, a click on a neighbour, a tab, the keys; it goes round.
@@ -198,15 +207,15 @@ await waitFor("Der Katalog");
 const right = page.locator(".cslide.is-side >> visible=true >> nth=1");
 const size = await right.boundingBox();
 await right.click({ position: { x: size.width * 0.85, y: size.height * 0.4 } });
-await waitFor("Der Regelstudienplan");
-await page.click(".show-tabs button:has-text('Modul') >> visible=true");
-await waitFor("Ein Modul");
+await waitFor("Mein Studium");
+await page.click(".show-tabs button:has-text('Stundenplan') >> visible=true");
+await waitFor("Der Stundenplan");
 await page.focus(".carousel >> visible=true");
 await page.keyboard.press("ArrowRight");
 await waitFor("Die Karte");
 await page.keyboard.press("ArrowLeft");
-await waitFor("Ein Modul");
-check(await page.evaluate(() => onPage(".show-tabs button[aria-checked='true']")?.textContent.startsWith("Modul")), "the tab does not follow");
+await waitFor("Der Stundenplan");
+check(await page.evaluate(() => onPage(".show-tabs button[aria-checked='true']")?.textContent.startsWith("Stundenplan")), "the tab does not follow");
 check(await page.evaluate(() => location.pathname === "/about/overview" && location.hash === ""), "turning the pictures changed the address");
 
 check(await page.evaluate(() => onPage(".show-tabs").style.getPropertyValue("--i") === "3"), "the mark of the tabs does not stand at the current one");
@@ -283,7 +292,7 @@ check(await page.evaluate(() => allOnPage("head meta[name=description]").length)
 // A click on the current screenshot opens its page in the app.
 await page.goBack();
 await page.waitForSelector(".home .map-preview >> visible=true");
-await page.click(".show-arrow.next >> visible=true");
+await page.click(".show-tabs button:has-text('Katalog') >> visible=true");
 await waitFor("Der Katalog");
 await page.click(".cslide.is-current >> visible=true");
 await page.waitForFunction(() => location.pathname === "/catalog");
@@ -317,9 +326,9 @@ check(await page.evaluate(() => allOnPage(".faq details[open]").length === 1), "
 check(await page.evaluate(() => allOnPage(".faq-group").length === 3), "the questions are not in three groups");
 // „Technik": its last chapter shows the catalog and a module on a phone, in the theme shown only.
 await page.click('.topic-nav a[href="/about/technology"] >> visible=true');
-await page.waitForFunction(() => location.pathname === "/about/technology" && onPage("#geraete"), null, { timeout: 8000 }).catch(() => failures.push("„Technik\" does not open"));
+await page.waitForFunction(() => location.pathname === "/about/technology" && onPage("#devices"), null, { timeout: 8000 }).catch(() => failures.push("„Technik\" does not open"));
 await settled();
-await page.evaluate(() => onPage("#geraete").scrollIntoView({ block: "center" }));
+await page.evaluate(() => onPage("#devices").scrollIntoView({ block: "center" }));
 await page.waitForFunction(() => [...allOnPage(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
 check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
 check(await page.evaluate(() => [...allOnPage(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
@@ -332,12 +341,12 @@ const detail = await page.evaluate(() => ({
   chapters: [...allOnPage(".home .feature")].map((section) => "#" + section.id).join(),
   groups: allOnPage(".board .bgroup").length,
   switches: allOnPage(".board button.chip[role=checkbox]").length,
-  chipLinks: allOnPage("#filter a.chip").length,
+  chipLinks: allOnPage("#filters a.chip").length,
   example: onPage(".board-foot a")?.getAttribute("href"),
   links: [...allOnPage(".feature-link")].map((a) => a.getAttribute("href")).join(),
 }));
-check(detail.chapters === "#weg,#filter" && detail.groups === 12 && detail.switches === 25 && detail.chipLinks === 0, `„Module finden" is not what „Betula im Detail" was: ${JSON.stringify(detail)}`);
-check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog", `„Module finden" leads nowhere: ${JSON.stringify(detail)}`);
+check(detail.chapters === "#way,#filters,#saved" && detail.groups === 12 && detail.switches === 25 && detail.chipLinks === 0, `„Module finden" has not its chapters and the board of the filters: ${JSON.stringify(detail)}`);
+check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/bookmarks", `„Module finden" leads nowhere: ${JSON.stringify(detail)}`);
 
 // A chip of the board switches in place (owner, 2026-09-29: it led straight into the catalog):
 // off, with, without, as in the catalog's panel; the number under the board follows, and its
@@ -367,8 +376,8 @@ check(await page.evaluate(() => window.__marker === 1), "the board's button load
 
 // „Module finden" again: the ways into the catalog under the chapters, with their counts.
 await page.goBack();
-await page.waitForFunction(() => location.pathname === "/about/finding" && onPage("#einstiege .day-way"), null, { timeout: 8000 }).catch(() => failures.push("back from the catalog does not lead to „Module finden\""));
-check(await page.evaluate(() => allOnPage("#einstiege .day-way").length === 8 && [...allOnPage("#einstiege .day-way-n")].every((n) => /^\d[\d.]*$/.test(n.textContent))), "„Module finden\" has not the eight ways into the catalog with their counts");
+await page.waitForFunction(() => location.pathname === "/about/finding" && onPage("#ways-in .day-way"), null, { timeout: 8000 }).catch(() => failures.push("back from the catalog does not lead to „Module finden\""));
+check(await page.evaluate(() => allOnPage("#ways-in .day-way").length === 8 && [...allOnPage("#ways-in .day-way-n")].every((n) => /^\d[\d.]*$/.test(n.textContent))), "„Module finden\" has not the eight ways into the catalog with their counts");
 // Esc on a topic's page goes to the start page, in the app (owner, 2026-10-27: „und dann natürlich
 // auch noch den shortcut mit esc, um wieder bei der landing page zu bleiben"); „Zurück" says it.
 check(await page.evaluate(() => /Esc/.test(onPage('.topic-head [data-action="back"]')?.textContent || "") && onPage('.topic-head [data-action="back"]')?.getAttribute("href") === "/"), "„Module finden\" has no „Zurück\" to the start page that names Esc");

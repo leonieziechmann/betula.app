@@ -538,20 +538,28 @@ pub async fn favicon(State(state): State<AppState>, uri: Uri, headers: HeaderMap
     minified(&state, &uri, &headers, "favicon.svg").await
 }
 
-/// `GET /assets/shots/<name>.webp`: the screenshots in the start page's carousel, light and dark,
-/// wide and for phones (`e2e/showcase-shots.mjs` takes them). Embedded like every other asset.
+/// `GET /assets/shots/<name>.webp`: the screenshots of the pages about Betula — the overview's
+/// carousel (the day, the catalog, „Mein Studium", the Stundenplan), light and dark, wide and for
+/// phones, and a module's page on a phone for „Technik" (`e2e/showcase-shots.mjs` takes them).
+/// Embedded like every other asset.
 pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
     let body: &'static [u8] = match file.as_str() {
+        "day.webp" => include_bytes!("../../../assets/shots/day.webp"),
+        "day-dark.webp" => include_bytes!("../../../assets/shots/day-dark.webp"),
+        "day-phone.webp" => include_bytes!("../../../assets/shots/day-phone.webp"),
+        "day-phone-dark.webp" => include_bytes!("../../../assets/shots/day-phone-dark.webp"),
         "catalog.webp" => include_bytes!("../../../assets/shots/catalog.webp"),
         "catalog-dark.webp" => include_bytes!("../../../assets/shots/catalog-dark.webp"),
         "catalog-phone.webp" => include_bytes!("../../../assets/shots/catalog-phone.webp"),
         "catalog-phone-dark.webp" => include_bytes!("../../../assets/shots/catalog-phone-dark.webp"),
-        "program.webp" => include_bytes!("../../../assets/shots/program.webp"),
-        "program-dark.webp" => include_bytes!("../../../assets/shots/program-dark.webp"),
-        "program-phone.webp" => include_bytes!("../../../assets/shots/program-phone.webp"),
-        "program-phone-dark.webp" => include_bytes!("../../../assets/shots/program-phone-dark.webp"),
-        "module.webp" => include_bytes!("../../../assets/shots/module.webp"),
-        "module-dark.webp" => include_bytes!("../../../assets/shots/module-dark.webp"),
+        "study.webp" => include_bytes!("../../../assets/shots/study.webp"),
+        "study-dark.webp" => include_bytes!("../../../assets/shots/study-dark.webp"),
+        "study-phone.webp" => include_bytes!("../../../assets/shots/study-phone.webp"),
+        "study-phone-dark.webp" => include_bytes!("../../../assets/shots/study-phone-dark.webp"),
+        "timetable.webp" => include_bytes!("../../../assets/shots/timetable.webp"),
+        "timetable-dark.webp" => include_bytes!("../../../assets/shots/timetable-dark.webp"),
+        "timetable-phone.webp" => include_bytes!("../../../assets/shots/timetable-phone.webp"),
+        "timetable-phone-dark.webp" => include_bytes!("../../../assets/shots/timetable-phone-dark.webp"),
         "module-phone.webp" => include_bytes!("../../../assets/shots/module-phone.webp"),
         "module-phone-dark.webp" => include_bytes!("../../../assets/shots/module-phone-dark.webp"),
         _ => return StatusCode::NOT_FOUND.into_response(),

@@ -117,17 +117,23 @@ pub(super) fn queries(t: &'static Texts) -> Vec<CatalogQuery> {
 /// Where the browser remembers that the pictures were stopped (`localStorage`, R20).
 const PAUSED_KEY: &str = "betula.showcase";
 
-/// What Betula does, each with its icon: three rows of three on a wide page.
-fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 9] {
+/// What Betula does, each with its icon: four rows of three on a wide page — finding, planning,
+/// the day and what one keeps, and how it is built. Nine until 2026-11-18; „Mein Studium", the day
+/// on the start page and the Merkliste came, and the profile kept on the device where „Kein
+/// Konto" stood.
+fn abilities(t: &'static Texts) -> [(&'static str, &'static i18n::home::Ability); 12] {
     let t = &t.home;
     [
         ("search", &t.search),
         ("sliders-horizontal", &t.filters),
         ("file-check-2", &t.plans),
+        ("graduation-cap", &t.study),
         ("calendar-range", &t.timetable),
         ("calendar-days", &t.dates),
+        ("house", &t.day),
+        ("bookmark", &t.marks),
         ("repeat", &t.prerequisites),
-        ("shield-check", &t.account),
+        ("shield-check", &t.profile),
         ("database", &t.offline),
         ("eye", &t.gaps),
     ]
@@ -188,7 +194,9 @@ pub(super) fn Hero(home: Option<HomeData>) -> impl IntoView {
         }
     });
     view! {
-        <section class="panel home-hero" id="ueberblick">
+        <section class="panel home-hero" id="overview">
+            // The anchors the sections of these pages had while they were German still lead to them.
+            <span class="was-anchor" id="ueberblick"></span>
             <div class="home-hero-text">
                 <BackLink area=Area::Home/>
                 // On a phone the page carries the brand: the phone has no rail. (The way to the
@@ -218,9 +226,11 @@ pub(super) fn Hero(home: Option<HomeData>) -> impl IntoView {
 pub(super) fn Abilities() -> impl IntoView {
     let t = i18n::t();
     view! {
-        <section class="panel abilities" id="funktionen" aria-labelledby="funktionen-titel">
+        <section class="panel abilities" id="abilities" aria-labelledby="abilities-title">
+            // The anchor the section had while its anchors were German: it still leads here.
+            <span class="was-anchor" id="funktionen"></span>
             <header class="block-head">
-                <h2 id="funktionen-titel">{t.home.abilities}</h2>
+                <h2 id="abilities-title">{t.home.abilities}</h2>
                 <p>{t.home.abilities_lead}</p>
             </header>
             <ul class="ability-grid">
@@ -256,6 +266,9 @@ struct Slide {
     /// What a click on the current picture does, said on it.
     action: &'static str,
     href: String,
+    /// „nofollow" where it leads to a view of the visitor's own, which a crawler is kept out of
+    /// (`seo::nofollow`): „Mein Studium", the Stundenplan.
+    nofollow: Option<&'static str>,
     /// The colours of the wash behind it (`wash-…` in app.css).
     wash: &'static str,
     picture: Picture,
@@ -285,7 +298,28 @@ fn place(i: usize, current: usize, count: usize, dir: i32, staged: Option<i32>) 
 pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView {
     let t = i18n::t();
     let home = &t.home;
-    let mut slides: Vec<Slide> = Vec::new();
+    // The day first: what a student opens Betula for. Then the catalog, the study and the week,
+    // and the map of the programs, which stands nowhere else.
+    let shot = |words: &'static i18n::home::Slide, text: String, href: &str, wash: &'static str, file: &'static str, alt: &'static str| Slide {
+        tab: words.tab,
+        title: words.title,
+        text,
+        action: words.action,
+        href: t.path(href),
+        nofollow: seo::nofollow(href),
+        wash,
+        picture: Picture::Shot { file, alt },
+    };
+    let catalog_text = match modules {
+        Some(modules) => (home.catalog_text)(&format::count(modules, t.locale)),
+        None => home.catalog_text_plain.to_string(),
+    };
+    let mut slides: Vec<Slide> = vec![
+        shot(&home.day_slide, home.day_text.to_string(), url::HOME, "wash-day", "day", home.day_alt),
+        shot(&home.catalog_slide, catalog_text, url::CATALOG, "wash-catalog", "catalog", home.catalog_alt),
+        shot(&home.study_slide, home.study_text.to_string(), url::STUDY, "wash-study", "study", home.study_alt),
+        shot(&home.timetable_slide, home.timetable_text.to_string(), url::STUDYPLAN, "wash-timetable", "timetable", home.timetable_alt),
+    ];
     if let Some(map) = map.clone() {
         slides.push(Slide {
             tab: home.map_slide.tab,
@@ -293,40 +327,11 @@ pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> im
             text: (home.map_text)(map.programs.len()),
             action: home.map_slide.action,
             href: t.path(url::PROGRAMS),
+            nofollow: None,
             wash: "wash-map",
             picture: Picture::Map(map),
         });
     }
-    slides.push(Slide {
-        tab: home.catalog_slide.tab,
-        title: home.catalog_slide.title,
-        text: match modules {
-            Some(modules) => (home.catalog_text)(&format::count(modules, t.locale)),
-            None => home.catalog_text_plain.to_string(),
-        },
-        action: home.catalog_slide.action,
-        href: t.path(url::CATALOG),
-        wash: "wash-catalog",
-        picture: Picture::Shot { file: "catalog", alt: home.catalog_alt },
-    });
-    slides.push(Slide {
-        tab: home.plan_slide.tab,
-        title: home.plan_slide.title,
-        text: home.plan_text.to_string(),
-        action: home.plan_slide.action,
-        href: t.path(url::PROGRAMS),
-        wash: "wash-program",
-        picture: Picture::Shot { file: "program", alt: home.plan_alt },
-    });
-    slides.push(Slide {
-        tab: home.module_slide.tab,
-        title: home.module_slide.title,
-        text: home.module_text.to_string(),
-        action: home.module_slide.action,
-        href: t.path(&url::module_path("12330")),
-        wash: "wash-module",
-        picture: Picture::Shot { file: "module", alt: home.module_alt },
-    });
     let count = slides.len();
 
     let current = RwSignal::new(0usize);
@@ -480,6 +485,7 @@ pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> im
                             class:teleport=move || { at().abs() > 1 && staged.get().is_some() }
                             style=move || format!("--at:{}", at())
                             href=slide.href.clone()
+                            rel=slide.nofollow
                             draggable="false"
                             aria-roledescription=home.slide
                             aria-label=(home.slide_of)(i + 1, count, slide.title)
@@ -530,7 +536,7 @@ pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> im
                     class="map-dialog"
                     node_ref=dialog
                     data-sheet="full"
-                    aria-labelledby="karte-titel"
+                    aria-labelledby="map-title"
                     on:close=move |_| map_open.set(false)
                     on:click=move |ev: leptos::ev::MouseEvent| {
                         if folia_design::modal::on_backdrop(dialog, &ev) {
@@ -540,7 +546,7 @@ pub(super) fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> im
                 >
                     <header class="map-dialog-head">
                         <div>
-                            <h2 id="karte-titel">{home.map_heading}</h2>
+                            <h2 id="map-title">{home.map_heading}</h2>
                             <p>{home.map_hint}</p>
                         </div>
                         <DialogClose label=home.close_map on_close=Callback::new(move |()| close_map())/>
@@ -591,9 +597,10 @@ pub(super) fn Ways(home: HomeData) -> impl IntoView {
     let t = i18n::t();
     let counts = home.entry_counts.clone();
     view! {
-        <section class="panel topic-ways" id="einstiege" aria-labelledby="einstiege-titel" data-commands=t.home.ways_in>
+        <section class="panel topic-ways" id="ways-in" aria-labelledby="ways-in-title" data-commands=t.home.ways_in>
+            <span class="was-anchor" id="einstiege"></span>
             <header class="block-head">
-                <h2 id="einstiege-titel">{t.home.ways_in}</h2>
+                <h2 id="ways-in-title">{t.home.ways_in}</h2>
                 <a class="ghost" href=t.path(url::CATALOG)>{(t.home.all_modules_count)(&format::count(home.overview.modules, t.locale))}<Icon name="chevron-right"/></a>
             </header>
             <div class="day-ways">
@@ -619,9 +626,10 @@ pub(super) fn Ways(home: HomeData) -> impl IntoView {
 pub(super) fn Faculties(home: HomeData) -> impl IntoView {
     let t = i18n::t();
     view! {
-        <section class="panel topic-ways" id="fakultaeten" aria-labelledby="fakultaeten-titel" data-commands=t.home.programs_by_faculty>
+        <section class="panel topic-ways" id="faculties" aria-labelledby="faculties-title" data-commands=t.home.programs_by_faculty>
+            <span class="was-anchor" id="fakultaeten"></span>
             <header class="block-head">
-                <h2 id="fakultaeten-titel">{t.home.programs_by_faculty}</h2>
+                <h2 id="faculties-title">{t.home.programs_by_faculty}</h2>
                 <a class="ghost" href=t.path(url::PROGRAMS)>{(t.home.all_programs_count)(&format::count(home.overview.programs, t.locale))}<Icon name="chevron-right"/></a>
             </header>
             <div class="day-ways faculty-ways">
