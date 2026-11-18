@@ -22,6 +22,7 @@ use folia_timetable::fit::CandidateSet;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::transcript::{TranscriptMatch, TranscriptRow};
 use crate::{
     BookmarksData, BtuDocuments, BtuPages, CatalogChoices, CatalogData, CatalogSummary, FitResult, Ground, HomeData, ModuleData, MyProgramInfo,
     Overlay, Place, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyDocuments, StudyModules, StudyplanData,
@@ -126,6 +127,14 @@ macro_rules! ask {
         }
     };
 }
+
+ask!(
+    /// What „Mein Studium" takes over of a Notenübersicht: its program and the catalog's module of
+    /// each of its rows (`transcript`), from the rows' titles and credits alone. Asked with
+    /// `DataClient::ask_once` and so never kept: the question carries what was read of the
+    /// visitor's file.
+    TranscriptAsk { mine: Option<String>, degree: Option<String>, program: Option<String>, rows: Vec<TranscriptRow> } -> TranscriptMatch, Lane::Page, |q, db, kept| crate::transcript::transcript(db, q.mine.as_deref(), q.degree.as_deref(), q.program.as_deref(), &q.rows)
+);
 
 ask!(
     /// The ground at the end of every page: the data's dates and the current semester.
@@ -308,7 +317,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
         ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, ModuleAbbrevsAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CommandModulesAsk, CatalogPositionAsk, PlanRowsAsk,
-        EventAsk, StudyDocumentsAsk, BtuDocumentsAsk, BtuPagesAsk,
+        EventAsk, StudyDocumentsAsk, BtuDocumentsAsk, BtuPagesAsk, TranscriptAsk,
     )
 }
 
@@ -352,6 +361,9 @@ mod tests {
         same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
         same(StudyDocumentsAsk { program_id: "079-82-2008".into() });
         same(StudyDocumentsAsk { program_id: "no-such-program".into() });
+        let rows = |titles: &[(&str, &str)]| titles.iter().map(|(title, other)| crate::transcript::TranscriptRow { title: title.to_string(), other: Some(other.to_string()), credits: None }).collect();
+        same(TranscriptAsk { mine: None, degree: Some("Bachelor".into()), program: Some("Informatik".into()), rows: rows(&[("Datenbanken", "Database Systems"), ("Proseminar", "Introductory Seminar")]) });
+        same(TranscriptAsk { mine: Some("079-82-2008".into()), degree: None, program: None, rows: rows(&[("Kein Modul", "No module")]) });
         same(BtuDocumentsAsk {});
         same(BtuPagesAsk { locale: Locale::De });
         same(BtuPagesAsk { locale: Locale::En });

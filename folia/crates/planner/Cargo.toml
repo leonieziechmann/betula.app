@@ -9,7 +9,7 @@ name = "folia_planner"
 
 [features]
 ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr", "folia-stores/ssr", "folia-widgets/ssr"]
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-shell/csr", "folia-stores/csr", "folia-widgets/csr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "folia-design/csr", "folia-shell/csr", "folia-stores/csr", "folia-widgets/csr"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -31,9 +31,13 @@ folia-plans = { path = "../plans" }
 folia-routes = { path = "../routes" }
 folia-search = { path = "../search" }
 folia-timetable = { path = "../timetable" }
+folia-transcript = { path = "../transcript" }
 serde = { version = "1.0", features = ["derive"] }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventInit", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "DataTransfer", "DragEvent", "HtmlCollection", "TouchEvent", "TouchList", "CssStyleDeclaration", "HtmlCanvasElement", "CanvasRenderingContext2d", "TextMetrics"] }
+# Reading a Notenübersicht: the promise of its worker (`window.betulaTranscript`, study/transcript.rs).
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventInit", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "DataTransfer", "DragEvent", "HtmlCollection", "TouchEvent", "TouchList", "CssStyleDeclaration", "HtmlCanvasElement", "CanvasRenderingContext2d", "TextMetrics", "File", "FileList"] }
 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).

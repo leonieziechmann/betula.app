@@ -21,7 +21,9 @@
 //!   without addresses, 30 days (`access_log` in `folia/crates/server/src/main.rs`);
 //! - „Speicher im Browser": R20 (docs/folia/frontend.md) and the stores (`bookmarks`, `studyplan`,
 //!   `myprogram`, `profiles` and the profile page's backup file, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
-//!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `folia/crates/server/src/semantic.rs`);
+//!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `folia/crates/server/src/semantic.rs`); the
+//!   Notenübersicht read in its own worker and taken into „Mein Studium" (`folia/crates/transcript`,
+//!   `folia/crates/planner/src/study/transcript.rs`);
 //! - „Kalender-Abo": `folia_calendar::subscription` (what a code carries), `folia/crates/server/src/api.rs`,
 //!   the ways to subscribe in `pages/studyplan/export.rs`, what the file holds beyond the feed (the
 //!   notes at Termine, `folia_timetable::export`);

@@ -1103,6 +1103,7 @@ dependencies = [
  "folia-search",
  "folia-test-support",
  "folia-timetable",
+ "folia-transcript",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1125,7 +1126,9 @@ dependencies = [
  "folia-shell",
  "folia-stores",
  "folia-timetable",
+ "folia-transcript",
  "folia-widgets",
+ "js-sys",
  "leptos",
  "leptos_meta",
  "leptos_router",
@@ -1133,6 +1136,7 @@ dependencies = [
  "serde",
  "serde_json",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -1148,6 +1152,7 @@ dependencies = [
  "folia-routes",
  "folia-search",
  "folia-test-support",
+ "folia-transcript",
  "serde",
 ]
 
@@ -1365,6 +1370,10 @@ dependencies = [
  "folia-test-support",
  "serde",
 ]
+
+[[package]]
+name = "folia-transcript"
+version = "0.1.0"
 
 [[package]]
 name = "folia-widgets"
