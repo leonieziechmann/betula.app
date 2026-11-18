@@ -4595,7 +4595,8 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   current. Back and the arrow lead to the calendar as it was left (its address with `edit=1` and
   the week, its stage scrolled as it was) — on Android the first Back too: the semester the link
   itself opened in the row is not taken back first (`nav::lent`, the row's layer in
-  `planner/src/study/phone.rs`); what the visitor opens there (the semester's menu, the rows
+  `planner/src/study/phone.rs`), and from that semester the arrow says „Stundenplan" for those who
+  do not see it, „Übersicht" from a semester turned to; what the visitor opens there (the semester's menu, the rows
   selected, the workbench's sheet, another semester turned to by ‹ ›) closes first as always, and
   the Back after it leads to the calendar. „Stundenplan" tapped leads there too, the page lent
   ahead (Forward brings it again). The loan ends with the first step that writes a new entry in
@@ -8283,8 +8284,8 @@ the tab left coming back as it was, Back up through the tab to Start, the tab ta
 to „Mein Studium" right above Start, a module's program changing the tab with „Mein Studium" and „Alle Studiengänge"
 under it, Start's tab leading to Start after the profile lay above it. The calendar's „Module
 planen in „Mein Studium““, a page lent (Folia 1.105.5): on top of the calendar's stack with
-„Studium" current; one Back and the arrow lead to the calendar as it was left (`edit=1`), past the
-semester the link opened, and Forward brings the page again; the semester's menu, a semester
+„Studium" current; one Back and the arrow (which says „Stundenplan" there) lead to the calendar as
+it was left (`edit=1`), past the semester the link opened, and Forward brings the page again; the semester's menu, a semester
 turned to by › and the workbench's sheet ended by a tap beside it come first, then the calendar;
 „Stundenplan" tapped leads there; „Studium" tapped again and „Alle Studiengänge" end the loan, Back
 then leading up through „Mein Studium" to Start, the calendar's tab keeping its stack; on an iPhone

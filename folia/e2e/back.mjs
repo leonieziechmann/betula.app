@@ -31,7 +31,7 @@
 //   what lay over another sheet goes back to it, the keyboard on the row that opened it.
 // 10 „Module planen in „Mein Studium““ of the calendar (`data-lend`; owner, 2026-11-18): the page is
 //   lent on top of the calendar's stack, the bar shows „Studium“; one Back (past the semester the link
-//   opened) and the arrow lead to the calendar as it was left (`edit=1`), Forward brings the page
+//   opened) and the arrow, which says „Stundenplan“ there, lead to the calendar as it was left (`edit=1`), Forward brings the page
 //   again; the semester's menu closes first, a semester turned to by › brings the overview first,
 //   the workbench's sheet ended by a tap beside it is no Back, and after each the calendar; „Stundenplan“ tapped leads
 //   there too; „Studium“ tapped again ends the loan as it opens the area as it starts, the calendar's
@@ -414,6 +414,9 @@ const lentParts = async (name, options, { android, iphone = false }) => part(nam
   // The arrow at the head the same.
   await toStudy("the way again, for the arrow");
   await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => {});
+  // It says where it leads: the calendar from the semester the way opened.
+  const arrowSays = (label) => page.waitForFunction((label) => document.querySelector(".top-back.on")?.getAttribute("aria-label") === label, label, { timeout: 8000 }).then(() => true, () => false);
+  check(await arrowSays("Stundenplan"), "the arrow of the page lent does not say „Stundenplan“");
   await backAtCalendar("the arrow: the calendar", () => page.tap(".top-back.on"));
   // What the visitor opens there closes first: the semester's menu, then Back leads to the calendar.
   await toStudy("the way, for a menu");
@@ -425,6 +428,7 @@ const lentParts = async (name, options, { android, iphone = false }) => part(nam
   await toStudy("the way, for a turn");
   await page.waitForFunction(away, null, { timeout: 8000 }).catch(() => {});
   await step("› to the next semester", () => page.tap(".st-pager > .st-slot[data-here] .st-turn >> nth=1"), resting("SoSe 2027"));
+  check(await arrowSays("Übersicht"), "the arrow of a semester turned to does not say „Übersicht“");
   await step("Back: the overview", () => back(page), resting(null));
   await backAtCalendar("Back after the overview: the calendar", () => back(page));
   // The workbench's sheet closed by a tap beside it (a phone's workbench has no „Fertig“; the

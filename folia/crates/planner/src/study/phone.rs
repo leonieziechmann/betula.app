@@ -61,18 +61,23 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     // Studium““; owner, 2026-11-18: „dass dann der Terminkalender das back ist"), the semester the
     // address itself opened (`plan=1`) is no state the visitor opened: Back and the arrow lead to the
     // calendar from it. A semester turned to by ‹ › or a swipe is, and Back brings the overview.
-    let opened = StoredValue::new(None::<SemesterKey>);
+    let opened = RwSignal::new(None::<SemesterKey>);
     Effect::new(move |before: Option<bool>| {
         let (plan, focused) = (ctx.url.with(|url| url.plan), ctx.focused());
-        if !plan {
-            opened.set_value(None);
-        } else if before != Some(true) || opened.get_value().is_none() {
-            opened.set_value(focused);
+        let next = if !plan {
+            None
+        } else if before != Some(true) || opened.get_untracked().is_none() {
+            focused
+        } else {
+            opened.get_untracked()
+        };
+        if next != opened.get_untracked() {
+            opened.set(next);
         }
         plan
     });
     let close = move || {
-        if opened.get_value().is_some_and(|at| Some(at) == ctx.focused_untracked()) && folia_shell::nav::lent() {
+        if opened.get_untracked().is_some_and(|at| Some(at) == ctx.focused_untracked()) && folia_shell::nav::lent() {
             folia_shell::nav::back();
         } else {
             pages.home();
@@ -82,7 +87,18 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     // The way back at the head, as soon as the row leaves the overview and while it is anywhere
     // else (owner, 2026-10-06: „der sollte eigentlich sofort eingeblendet werden, wenn man weg
     // swiped, von der main page").
-    TopBack::follow(move || pages.away().then(|| Back { href: url::STUDY.to_string(), label: s.overview, history: false }));
+    // It says where it leads: the calendar from the semester the calendar's way opened, while the
+    // page is lent to it (the arrow is Back, and Back leads there), the overview from anywhere else.
+    let calendar = t.studyplan.title;
+    TopBack::follow(move || {
+        pages.away().then(|| {
+            if opened.get().is_some_and(|at| Some(at) == ctx.focused()) && folia_shell::nav::lent() {
+                Back { href: url::STUDYPLAN.to_string(), label: calendar, history: false }
+            } else {
+                Back { href: url::STUDY.to_string(), label: s.overview, history: false }
+            }
+        })
+    });
     let back = TopBack::expect();
     // The tab of „Studium" tapped again, or the way back pressed: back to the overview at once,
     // wherever the row is or goes (owner, 2026-10-06: „Wenn man den anklickt muss es sofort wieder
