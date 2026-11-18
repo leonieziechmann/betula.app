@@ -5848,10 +5848,13 @@ switched on; R20 has the exception.
   profile shows at once, the link for the next device in order of weight (owner, 2026-11-18:
   „Bitte ordne das und mach visuelle Hierarchie“): the QR code large in the middle on a light tile
   of its own, readable by a camera in either theme (`folia_profile::qr` with `qrcodegen`), under it
-  how many minutes it still opens as a chip (ten in all, amber from „Noch 1 Minute“; gone, „Neuer
-  Link“), what to do, smaller that it opens once, the link on one line, „Teilen“ where the system
-  can (`navigator.share`) and „Link kopieren“; and once another device has come while it is open,
-  that it has. On a phone the dialog is all up at once (`Sheet::Full`; owner, the same day: „Der modal
+  how many minutes it still opens as a chip (ten in all, amber from „Noch 1 Minute“), what to do,
+  smaller that it opens once, the link on one line, „Teilen“ where the system can
+  (`navigator.share`) and „Link kopieren“; and once another device has come while it is open, that
+  it has. Gone, it stays in its place (owner, 2026-11-18: „wenn das Ding dann abgelaufen ist möchte
+  ich noch einen retry knopf“): the old code faded under a round sign to renew it, which a tap
+  renews, „Der Link ist abgelaufen.“, and „Neuer Link“ where „Link kopieren“ stood. While a link is
+  made (switched on a moment ago, or a new one) a blank tile stands where its code comes. On a phone the dialog is all up at once (`Sheet::Full`; owner, the same day: „Der modal
   soll sich gleich maximal öffnen“), „Link kopieren“ a bar across the sheet's foot with „Teilen“
   over it (`folia_widgets::syncpair`). **The other way**
   (folia/design/profil/konzepte.html, the second step; owner, 2026-11-08: „Ok dann mach step 2 mit

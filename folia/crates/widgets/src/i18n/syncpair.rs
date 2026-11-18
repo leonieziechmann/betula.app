@@ -4,11 +4,13 @@
 
 pub struct Texts {
     /// What to do with the link, and under it, smaller, that it opens once for whoever has it; how
-    /// long it opens (minutes left, 0: less than one); gone; a new one.
+    /// long it opens (minutes left, 0: less than one); gone, and under it that a new one opens as
+    /// long again; the button for a new one.
     pub pair_how: &'static str,
     pub pair_once: &'static str,
     pub pair_left: fn(u64) -> String,
     pub pair_gone: &'static str,
+    pub pair_gone_hint: &'static str,
     pub pair_new: &'static str,
     /// The QR code, for screen readers.
     pub qr_label: &'static str,
@@ -60,6 +62,7 @@ pub const DE: Texts = Texts {
         n => format!("Noch {n} Minuten gültig"),
     },
     pair_gone: "Der Link ist abgelaufen.",
+    pair_gone_hint: "Ein neuer gilt wieder 10 Minuten.",
     pair_new: "Neuer Link",
     qr_label: "QR-Code des Links für das andere Gerät",
     copy_link: "Link kopieren",
@@ -103,6 +106,7 @@ pub const EN: Texts = Texts {
         n => format!("Valid for {n} more minutes"),
     },
     pair_gone: "The link has expired.",
+    pair_gone_hint: "A new one works for another 10 minutes.",
     pair_new: "New link",
     qr_label: "QR code of the link for the other device",
     copy_link: "Copy link",
