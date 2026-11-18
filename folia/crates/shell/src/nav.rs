@@ -1110,7 +1110,10 @@ mod browser {
     fn save(entries: &[Seen], base: usize, at: usize) {
         let area = tab_at(entries, base, at);
         // Start has no stack of its own (the profile, the legal pages are only above it for a while).
-        if area == Area::Home {
+        // The catalog lent to the workbench of „Mein Studium" keeps the stack it had before, as the
+        // memory of the tabs gives back where it was left (`tabs::catalog_lent`): what the workbench
+        // looked for there is not what the tab „Module" comes back to.
+        if area == Area::Home || (area == Area::Catalog && crate::tabs::catalog_lent()) {
             return;
         }
         let urls: Vec<String> = (base + 1..=at).filter(|&i| !passing_at(entries, i)).filter_map(|i| entries.get(i).and_then(|entry| entry.url.clone())).collect();
