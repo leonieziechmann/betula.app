@@ -57,8 +57,8 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/profile` | „Profil" (owner, 2026-10-14; reworked 2026-11-08, folia/design/profil/konzepte.html): the profiles of this browser and the active one's page — its name (renamed in place), „Mein Studiengang" as a line, what it keeps counted (no links), Betula Sync (`#devices`), „Daten" (a file) and the „Gefahrenzone" (emptied, deleted); in the sidebar the profiles (a click switches) and „Profil hinzufügen" (empty, from another device, from a file). What every profile shares (light, dark or the system's; the language) is in the menu of the profiles. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/sync`, `/sync#<…>` | „Gerät verbinden" (Betula Sync, 2026-11-05; „Betula Sync in the browser" below): where devices find each other. Without `#` the scanner (since 2026-11-08), which reads the code another device shows (a link of `/sync#…` or a code of `/pair#…`); `#<…>` the link of another device, whose sealed parcel holds the profile's key. What follows `#` never reaches a server, and it leaves the address and the history as soon as the page has read it. The server renders an explanation, the same for everybody, `noindex`; a phone's menu of the profiles and its profile page lead to the scanner. `/verbinden#<…>` until 2026-11-08, which leads here (below) |
 | `/pair`, `/pair#<…>` | „Mit dem Handy verbinden" (Betula Sync, 2026-11-08; owner: „Da muss ein link kommen wie betula.app/pair wo dann der qr code gezeigt wird"; `folia/crates/profile/src/pair.rs`, docs/folia/sync.md „The actions"): the address one types on a computer. It shows a QR code of `/pair#<id ‖ public key>` (an ECDH key made in the browser) with four digits, ten minutes, and takes the profile once the phone that scans it has sent it; on the phone, which opens it with its camera app or reads it with Betula's scanner, which profile goes, the digits and „Ja, „Lena“ verbinden". `noindex`, not listed |
-| `/imprint`, `/privacy` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21); `/impressum` and `/datenschutz` until 2026-11-08, which lead here (below). Linked from the ground at the end of the start page and of the pages about Betula, and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
-| `/verbinden`, `/impressum`, `/datenschutz` | The German addresses there were, until 2026-11-08 (owner: „Keine deutschen links und den urls. Like wir machen hier vernünftige software. Url struktur alles in us englisch"): every path is US English, whatever language the page speaks; query keys and fragments are not paths and stay as they are. No pages any more: the server answers each, in every language (`/en/impressum`), with a redirect for good (308) to `/sync`, `/imprint` and `/privacy`, with its query (`url::MOVED`, `moved_redirect` in `folia-server`), so that what links to them, a bookmark and what search engines know still lead somewhere; the browser app goes on there in the same entry of the history (`stage::Page::Moved`, `Moved` in `folia-app`). A pairing link from before (`/verbinden#<…>`) keeps its key: a browser carries the fragment over a redirect whose `Location` has none (RFC 9110, 10.2.2) |
+| `/imprint`, `/privacy` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21); `/impressum` and `/datenschutz` until 2026-11-08, which lead here (below). Linked from the ground at the end of the start page and of the pages about Betula, and from the profile page („Über diese Seite" at its end), which every page leads to (the rail; on a phone the box at the head of the page); § 5 DDG: reachable at all times. Until 2026-11-03 the ground at the end of every page linked them („The birch"; owner: „ich würde gerne den footer raus nehmen aus den meisten seiten von betula. Um weiterhin compliant zu sein können wir bei der Profile page die links wieder machen und den footer bei der landing page lassen"). The privacy notice says what the software does and `legal.rs` names the source of each part: a change there is a change of the text. Since 2026-11-18 it is built around what Betula is (owner: „so dass klar wird dass betula den Datenschutz respektiert und nur so viel daten erhebt wie unbedingt notwendig. Also wir reden nicht von konten, weil die gibt es ja nicht sondern von profilen und lokalen Daten"; before, it was the text from before Betula Sync with Sync added to each part it touched): „Kurz gesagt" with the principle first, then what stays on the device („Profile und lokale Daten"), what leaves it where the student says so („Betula Sync", „Stundenplan und Merkliste teilen", „Kalender-Abo", the last two with the dialog's own names for their ways: „Fester Stand", „Bleibt aktuell", „Einmal-Link"), what the server keeps to run („Wo Betula läuft", „Zugriffsprotokoll", the gate's cookie), and the rest (e-mail, the lecturers' names under Art. 14 DSGVO, disclosure, the rights). It speaks of no account in any language (a test of `legal.rs`), and what it quotes of the app is what the app says (`folia_app::quotes`). Its parts' anchors are US English (`#local-data`, `#sync`, `#sharing` …, the imprint's `#address`, `#contact`, `#notice`); the German ones they had until then (`#browser`, `#abgleich`, `#teilen` …) still lead to them, as an empty element at the head of the part's heading (`Part::was`, `.legal-was`). `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
+| `/verbinden`, `/impressum`, `/datenschutz` | The German addresses there were, until 2026-11-08 (owner: „Keine deutschen links und den urls. Like wir machen hier vernünftige software. Url struktur alles in us englisch"): every path is US English, whatever language the page speaks; query keys and fragments are not paths and stayed as they were then (the legal pages' anchors followed on 2026-11-18, the row above). No pages any more: the server answers each, in every language (`/en/impressum`), with a redirect for good (308) to `/sync`, `/imprint` and `/privacy`, with its query (`url::MOVED`, `moved_redirect` in `folia-server`), so that what links to them, a bookmark and what search engines know still lead somewhere; the browser app goes on there in the same entry of the history (`stage::Page::Moved`, `Moved` in `folia-app`). A pairing link from before (`/verbinden#<…>`) keeps its key: a browser carries the fragment over a redirect whose `Location` has none (RFC 9110, 10.2.2) |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -3071,7 +3071,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     passed, `q <semester> <program> <ord> <caption> <name>` a row of the plan done. „Mein
     Studiengang" keeps the program, the plan of the study direction, the Studienbeginn, the
     semesters of leave (`leave`) and the last semester added (`until`). The privacy notice lists
-    them („Speicher im Browser").
+    them („Profile und lokale Daten").
   - **And the Stundenplan.** A semester planned here is the Stundenplan's semester and the other
     way round; its tab counts the current semester's modules. Its „Importieren" had „Mein Studium"
     as its second source until it went (2026-11-04): the Wiederholer into the semester shown
@@ -6287,14 +6287,17 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   with the credits, collections and notes, saved plans; none is a link, the rail has the ways. Then
   Betula Sync (below, `#devices`), „Daten“ („Als Datei sichern“) and the „Gefahrenzone“: „Profil
   leeren“ and „Profil löschen“, each a row with its icon on a tile and a button of one width with
-  the same icon (the only profile is emptied, and says so before), as Betula Sync's actions are
+  the same icon (the only profile is emptied, and says so before; a synced one is deleted on this
+  device alone or with Betula Sync ended, its data on the server deleted, which the question asks
+  since Folia 1.102.3, owner 2026-11-18), as Betula Sync's actions are
   since Folia 1.97.2 (132 px, 116 px on a phone: the longest German word, „Verbinden“ and
   „Speichern“; a longer one makes its button wider). Every question before something
   that takes away („Profil leeren“, „Profil löschen“, „Entfernen“ of a device, „Nur dieses Gerät
   trennen“, „Sync beenden“) is a menu at its button since 2026-11-09 (`folia_profile::confirm`,
   app.css `.st-pop`, a sheet from below on a phone; owner: „(kontext) menus verwenden, um das
   löschen zu bestätigen. Das andere verschiebt das layout“): what is asked, what follows, the answer
-  with the focus, „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
+  with the focus (where there are two ways, two answers, each with a line that sets it apart, the
+  first with the focus), „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
   button, and nothing on the page moves. A
   profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. The
   language lives in the profile's menu since 2026-10-14 (owner: „allgemein kann man die
@@ -6309,7 +6312,7 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   every store as the store reads its text, says what it holds and asks; the profile it makes is a
   new one, its name told apart from a profile of the same name („Zweitstudium (2)“). A file of a
   later layout is refused, not half read. Neither reaches the server; the privacy notice says so
-  („Speicher im Browser“).
+  („Profile und lokale Daten“).
 
 ### Betula Sync in the browser (`folia/crates/stores/src/sync`, `folia/crates/profile`; 2026-11-05)
 
@@ -6611,7 +6614,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `betula.profiles.v1`. They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
-  The privacy notice lists what a browser keeps („Speicher im Browser" in
+  The privacy notice lists what a browser keeps („Profile und lokale Daten" in
   `folia/crates/home/src/legal.rs`): a new store, or a new way for stored data into an address, is a
   change of that text too. `folia/e2e/bookmarks.mjs` watches every request of a session for marks.
   Exceptions, decided by the owner (2026-09-23/24/25): the address of a calendar subscription
@@ -6640,7 +6643,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
   nothing; Folia's own log writes the page's path without its query and the picture's as
   `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
-  privacy notice's part is „Stundenplan teilen".
+  privacy notice's part is „Stundenplan und Merkliste teilen".
   And Betula Sync (owner, 2026-11-05: „ab dem punkt, wo man Betula sync aktiviert dann wird das
   profil auf dem server abgelegt und die clients syncronisiert"; „Betula Sync", below): a profile
   switched on, one by one on the profile page, reaches Phloem, the service of Betula Sync, sealed
@@ -6649,12 +6652,11 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   Phloem can open none of it, and it reaches no address, no request of Folia and no server HTML;
   the key goes from device to device behind `#` (`/sync#…`, which no browser sends) or as the
   recovery code the visitor writes down. Off, per profile, until it is switched on, and on a site
-  only where the server offers it (`FOLIA_SYNC`). The privacy notice's part is „Abgleich zwischen
-  deinen Geräten (Betula Sync)".
+  only where the server offers it (`FOLIA_SYNC`). The privacy notice's part is „Betula Sync".
   A Notenübersicht read in „Mein Studium" (owner, 2026-11-18, „Notenübersicht einlesen" above) is no
   exception: the file is read in a Web Worker of its own that is ended once it has answered, and
   reaches no request, no store and no address; what is taken over is the study's, as if ticked off by
-  hand. The privacy notice says so in „Speicher im Browser".
+  hand. The privacy notice says so in „Profile und lokale Daten".
 - **R21. A click answers in the next frame** (2026-09-23, „A click answers first"). What the
   visitor starts goes through `Pending` — links do by themselves; a handler that navigates calls
   `Pending::go`, not the router's `navigate` (that is for what the app does on its own). A

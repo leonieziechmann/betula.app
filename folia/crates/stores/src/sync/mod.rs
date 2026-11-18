@@ -35,6 +35,8 @@ pub enum State {
     Private,
     /// „Betula Sync aktivieren", or joining from a link or a code, is under way.
     Starting,
+    /// „Sync beenden" is under way (Phloem is asked to delete the space).
+    Ending,
     /// Synced and connected; `devices`: how many other devices of the profile are online now,
     /// `direct` of them connected with this one directly, `relayed` through Phloem's TURN
     /// (WebRTC, step 2); the others hear of each change through Phloem.
@@ -489,19 +491,33 @@ impl Sync {
     /// „Sync beenden": Phloem deletes the profile's space at once, and every device of it is
     /// private again, with its copy.
     pub fn stop(self, id: u16) {
-        self.act(id, Some(State::Starting));
-        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
-        leptos::task::spawn_local(async move {
-            match browser::stop(id).await {
-                Ok(()) => {
-                    self.act(id, None);
-                    self.refresh(id);
-                }
-                Err(problem) => self.fail(id, problem),
+        self.stop_then(id, move |done| {
+            if let Err(problem) = done {
+                self.fail(id, problem);
             }
         });
+    }
+
+    /// „Sync beenden" for profile `id`, then `done` with whether it ended: for „Löschen und Sync
+    /// beenden" of the profile page (owner, 2026-11-18), which deletes the profile once its space
+    /// is gone, and keeps it where it is not (its key would go with it, and the server's copy stay).
+    /// A failure is the caller's to tell: the profile stays synced as it was.
+    pub fn stop_then(self, id: u16, done: impl FnOnce(Result<(), Problem>) + 'static) {
+        self.act(id, Some(State::Ending));
+        #[cfg(all(feature = "csr", target_arch = "wasm32"))]
+        leptos::task::spawn_local(async move {
+            let ended = browser::stop(id).await;
+            self.act(id, None);
+            if ended.is_ok() {
+                self.refresh(id);
+            }
+            done(ended);
+        });
         #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
-        self.fail(id, Problem::Unsupported);
+        {
+            self.act(id, None);
+            done(Err(Problem::Unsupported));
+        }
     }
 
     /// „Nur dieses Gerät trennen": this device keeps its copy, privately; the others go on.
