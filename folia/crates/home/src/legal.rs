@@ -50,7 +50,9 @@
 //!   `deploy/vps/files/journald-betula.conf`); the rate limit per address
 //!   (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log without addresses, 30 days
 //!   (`access_log` in `folia/crates/server/src/main.rs`);
-//! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`), the only one;
+//! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`) and the pass in front of
+//!   the catalog (`folia/crates/server/src/pass.rs`: its 7 days, its network, the path `/api/`), the
+//!   only two;
 //! - „Namen von Lehrenden": `v_module_lecturer` (docs/radix/schema-v2.md), and how long Radix keeps what
 //!   it read (`--event-retention`, `--archive-grace`, docs/radix/operations.md).
 //!
@@ -441,6 +443,8 @@ fn privacy_cookies(t: &'static Texts) -> AnyView {
     view! {
         <p>{cookies.before}<code>"betula_access"</code>{cookies.after}</p>
         <p>{cookies.details}</p>
+        <p>{cookies.pass_before}<code>"betula_pass"</code>{cookies.pass_after}</p>
+        <p>{cookies.pass_details}</p>
     }
     .into_any()
 }

@@ -45,6 +45,8 @@ function Start-Lab {
     $env:FOLIA_LOG_LEVEL = "info"
     $env:FOLIA_HTML_CACHE_MB = "$CacheMB"
     $env:FOLIA_ACCESS_GATE = "off"
+    # The jobs download the catalog like a browser that holds its pass (src/pass.rs): no challenge.
+    $env:FOLIA_PASS_DIFFICULTY = "0"
     $env:FOLIA_WARM_CACHE = $Warm
     $env:FOLIA_RENDER_WAIT_MS = "$RenderWaitMs"
     $env:FOLIA_WORKERS = "$($Cpus + 1)"

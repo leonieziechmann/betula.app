@@ -211,6 +211,11 @@ pub struct Cookies {
     pub before: &'static str,
     pub after: &'static str,
     pub details: &'static str,
+    /// The pass in front of the catalog (`folia/crates/server/src/pass.rs`): around its name, then
+    /// what it holds.
+    pub pass_before: &'static str,
+    pub pass_after: &'static str,
+    pub pass_details: &'static str,
 }
 
 /// „Namen von Lehrenden" (Art. 14 DSGVO).
@@ -398,9 +403,12 @@ pub const DE: Texts = Texts {
     },
     cookies: Cookies {
         heading: "Cookies",
-        before: "Betula setzt keine Cookies, mit einer Ausnahme: Solange Betula nur mit Passwort erreichbar ist, etwa während eines geschlossenen Tests, setzt der Server nach der Eingabe des richtigen Passworts ein Cookie namens ",
+        before: "Betula setzt keine Cookies für Werbung oder Statistik, nur zwei, die für den Betrieb unbedingt nötig sind. Solange Betula nur mit Passwort erreichbar ist, etwa während eines geschlossenen Tests, setzt der Server nach der Eingabe des richtigen Passworts ein Cookie namens ",
         after: ".",
         details: "Es enthält nur, wann dein Zugang endet, und eine Signatur, an der der Server erkennt, dass er es selbst ausgestellt hat; gespeichert wird dazu nichts. Es gilt 90 Tage, wird nur über verschlüsselte Verbindungen an Betula gesendet und ist für Skripte nicht lesbar. Weil es für den Zugang, den du angefragt hast, unbedingt nötig ist, braucht es keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG).",
+        pass_before: "Bevor die App den Katalog herunterlädt, löst sie im Hintergrund eine kleine Rechenaufgabe, die der Server stellt (meist in Bruchteilen einer Sekunde), und bekommt dafür ein Cookie namens ",
+        pass_after: ". So bekommen Programme, die die Seite massenhaft abrufen, den Katalog nicht, ohne selbst zu rechnen, und Betula bleibt für alle erreichbar.",
+        pass_details: "Es enthält nur, wann es abläuft, und eine Signatur, an der der Server erkennt, dass er es selbst ausgestellt hat, für das Netz, aus dem du Betula aufrufst (die ersten drei Teile einer IPv4-Adresse oder die ersten vier Blöcke einer IPv6-Adresse). Die Adresse selbst steht nicht darin, und gespeichert wird dazu nichts; die IP-Adresse der Anfrage verwendet der Server dafür auf derselben Grundlage wie für das Zugriffsprotokoll (Art. 6 Abs. 1 lit. f DSGVO). Es gilt 7 Tage, wird nur über verschlüsselte Verbindungen und nur mit den Anfragen der App an Betula gesendet und ist für Skripte nicht lesbar. Weil es für den Abruf des Katalogs, den du angefragt hast, unbedingt nötig ist, braucht es keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG).",
     },
     email: Prose {
         heading: "E-Mail",
@@ -597,9 +605,12 @@ pub const EN: Texts = Texts {
     },
     cookies: Cookies {
         heading: "Cookies",
-        before: "Betula sets no cookies, with one exception: while Betula can only be reached with a password, for example during a closed test, the server sets a cookie named ",
+        before: "Betula sets no cookies for advertising or statistics, only two that are strictly necessary for running it. While Betula can only be reached with a password, for example during a closed test, the server sets a cookie named ",
         after: " once the correct password has been entered.",
         details: "It contains only when your access ends, and a signature by which the server recognises that it issued the cookie itself; nothing is stored for it. It is valid for 90 days, is sent to Betula only over encrypted connections and cannot be read by scripts. Because it is strictly necessary for the access you asked for, it requires no consent (§ 25(2) no. 2 TDDDG).",
+        pass_before: "Before the app downloads the catalogue, it solves a small computing task set by the server in the background (usually in a fraction of a second) and receives a cookie named ",
+        pass_after: " for it. This way programs that fetch the site in bulk do not get the catalogue without doing the work themselves, and Betula stays reachable for everyone.",
+        pass_details: "It contains only when it expires, and a signature by which the server recognises that it issued the cookie itself, for the network you reach Betula from (the first three parts of an IPv4 address or the first four groups of an IPv6 address). The address itself is not in it, and nothing is stored for it; the server uses the request's IP address for this on the same basis as for the access log (Art. 6(1)(f) GDPR (DSGVO)). It is valid for 7 days, is sent to Betula only over encrypted connections and only with the app's requests, and cannot be read by scripts. Because it is strictly necessary for downloading the catalogue you asked for, it requires no consent (§ 25(2) no. 2 TDDDG).",
     },
     email: Prose {
         heading: "E-mail",

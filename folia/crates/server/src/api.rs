@@ -92,6 +92,10 @@ pub async fn database(State(state): State<AppState>, headers: HeaderMap) -> Resp
     if if_none_match(&headers, &snapshot.etag) {
         return not_modified(&snapshot.etag, REVALIDATE);
     }
+    // The download itself asks for a pass (`pass`); a 304 costs nothing and needs none.
+    if let Some(passes) = state.passes.as_ref().filter(|passes| !passes.admits(&headers)) {
+        return passes.refusal(&headers, StatusCode::UNAUTHORIZED);
+    }
 
     // Compressed from memory: every browser gets the same bytes, and a download holds no file and
     // no buffer of its own. Brotli once it is made (in the background after a new snapshot,

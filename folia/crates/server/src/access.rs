@@ -37,7 +37,7 @@ use crate::AppState;
 pub const PATH: &str = "/access";
 /// The name of the secret: `/run/secrets/folia-access-password`, `FOLIA_ACCESS_PASSWORD[_FILE]`.
 pub const SECRET: &str = "folia-access-password";
-/// The site's only cookie. The privacy notice describes it, its content and its 90 days
+/// The gate's cookie (the other one of the site is the pass, `pass`). The privacy notice describes it, its content and its 90 days
 /// („Cookies" in folia/crates/home/src/legal.rs): change it with them.
 const COOKIE: &str = "betula_access";
 /// How long a visit lasts. A new password ends all of them earlier.
