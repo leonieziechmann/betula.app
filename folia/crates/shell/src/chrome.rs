@@ -5,7 +5,8 @@
 //! hold besides their pages (`TabMenu`), the menu of the profiles (`ProfileMenu`), and what lets
 //! the memory of the tabs follow the router (`FollowTabs`).
 
-use folia_routes::url::{self, BookmarksUrl, CollectionView, StudyUrl, StudyView};
+use folia_routes::filter::CatalogQuery;
+use folia_routes::url::{self, AboutTopic, BookmarksUrl, CatalogUrl, CollectionView, PlanView, StudyUrl, StudyView, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -122,24 +123,24 @@ pub fn NavItems() -> impl IntoView {
     let plan = Studyplan::expect();
     let meta = folia_data::use_ask(|| APP.then_some(folia_pages::ask::MetaAsk {}));
     let semester = Memo::new(move |_| meta.with(|meta| meta.as_ref().and_then(|meta| meta.as_ref().ok()).and_then(|meta| meta.current_semester.as_deref().and_then(folia_calendar::semester::SemesterKey::parse))));
-    // Whether the visitor has a collection: the Merkliste's tab has a menu then.
-    let collections = Collections::expect();
-    let collected = Memo::new(move |_| collections.is_some_and(|collections| collections.with(|shelf| !shelf.collections().is_empty())));
     let planned = Memo::new(move |_| match (plan, semester.get()) {
         (Some(plan), Some(current)) => plan.count_in(current),
         (Some(plan), None) => plan.count(),
         (None, _) => 0,
     });
-    // Each a command of „Gehe zu" with its keys (`crate::commands`).
+    // Each a command of „Gehe zu" with its keys (`crate::commands`). Each holds something besides
+    // its page, for a finger held on it and for a right click (owner, 2026-11-18: „alle Einträge in
+    // der navbar eine rclick und long press action/context menu"): a menu (`TabMenu`), the
+    // catalog's on a phone its list with the filters open (enhance.js).
     view! {
-        <a class="nav" data-area="home" data-key=Area::Home.key() data-command=t.app.home data-command-group="go" data-command-keys=format!("Nav+{}", Area::Home.key()) href=t.path(url::HOME) on:click=tap(Area::Home) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/><NavKey area=Area::Home/></span>{t.app.home}</a>
+        <a class="nav" data-area="home" data-key=Area::Home.key() data-command=t.app.home data-command-group="go" data-command-keys=format!("Nav+{}", Area::Home.key()) href=t.path(url::HOME) on:click=tap(Area::Home) data-hold=APP.then_some("menu") title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/><NavKey area=Area::Home/></span>{t.app.home}</a>
         <a class="nav" data-area="catalog" data-key=Area::Catalog.key() data-command=t.app.modules data-command-group="go" data-command-keys=format!("Nav+{}", Area::Catalog.key()) href=move || href(Area::Catalog) on:click=tap(Area::Catalog) data-hold=APP.then_some("filters") data-list=catalog_list title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/><NavKey area=Area::Catalog/></span>{t.app.modules}</a>
         <a class="nav" data-area="programs" data-key=Area::Programs.key() data-command=t.app.study data-command-group="go" data-command-keys=format!("Nav+{}", Area::Programs.key()) href=move || href(Area::Programs) on:click=tap(Area::Programs) data-hold=APP.then_some("menu") title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/><NavKey area=Area::Programs/></span>{t.app.study}</a>
         // The marked modules exist in the browser app only (R15). How many there are is known
         // there alone, so the number is never part of server HTML (R9). What the visitor keeps is
         // no page for a crawler (`seo`), here and in the Studienplan.
-        // Held, or its right click, it has a menu of the collections (`TabMenu`), once there is one.
-        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() data-command=t.app.bookmarks data-command-group="go" data-command-keys=format!("Nav+{}", Area::Bookmarks.key()) href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) data-hold=move || (APP && collected.get()).then_some("menu") rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
+        // Held, or its right click, it has a menu of its views and collections (`TabMenu`).
+        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() data-command=t.app.bookmarks data-command-group="go" data-command-keys=format!("Nav+{}", Area::Bookmarks.key()) href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) data-hold=APP.then_some("menu") rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
             <span class="ind">
                 <Icon name="bookmark"/>
                 <NavKey area=Area::Bookmarks/>
@@ -153,7 +154,7 @@ pub fn NavItems() -> impl IntoView {
         // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
         // number of its modules (R9). The number is a memo of its own: most changes of the plan
         // (a hidden Termin, a move) leave it as it is.
-        <a class="nav js-only" data-area="studyplan" data-key=Area::Studyplan.key() data-command=t.app.studyplan data-command-group="go" data-command-keys=format!("Nav+{}", Area::Studyplan.key()) href=move || href(Area::Studyplan) on:click=tap(Area::Studyplan) rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
+        <a class="nav js-only" data-area="studyplan" data-key=Area::Studyplan.key() data-command=t.app.studyplan data-command-group="go" data-command-keys=format!("Nav+{}", Area::Studyplan.key()) href=move || href(Area::Studyplan) on:click=tap(Area::Studyplan) data-hold=APP.then_some("menu") rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
             <span class="ind">
                 <Icon name="calendar-range"/>
                 <NavKey area=Area::Studyplan/>
@@ -176,10 +177,15 @@ fn NavKey(area: Area) -> impl IntoView {
     view! { <kbd class="nav-key" aria-hidden="true">{area.key()}</kbd> }
 }
 
-/// Where a tab's menu stands (`TabMenu`): the tab's area, and its box on the screen.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Where a tab's menu stands (`TabMenu`): the tab's area, where its link leads, and its box on the
+/// screen.
+#[derive(Clone, Debug, PartialEq)]
 struct Held {
     area: Area,
+    /// The query of the tab's link: the Stundenplan's menu stays in the semester the tab leads to.
+    /// Read from the link as it was held, not from the tabs' memory and the location in the
+    /// menu's view: a location read there woke the effect that closes the menu on another page.
+    query: String,
     /// The tab is one of the bar at the bottom of a phone (the menu stands above the bar), else
     /// one of the rail (the menu stands beside it).
     bar: bool,
@@ -188,19 +194,37 @@ struct Held {
     middle: f64,
 }
 
+/// A page about Betula's icon, as its tile on the start page has it (`folia_home`'s `look`).
+fn topic_icon(topic: AboutTopic) -> &'static str {
+    match topic {
+        AboutTopic::Overview => "leaf",
+        AboutTopic::Finding => "search",
+        AboutTopic::Planning => "calendar-range",
+        AboutTopic::Data => "shield-check",
+        AboutTopic::Technology => "code",
+        AboutTopic::Questions => "circle-help",
+    }
+}
+
 /// What a tab holds besides its page (owner, 2026-10-06: „wenn man die buttons in der nav bar lange
 /// gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das dann eine auswahl
 /// von Regelstudienplan, Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch mit
-/// [Rechts]klick funktionieren."): a menu at the tab, over the page. „Studium"'s leads to the
-/// Regelstudienplan and the Wahlpflicht of „Mein Studium" (where a program is chosen; owner,
-/// 2026-10-14, concept A: views of the study, with the student's stand in them) and to all
-/// programs. The Merkliste's, once there is a collection, to its views (folia/design/merken/
-/// oberflaeche.html, „Der Tab, lange gedrückt"): all of it, „Ohne Sammlung" and each collection,
-/// with how many marked modules each holds. enhance.js hears
-/// the long press of a finger and the right click and names the tab (`betula:tab-menu` on it,
-/// where `NavItems` marked it `data-hold="menu"`); a tap beside the menu, Esc, a way taken or
-/// another page closes it. The browser app's alone. (The catalog's tab, held on a phone, opens
-/// the catalog with its filters: enhance.js does that by itself.)
+/// [Rechts]klick funktionieren."; every tab since 2026-11-18: „alle Einträge in der navbar eine
+/// rclick und long press action/context menu … am pc immer context menu und beim handy kann beides
+/// sein je nachdem was besser passt"): a menu at the tab, over the page, of the ways into its area
+/// that its page alone does not offer at a glance. „Start"'s leads to the pages about Betula, whose
+/// tiles stand at the start page's end. The catalog's (on a wide screen; a phone's finger opens its
+/// filters, enhance.js) to all modules, those of „Mein Studiengang" and the marked ones. „Studium"'s
+/// to the Regelstudienplan, the Wahlpflicht and the documents of „Mein Studium" (where a program is
+/// chosen; owner, 2026-10-14, concept A: views of the study, with the student's stand in them) and
+/// to all programs. The Merkliste's to its views (folia/design/merken/oberflaeche.html, „Der Tab,
+/// lange gedrückt"): all of it, and where there is a collection „Ohne Sammlung" and each
+/// collection, with how many marked modules each holds, and to the marked modules in the catalog.
+/// The Stundenplan's to its views „Woche", „Termine" and „Prüfungen", which the page itself names
+/// nowhere since 2026-11-04, and to editing it, in the semester its tab leads to. enhance.js hears
+/// the long press of a finger and the right click and names the tab (`betula:tab-menu` on it, where
+/// `NavItems` marked it `data-hold`); a tap beside the menu, Esc, a way taken or another page closes
+/// it. The browser app's alone.
 #[component]
 pub fn TabMenu() -> impl IntoView {
     let t = i18n::t();
@@ -213,7 +237,8 @@ pub fn TabMenu() -> impl IntoView {
             let Some(area) = tab.get_attribute("data-area").as_deref().and_then(Area::from_name) else { return };
             let rect = tab.get_bounding_client_rect();
             let bar = tab.closest(".bottomnav").ok().flatten().is_some();
-            held.set(Some(Held { area, bar, top: rect.top(), right: rect.right(), middle: rect.left() + rect.width() / 2.0 }));
+            let query = tab.get_attribute("href").and_then(|href| href.split_once('?').map(|(_, query)| query.to_string())).unwrap_or_default();
+            held.set(Some(Held { area, query, bar, top: rect.top(), right: rect.right(), middle: rect.left() + rect.width() / 2.0 }));
         });
         let keys = window_event_listener(leptos::ev::keydown, move |ev| {
             if ev.key() == "Escape" && held.with_untracked(Option::is_some) && !crate::nav::watched() {
@@ -250,11 +275,26 @@ pub fn TabMenu() -> impl IntoView {
     let close = move |_| held.set(None);
     let bookmarks = Bookmarks::expect();
     let collections = Collections::expect();
+    // The marked modules in the catalog (`marked=only`; the app fills their ids).
+    let marked_in_catalog = || CatalogUrl { query: CatalogQuery { marked: Some(true), ..Default::default() }, ..Default::default() }.path();
     move || {
         let at = held.get()?;
         // Each way: its icon, its words, where it leads, how many it holds, whether a line is
         // before it.
         let ways: Vec<(&'static str, String, String, Option<usize>, bool)> = match at.area {
+            Area::Home => AboutTopic::ALL.into_iter().map(|topic| (topic_icon(topic), (t.app.topic)(topic).to_string(), topic.path(), None, false)).collect(),
+            Area::Catalog => {
+                let mut ways = vec![("layout-list", t.app.all_modules.to_string(), url::CATALOG.to_string(), None, false)];
+                let own = mine.map(MineResolved::catalog_href).filter(|href| href != url::CATALOG);
+                if let Some(own) = own {
+                    ways.push(("graduation-cap", t.app.my_program_modules.to_string(), own, None, false));
+                }
+                let marked = bookmarks.map_or(0, Bookmarks::count);
+                if marked > 0 {
+                    ways.push(("bookmark", t.app.marked_modules.to_string(), marked_in_catalog(), Some(marked), false));
+                }
+                ways
+            }
             Area::Programs => {
                 let mut ways = Vec::new();
                 if program.with(Option::is_some) {
@@ -266,31 +306,46 @@ pub fn TabMenu() -> impl IntoView {
                 ways
             }
             Area::Bookmarks => {
-                let (Some(bookmarks), Some(collections)) = (bookmarks, collections) else { return None };
+                let bookmarks = bookmarks?;
                 let marked: std::collections::BTreeSet<String> = bookmarks.marks_untracked().into_iter().map(|mark| mark.id).collect();
-                collections.with_untracked(|shelf| {
-                    if shelf.collections().is_empty() {
-                        return Vec::new();
-                    }
-                    let view = |collection: CollectionView| BookmarksUrl { collection, ..Default::default() }.path();
-                    let without = marked.iter().filter(|id| shelf.of(id).is_empty()).count();
-                    let mut ways = vec![
-                        ("bookmark", t.app.all_marked.to_string(), view(CollectionView::All), Some(marked.len()), false),
-                        ("", t.app.without_collection.to_string(), view(CollectionView::Without), Some(without), false),
-                    ];
-                    for (i, collection) in shelf.collections().iter().enumerate() {
-                        let count = shelf.count_in(collection.id, |id| marked.contains(id));
-                        ways.push(("tag", collection.name.clone(), view(CollectionView::Of(collection.id)), Some(count), i == 0));
-                    }
-                    ways
-                })
+                let view = |collection: CollectionView| BookmarksUrl { collection, ..Default::default() }.path();
+                let mut ways = vec![("bookmark", t.app.all_marked.to_string(), view(CollectionView::All), Some(marked.len()), false)];
+                if let Some(collections) = collections {
+                    collections.with_untracked(|shelf| {
+                        if shelf.collections().is_empty() {
+                            return;
+                        }
+                        let without = marked.iter().filter(|id| shelf.of(id).is_empty()).count();
+                        ways.push(("", t.app.without_collection.to_string(), view(CollectionView::Without), Some(without), false));
+                        for (i, collection) in shelf.collections().iter().enumerate() {
+                            let count = shelf.count_in(collection.id, |id| marked.contains(id));
+                            ways.push(("tag", collection.name.clone(), view(CollectionView::Of(collection.id)), Some(count), i == 0));
+                        }
+                    });
+                }
+                ways.push(("layout-list", t.app.marked_in_catalog.to_string(), marked_in_catalog(), None, true));
+                ways
             }
-            _ => Vec::new(),
+            Area::Studyplan => {
+                // In the semester the tab leads to, as the tab left it.
+                let shown = StudyplanUrl::parse(&at.query);
+                let view_at = |view: PlanView, edit: bool| StudyplanUrl { sem: shown.sem.clone(), view, edit, ..Default::default() }.path();
+                vec![
+                    ("calendar-range", PlanView::Week.label(t.locale).to_string(), view_at(PlanView::Week, false), None, false),
+                    ("calendar-days", PlanView::Dates.label(t.locale).to_string(), view_at(PlanView::Dates, false), None, false),
+                    ("calendar-check-2", PlanView::Exams.label(t.locale).to_string(), view_at(PlanView::Exams, false), None, false),
+                    ("pencil", t.app.edit_plan.to_string(), view_at(if shown.view == PlanView::Overview { PlanView::Week } else { shown.view }, true), None, true),
+                ]
+            }
         };
         if ways.is_empty() {
             return None;
         }
-        let name = (at.area == Area::Programs).then(|| program.get().map(|program| program_name(&program))).flatten();
+        let name = match at.area {
+            Area::Programs => program.get().map(|program| program_name(&program)),
+            Area::Home => Some(t.app.about.to_string()),
+            _ => None,
+        };
         let label = (t.app.shortcuts)(match at.area {
             Area::Programs => t.app.study,
             Area::Catalog => t.app.modules,

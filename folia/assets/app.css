@@ -3064,6 +3064,9 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .legal-head .legal-stand { margin-top: 4px; color: var(--text-3); font-size: 13px; }
 .legal-part { container: part / inline-size; padding: 20px 24px 22px; border-top: 1px solid var(--line); scroll-margin-top: 8px; }
 .legal-part h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+/* An anchor a part had before (`Part::was`): empty, at the head of its heading, and a link to it
+   stops where a link to the part does (the part's padding above the heading, and its margin). */
+.legal-was { scroll-margin-top: 28px; }
 /* One measure for the text, the label | text rows included, so the parts share their right edge. */
 .legal-part > * { max-width: 704px; }
 .legal-part > :where(:not(:first-child)), .legal-facts dd > :where(:not(:first-child)) { margin-top: 10px; }
@@ -3092,10 +3095,11 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .legal-part p, .legal-facts dd { text-align: start; }
 }
 /* On a phone the text starts 16px in, as on every other page, and a part a link jumps to
-   (/privacy#kalender) stops below the sticky search bar. */
+   (/privacy#calendar) stops below the sticky search bar. */
 @media (max-width: 900px) {
   .legal-head { padding: 20px 16px 14px; }
   .legal-part { padding: 18px 16px 20px; scroll-margin-top: 76px; }
+  .legal-was { scroll-margin-top: 94px; }
 }
 
 /* Two abilities a row, and an odd last one takes the whole row: no empty cell at the end (nine
@@ -6301,6 +6305,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-glyph.visit { color: var(--text-3); background: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 4px); }
 .st-visit .lp { color: var(--text-3); }
 .st-glyph.failed > .g-failed { display: block; width: 11px; height: 11px; }
+/* A row of the Regelstudienplan not passed and planned again (regular.rs `Mark::Again`): amber,
+   with the arrows of a retake, as the table's cell and its „Bei dir" say it. */
+.st-glyph.again { color: var(--warn); background: var(--warn-soft); }
+.st-glyph.again > .icon { display: block; width: 11px; height: 11px; stroke-width: 2.6; }
 /* An empty semester (owner, 2026-10-05: „keine Module sollte mit icon und gleich modul hinzufügen
    sein"): a mark, two words, and „Module hinzufügen" right under them. */
 .st-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 12px 20px; text-align: center; }
@@ -7513,31 +7521,64 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-docs-label { margin-inline: 16px; }
   .st-way > span { flex: 1; font-size: 15px; font-weight: 620; }
   .st-way > span small { font-size: 13px; }
-  /* The Fachsemester to jump to, staying under the bar at the top while the page scrolls. */
-  .st-fsidx { position: sticky; top: calc(var(--bar, 62px) - 2px); z-index: 5; display: flex; gap: 6px; margin: 0 -12px; padding: 8px 12px; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px); }
-  .st-fsidx::-webkit-scrollbar { display: none; }
-  .st-fsidx a { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
-  .st-fsidx a .icon { width: 14px; height: 14px; color: var(--ok); stroke-width: 2.6; }
-  .st-fsidx a.now { box-shadow: inset 0 0 0 1.5px var(--accent), var(--shadow-panel); color: var(--accent-ink); }
-  .st-soll { display: flex; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); font-size: 13.5px; line-height: 1.45; color: var(--text-2); }
-  .st-soll .icon { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--ok); }
-  .st-fs-sec { scroll-margin-top: calc(var(--bar, 62px) + 52px); }
-  .st-sech { display: flex; align-items: baseline; gap: 8px; margin: 10px 4px 8px; font-size: 16px; font-weight: 700; }
-  .st-sech small { font-size: 13px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
-  .st-sech .ln { flex: 1; min-width: 12px; height: 1px; align-self: center; background: var(--line-strong); }
-  .st-sech .st-now { align-self: center; }
-  .st-pcards { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
-  .st-pcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 68px; padding: 12px 14px 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
-  .st-pcard.is-open { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
-  .st-pcard-t { display: grid; gap: 4px; min-width: 0; }
-  .st-pcard .st-rsp-name { font-size: 15.5px; line-height: 1.3; letter-spacing: -.012em; text-decoration: none; overflow-wrap: anywhere; hyphens: auto; }
-  .st-pcard-note { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-2); }
-  .st-pcard-note .icon { width: 12px; height: 12px; }
-  .st-pcard-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-  .st-pcard .st-chip { font-size: 12.5px; }
-  .st-pcard .st-addb { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; }
-  .st-pcard .st-lp, .st-wcard-m .st-lp { font-size: 15px; font-weight: 650; white-space: nowrap; }
-  .st-pcard .st-lp small, .st-wcard-m .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+  /* The Regelstudienplan (regular.rs `PlanPhone`; owner, 2026-11-18, folia/design/regelstudienplan,
+     concept A): a panel per Fachsemester, whose head stays under the bar while its rows scroll
+     until the next head pushes it out, and lists the Fachsemester to jump to when tapped; the marks
+     once under the title. A row is its mark, its name and its credits, a line under the name only
+     where something differs from the plan; one look for every row, no button in it. */
+  .st-rsp-legend { display: flex; flex-wrap: wrap; gap: 4px 9px; margin: -4px 4px 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-2); }
+  .st-rsp-legend li { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .st-rsp-legend .st-glyph { width: 14px; height: 14px; }
+  .st-rsp-legend .st-glyph.running::before { inset: 3px; }
+  .st-rsp-legend .st-glyph > .icon { width: 9px; height: 9px; }
+  .st-rsp-sec { border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: calc(var(--bar, 62px) - 2px); }
+  .st-rsp-head { position: sticky; top: calc(var(--bar, 62px) - 2px); z-index: 4; display: grid; gap: 9px; width: 100%; padding: 13px 14px 12px 16px; border: 0; border-radius: 14px 14px 0 0; background: var(--panel); box-shadow: 0 1px 0 var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .12s; -webkit-tap-highlight-color: transparent; }
+  .st-rsp-head:active { background: var(--row-hover); }
+  .st-rsp-h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+  .st-rsp-h1 b { font-size: 17px; font-weight: 720; letter-spacing: -.015em; line-height: 1.3; }
+  /* Its semester with the sign of the list, on the right, going under the title together where
+     both do not fit („5. und 6. Fachsemester", „WiSe 27/28 – SoSe 28"). */
+  .st-rsp-w { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+  .st-rsp-w small { font-size: 13px; color: var(--text-3); white-space: nowrap; }
+  .st-rsp-w .icon { flex: none; width: 16px; height: 16px; color: var(--text-3); }
+  .st-rsp-h2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+  .st-rsp-h2 small, .st-rsp-jf small { font-size: 12.5px; font-weight: 560; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* Its bar: passed in green, under way in the accent, planned in its tint, planned into another
+     Fachsemester hatched, taken again hatched in amber; what is open the track. */
+  .st-rsp-bar { display: flex; min-width: 0; height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--text) 9%, var(--panel)); overflow: hidden; }
+  .st-rsp-bar > i { flex: none; height: 100%; }
+  .st-rsp-bar > .pa { background: var(--ok); }
+  .st-rsp-bar > .ru { background: var(--accent); }
+  .st-rsp-bar > .pl { background: color-mix(in oklab, var(--accent) 42%, var(--panel)); }
+  .st-rsp-bar > .el { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--accent) 60%, var(--panel)) 0 2px, transparent 2px 4px); }
+  .st-rsp-bar > .ag { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--warn) 75%, var(--panel)) 0 2px, transparent 2px 4px); }
+  .st-rsp-rows { list-style: none; margin: 0; padding: 2px 14px 4px 16px; }
+  .st-rsp-rows > li + li { border-top: 1px solid var(--line); }
+  /* Over the choices the regulation sums over (the Komplexe): what they make together. */
+  .st-rsp-grp { padding: 12px 0 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+  .st-rsp-rows > .st-rsp-grp + li { border-top: 0; }
+  .st-rsp-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 14px; align-items: center; gap: 0 12px; min-height: 50px; margin: 0 -8px; padding: 9px 8px; border-radius: 10px; color: var(--text); text-decoration: none; transition: background .12s; -webkit-tap-highlight-color: transparent; }
+  a.st-rsp-row:hover { text-decoration: none; }
+  a.st-rsp-row:active { background: var(--row-hover); }
+  .st-rsp-t { display: grid; gap: 2px; min-width: 0; }
+  .st-rsp-t b { font-size: 15px; font-weight: 560; line-height: 1.3; letter-spacing: -.008em; overflow-wrap: anywhere; hyphens: auto; }
+  .st-rsp-t small { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-2); }
+  .st-rsp-t small .icon { flex: none; width: 13px; height: 13px; }
+  .st-rsp-t small.warn { color: var(--warn); }
+  .st-rsp-row > .icon { width: 14px; height: 14px; color: var(--text-3); }
+  .st-rsp-row .st-lp, .st-wcard-m .st-lp { font-size: 15px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .st-rsp-row .st-lp small, .st-wcard-m .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+  /* The Fachsemester to jump to: a sheet as tall as they are, each with its stand; the one whose
+     head opened it set off. */
+  .st-rsp-jump { list-style: none; display: grid; gap: 2px; margin: 0; padding: 0 0 6px; }
+  .st-rsp-jump a { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 58px; padding: 8px 12px; border-radius: 12px; color: var(--text); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .st-rsp-jump a:active { background: var(--row-hover); }
+  .st-rsp-jump a.here { background: var(--accent-soft); }
+  .st-rsp-jt { display: grid; gap: 1px; min-width: 0; }
+  .st-rsp-jt b { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 650; }
+  .st-rsp-jt small { font-size: 12.5px; color: var(--text-3); }
+  .st-rsp-jf { display: grid; justify-items: end; gap: 5px; }
+  .st-rsp-jf .st-rsp-bar { width: 72px; }
   /* The Wahlpflicht on a phone: the choices as cards, by area; a choice a page of its own, its
      lists as chips, its modules as cards a tap opens as the sheet. */
   .st-wsec { display: flex; align-items: center; gap: 7px; margin: 20px 4px 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }

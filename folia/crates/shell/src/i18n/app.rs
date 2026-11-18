@@ -1,6 +1,8 @@
 //! Texts of the frame of every page: the rail, the top bar with its search, the bottom bar of a
 //! phone (`lib.rs`).
 
+use folia_routes::url::AboutTopic;
+
 pub struct Texts {
     /// The title of a page that sets none (the start page names itself).
     pub default_title: &'static str,
@@ -74,8 +76,8 @@ pub struct Texts {
     /// The search at the head on the Merkliste: its name, and what it says while empty.
     pub search_bookmarks: &'static str,
     pub search_bookmarks_placeholder: &'static str,
-    /// What the tab of „Studium" holds besides its page (a long press, a right click): the
-    /// menu's name, and its ways.
+    /// What a tab holds besides its page (a long press, a right click; `chrome::TabMenu`): the
+    /// menu's name, and the ways of „Studium"'s.
     pub shortcuts: fn(&str) -> String,
     pub to_plan: &'static str,
     pub to_areas: &'static str,
@@ -85,6 +87,19 @@ pub struct Texts {
     /// gedrückt"): the whole list and „Ohne Sammlung" before the collections.
     pub all_marked: &'static str,
     pub without_collection: &'static str,
+    /// … and after them the marked modules in the catalog: „Im Katalog zeigen".
+    pub marked_in_catalog: &'static str,
+    /// The start page's tab, held: the head „Über Betula" over the pages about Betula, each by
+    /// its name.
+    pub about: &'static str,
+    pub topic: fn(AboutTopic) -> &'static str,
+    /// The catalog's tab, held (on a wide screen): „Alle Module", „Module meines Studiengangs",
+    /// „Gemerkte Module".
+    pub all_modules: &'static str,
+    pub my_program_modules: &'static str,
+    pub marked_modules: &'static str,
+    /// The Stundenplan's tab, held: after its views „Bearbeiten".
+    pub edit_plan: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -148,6 +163,20 @@ pub const DE: Texts = Texts {
     all_programs: "Alle Studiengänge",
     all_marked: "Alle gemerkten",
     without_collection: "Ohne Sammlung",
+    marked_in_catalog: "Im Katalog zeigen",
+    about: "Über Betula",
+    topic: |topic| match topic {
+        AboutTopic::Overview => "Überblick",
+        AboutTopic::Finding => "Module finden",
+        AboutTopic::Planning => "Studium planen",
+        AboutTopic::Data => "Deine Daten",
+        AboutTopic::Technology => "Technik",
+        AboutTopic::Questions => "Häufige Fragen",
+    },
+    all_modules: "Alle Module",
+    my_program_modules: "Module meines Studiengangs",
+    marked_modules: "Gemerkte Module",
+    edit_plan: "Bearbeiten",
 };
 
 pub const EN: Texts = Texts {
@@ -211,4 +240,18 @@ pub const EN: Texts = Texts {
     all_programs: "All degree programmes",
     all_marked: "All saved",
     without_collection: "No collection",
+    marked_in_catalog: "Show in the catalogue",
+    about: "About Betula",
+    topic: |topic| match topic {
+        AboutTopic::Overview => "Overview",
+        AboutTopic::Finding => "Finding modules",
+        AboutTopic::Planning => "Planning your studies",
+        AboutTopic::Data => "Your data",
+        AboutTopic::Technology => "Technology",
+        AboutTopic::Questions => "Questions",
+    },
+    all_modules: "All modules",
+    my_program_modules: "Modules of my programme",
+    marked_modules: "Saved modules",
+    edit_plan: "Edit",
 };

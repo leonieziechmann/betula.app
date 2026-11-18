@@ -254,6 +254,10 @@ pub(super) struct StudyCtx {
     /// A phone's choice of the Wahlpflicht was opened from its list, the step before in the
     /// history: its way back goes back there.
     pub choice_back: RwSignal<bool>,
+    /// A phone's choice of the Wahlpflicht was opened from a row of the Regelstudienplan
+    /// (`regular.rs`): its way back leads back there, as Back does (owner, 2026-10-18: „wenn oben
+    /// links ein back pfeil ist das immer gleich sein, wie die handy back option").
+    pub choice_from_plan: RwSignal<bool>,
     /// The same for an area of the progress opened from the list of them (`areas.rs`).
     pub area_back: RwSignal<bool>,
     /// What „Einplanen" of the module beside the page aims at where the Wahlpflicht opened it: the
@@ -525,6 +529,7 @@ pub fn StudyPage() -> impl IntoView {
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
         choice_back: RwSignal::new(false),
+        choice_from_plan: RwSignal::new(false),
         area_back: RwSignal::new(false),
         aside_hint: RwSignal::new(None),
         bench: RwSignal::new(None),

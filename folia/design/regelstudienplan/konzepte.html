@@ -1,0 +1,1180 @@
+<title>Regelstudienplan am Handy</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The Regelstudienplan of „Mein Studium" on a phone (folia/crates/planner/src/study/regular.rs,
+     `PlanPhone`), made easy to read. Owner, 2026-11-18: „Hey claude, wir müssen nochmal am
+     regelstudienplan in mein Studium am Handy arbeiten. Der ist da schwer zu erknnen. Bitte erstelle
+     ein paar Konzepte, so dass ich mir angucken kann, wie es am besten laufen sollte. Das größte
+     Problem ist meiner Ansicht nach, dass man nicht richtig erkennen kann, welches Modul in welchem
+     Semester belegt werden soll und die Anzeige der Module sehr unruhig ist."
+     Today (bilder/heute-*.webp): the view at 390 × 844 as develop draws it (Folia 1.100.0, the build
+     canary runs), on canary's snapshot of 2026-11-18, with the example study below. What the three
+     concepts share (a module in one place, a row of three things, the marks of „Mein Studium", a tap
+     opens the sheet, the head of a semester carries what its rows share, the short names of the
+     choices), then three concepts, each a phone to click through — A „Ein Kasten je Semester" (a
+     panel per Fachsemester whose head stays at the top while its rows scroll, a tap on it jumps),
+     B „Eine Linie durchs Studium" (the semesters as stops on a line, the rows hung on it, solid up
+     to today and dashed after), C „Der Plan im Bild, ein Semester darunter" (the plan as a grid of
+     blocks as high as their credits, one semester below it as a list, picked by its column, the
+     arrows or a swipe) —, the comparison, the recommendation and the questions.
+     The data: Informatik B.Sc. (PO 2008, 079-82-2008), the 23 rows of its Regelstudienplan
+     (v_program_plan_entry, Anlage 2, page 7), the modules' numbers, abbreviations and turnus
+     (v_program_module). The study is an example: begun in WiSe 2025/26, now in its 3rd FS;
+     Digitaltechnik not passed in SoSe 2026 and planned again in SoSe 2027, Softwarepraktikum moved
+     to WiSe 2027/28, Proseminar filling „Proseminar oder Praktikum", Datenbanken (6 LP) for the
+     Komplex Praktische Informatik. The abbreviations of the choices in C („AwF", „WP", „GdI" …) are
+     made up; the plan has none. Tokens are Betula's (folia/assets/app.css), the marks its
+     `.st-glyph`; Inter comes from Google Fonts here, the app self-hosts it.
+     Decided the same day: A (owner: „Ja Option a ist super! Setz das bitte um"), built in Folia
+     1.102.0 (regular.rs `PlanPhone`) with the proposals of the questions: no button in a row, a
+     moved module in its place in the plan only, the area in the module's sheet, the choices' short
+     names, nothing folded, the view opening at the top. Built otherwise than drawn here: a module's
+     row opens the module's own sheet (Einplanen, Verschieben, Bestanden as everywhere), and a
+     choice's row leads straight to its page in the Wahlpflicht, which says what it asks and lists
+     its modules, with no sheet in between; its way back leads back to the plan. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review desk. The brief and what the concepts share; today with its screenshots; each
+   concept as a phone of 390 × 844 beside what it does; the comparison, the recommendation and the
+   questions. Tokens: Betula's own (light, then dark); the phones use them too, so that the theme
+   switch changes the prototypes as the app would. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --row-press: color-mix(in oklab, var(--text) 6%, var(--panel));
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #6b7484;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58;
+  --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --desk: color-mix(in oklab, var(--text) 5%, var(--bg));
+  --bezel: #161b26;
+  --toast: var(--invert);
+  --on-toast: var(--on-invert);
+  --toast-link: oklch(.82 .09 149);
+  --scrim: rgba(15, 23, 42, .32);
+  --track: color-mix(in oklab, var(--text) 9%, transparent);
+  --line-past: color-mix(in oklab, var(--ok) 62%, var(--bg));
+  --line-future: color-mix(in oklab, var(--text-3) 55%, transparent);
+  /* The areas' tones (study/mod.rs: the plain areas in the order of TONES, the FÜS teal). */
+  --fac-1: oklch(.5 .12 262);
+  --fac-2: oklch(.52 .09 158);
+  --fac-4: oklch(.5 .11 330);
+  --fac-6: oklch(.52 .12 30);
+  --t-sun: oklch(.64 .12 75);
+  --t-teal: oklch(.56 .08 190);
+  --r-panel: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #7d879c;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+    --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85;
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --bezel: #2c3240;
+    --toast: #232938; --on-toast: #eceff5; --toast-link: oklch(.82 .08 149);
+    --scrim: rgba(0, 0, 0, .55);
+    --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-4: oklch(.76 .1 330); --fac-6: oklch(.75 .1 30);
+    --t-sun: oklch(.82 .1 80); --t-teal: oklch(.8 .07 190);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #7d879c;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+  --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85;
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --bezel: #2c3240;
+  --toast: #232938; --on-toast: #eceff5; --toast-link: oklch(.82 .08 149);
+  --scrim: rgba(0, 0, 0, .55);
+  --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-4: oklch(.76 .1 330); --fac-6: oklch(.75 .1 30);
+  --t-sun: oklch(.82 .1 80); --t-teal: oklch(.8 .07 190);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+html.noscroll, html.noscroll body { overflow: hidden; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead b { color: var(--text); font-weight: 650; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote span { color: var(--text-3); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; }
+.rules li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); }
+.rules li > i svg { width: 14px; height: 14px; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules .glrow { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; color: var(--text-2); font-size: 13px; }
+.rules .glrow span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* The bar: the theme, the example, the ways down the page. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-panel); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 7px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+.linkb { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--accent-ink); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.linkb:hover { background: var(--accent-soft); }
+.linkb svg.i { width: 15px; height: 15px; }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec h2 .tag { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; vertical-align: 2px; }
+.sec .sub { max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); font-weight: 620; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+
+/* Today: the screenshots and what goes wrong. */
+.shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; max-width: 900px; }
+.shot { margin: 0; min-width: 0; }
+.shot img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 16px; box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-lift); background: #f1f2f4; }
+.shot figcaption { margin-top: 8px; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.shot figcaption b { color: var(--text-2); font-weight: 650; }
+.wrong { margin: 0; padding: 0; list-style: none; counter-reset: w; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 32px; }
+.wrong li { counter-increment: w; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.wrong li::before { content: counter(w); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 12px; font-weight: 760; }
+.wrong li b { display: block; margin-bottom: 2px; color: var(--text); font-weight: 650; }
+
+/* A concept: the phone on its desk beside what it does. */
+.concept { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px 36px; align-items: start; }
+.stage { border-radius: 16px; background: var(--desk); padding: 12px 12px 30px; min-width: 0; }
+.stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 0 4px 16px; }
+.stage-bar .grow { flex: 1; }
+.stage-bar .kicker { font-size: 10.5px; }
+.full-open { display: none; }
+.fit { position: relative; margin: 0 auto; width: calc(390px * var(--s, 1)); height: calc(844px * var(--s, 1)); }
+.side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.tryit { padding: 12px 14px; border-radius: var(--r-panel); background: var(--accent-soft); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.tryit b { color: var(--text); font-weight: 620; }
+.how { display: flex; flex-direction: column; gap: 16px; }
+.how > div { min-width: 0; }
+.how h3 { margin-bottom: 6px; }
+.how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.how ul b { color: var(--text); font-weight: 620; }
+.how .weak h3 { color: var(--warn); }
+
+/* The comparison, the recommendation, the questions. */
+.tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+table.t td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); text-wrap: pretty; min-width: 170px; }
+table.t td:first-child { color: var(--text); font-weight: 620; min-width: 150px; }
+.verdict { display: inline-flex; align-items: baseline; gap: 7px; }
+.verdict i { flex: none; width: 8px; height: 8px; border-radius: 50%; translate: 0 -1px; }
+.verdict.ok i { background: var(--ok); }
+.verdict.meh i { background: var(--warn-dot); }
+.verdict.no i { background: var(--no); }
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 32px; }
+.reco ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.reco ul b { color: var(--text); font-weight: 620; }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs li b { display: block; margin-bottom: 3px; color: var(--text); font-weight: 650; }
+.qs li .pro { display: block; margin-top: 5px; color: var(--accent-ink); font-weight: 560; }
+.foot { color: var(--text-3); font-size: 12.5px; text-wrap: pretty; max-width: 110ch; }
+
+@media (max-width: 1060px) {
+  .concept { grid-template-columns: minmax(0, 1fr); }
+  .stage { max-width: 520px; width: 100%; margin: 0 auto; }
+}
+@media (max-width: 1000px) {
+  .intro, .reco { grid-template-columns: minmax(0, 1fr); }
+  .qs, .wrong { grid-template-columns: minmax(0, 1fr); }
+  .setbar .jump { margin-left: 0; }
+}
+@media (max-width: 700px) {
+  /* On a phone the bar takes four lines: it stays where it is instead of riding along. */
+  .setbar { position: static; }
+  .sec { padding: 18px 14px 20px; }
+  .shots { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; margin: 0 -14px; padding: 0 14px 6px; }
+  .shot { flex: none; width: 230px; scroll-snap-align: start; }
+  .stage { padding: 10px 8px 22px; }
+  .full-open { display: inline-flex; }
+}
+
+/* ================= The phone =================
+   A phone of 390 × 844 as Betula draws a page of „Mein Studium" on it: the way back and the search
+   at the top (sticky, frosted), the page, the tab bar floating at the foot. `--s` scales it to the
+   desk; „Vollbild" lays it over the whole screen at the device's own width. */
+.phone { --tb: 64px; position: absolute; top: 0; left: 0; width: 390px; height: 844px; transform: scale(var(--s, 1)); transform-origin: 0 0; border-radius: 44px; background: var(--bg); color: var(--text); box-shadow: 0 0 0 10px var(--bezel), 0 30px 60px -24px rgba(15, 23, 42, .5); overflow: hidden; isolation: isolate; font-size: 15px; line-height: 1.35; -webkit-tap-highlight-color: transparent; }
+.phone.full { --tb: calc(64px + env(safe-area-inset-top, 0px)); position: fixed; inset: 0; width: auto; height: auto; transform: none; border-radius: 0; box-shadow: none; z-index: 1000; }
+.scr { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+.scr::-webkit-scrollbar { display: none; }
+.tb { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; height: var(--tb); padding: calc(var(--tb) - 54px) 12px 10px; background: color-mix(in srgb, var(--bg) 84%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.tb-back { display: grid; place-items: center; flex: none; width: 48px; height: 44px; border: 0; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); cursor: pointer; }
+.tb-back svg.i { width: 21px; height: 21px; }
+.tb-search { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 15px; white-space: nowrap; overflow: hidden; }
+.tb-search svg.i { width: 18px; height: 18px; }
+.pg { padding: 4px 12px 132px; }
+.pg-head { padding: 6px 4px 2px; }
+.pg-head h1 { font-size: 26px; font-weight: 750; letter-spacing: -.03em; line-height: 1.15; }
+.pg-head p { margin-top: 4px; font-size: 14px; color: var(--text-2); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 9px; margin: 10px 4px 0; font-size: 12px; color: var(--text-2); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.legend .gl { width: 14px; height: 14px; }
+.legend .gl.running::before { inset: 3px; }
+.legend .gl svg { width: 9px; height: 9px; }
+.src { display: flex; align-items: center; gap: 8px; margin: 22px 4px 0; font-size: 13.5px; color: var(--text-2); }
+.src svg.i { color: var(--text-3); }
+.tabs { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); height: 64px; padding: 6px 4px; border-radius: 20px; background: color-mix(in srgb, var(--panel) 94%, transparent); box-shadow: var(--shadow-pop); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.phone.full .tabs { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+.tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; color: var(--text-3); font-size: 11px; font-weight: 560; }
+.tab > span { position: relative; display: grid; place-items: center; width: 44px; height: 28px; border-radius: 9px; }
+.tab svg.i { width: 21px; height: 21px; stroke-width: 1.8; }
+.tab.on { color: var(--text); font-weight: 650; }
+.tab.on > span { background: var(--invert); color: var(--on-invert); }
+.tab .badge { position: absolute; top: -4px; right: 4px; display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 10px; font-weight: 700; box-shadow: 0 0 0 2px var(--panel); }
+
+/* The marks of „Mein Studium" (app.css `.st-glyph`): ring planned, half running, check passed,
+   dashes open; amber with the arrows of a retake. */
+.gl { position: relative; flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.75px currentColor; }
+.gl svg { display: none; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.gl.planned { color: var(--text-3); }
+.gl.running { color: var(--accent-ink); }
+.gl.running::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: conic-gradient(currentColor 0 50%, transparent 0); }
+.gl.passed { color: var(--ok); background: currentColor; box-shadow: none; }
+.gl.passed svg { display: block; color: var(--panel); }
+.gl.again { color: var(--warn); background: var(--warn-soft); }
+.gl.again svg { display: block; width: 11px; height: 11px; stroke-width: 2.6; }
+.gl.open { --ring: 1.75px; color: var(--text-3); box-shadow: none; background: repeating-conic-gradient(from -11.25deg, currentColor 0 22.5deg, transparent 0 45deg); -webkit-mask: radial-gradient(closest-side, transparent calc(100% - var(--ring) - .5px), #000 calc(100% - var(--ring))); mask: radial-gradient(closest-side, transparent calc(100% - var(--ring) - .5px), #000 calc(100% - var(--ring))); }
+
+/* A row: the mark, the name (a line under it only where something differs), the credits; a
+   choice's chevron, since it leads on. The whole row is the button. */
+.rr { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto 12px; align-items: center; gap: 0 12px; width: 100%; min-height: 50px; padding: 9px 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
+.rr-t { display: grid; gap: 2px; min-width: 0; }
+.rr-t b { font-size: 15px; font-weight: 560; line-height: 1.3; letter-spacing: -.008em; overflow-wrap: anywhere; hyphens: auto; }
+.rr-t small { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-2); }
+.rr-t small svg.i { width: 13px; height: 13px; }
+.rr-t small.warn { color: var(--warn); }
+.rr-lp { font-size: 15px; font-weight: 620; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text); }
+.rr-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+.rr > svg.i { width: 14px; height: 14px; color: var(--text-3); }
+.rr.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: var(--accent-soft); } }
+
+/* A bar of what a semester holds: passed, running, planned, planned elsewhere, retaken. */
+.bar { display: flex; height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; min-width: 0; }
+.bar i { flex: none; height: 100%; }
+.bar .pa { background: var(--ok); }
+.bar .ru { background: var(--accent); }
+.bar .pl { background: color-mix(in oklab, var(--accent) 42%, var(--panel)); }
+.bar .el { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--accent) 60%, var(--panel)) 0 2px, transparent 2px 4px); }
+.bar .ag { background: repeating-linear-gradient(135deg, var(--warn-dot) 0 2px, transparent 2px 4px); }
+.jetzt { display: inline-grid; place-items: center; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 11.5px; font-weight: 700; font-style: normal; letter-spacing: .01em; }
+
+/* ---------- A: a panel per Fachsemester, its head stays at the top ---------- */
+.a-sec { margin-top: 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: var(--tb); }
+.a-head { position: sticky; top: var(--tb); z-index: 3; display: grid; gap: 9px; width: 100%; padding: 13px 14px 12px 16px; border: 0; border-radius: 14px 14px 0 0; background: var(--panel); box-shadow: 0 1px 0 var(--line); text-align: left; cursor: pointer; }
+.a-l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.a-l1 b { font-size: 17px; font-weight: 720; letter-spacing: -.015em; white-space: nowrap; }
+.a-l1 .a-w { margin-left: auto; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.a-l1 svg.i { width: 16px; height: 16px; color: var(--text-3); }
+.a-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.a-l2 small { font-size: 12.5px; font-weight: 560; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.a-rows { padding: 2px 14px 4px 16px; }
+.a-rows .rr + .rr, .a-rows .grp + .rr { border-top: 1px solid var(--line); }
+.grp { margin: 10px 0 0; padding: 8px 0 2px; border-top: 1px solid var(--line); font-size: 11.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+.grp span { letter-spacing: 0; text-transform: none; font-weight: 500; }
+
+/* ---------- B: the study as a line, the semesters its stops ---------- */
+.b-tl { margin-top: 16px; padding-bottom: 6px; }
+.b-sec { position: relative; padding-bottom: 22px; scroll-margin-top: var(--tb); }
+.b-sec::before, .b-st::before { content: ""; position: absolute; left: 21px; top: 0; bottom: 0; width: 2px; background: var(--b-line); }
+.b-sec.past { --b-line: var(--line-past); }
+.b-sec.now { --b-line: var(--accent); }
+.b-sec.future { --b-line: repeating-linear-gradient(to bottom, var(--line-future) 0 5px, transparent 5px 10px); }
+.b-sec:last-child::before { bottom: 18px; }
+.b-st { position: sticky; top: var(--tb); z-index: 3; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 0 10px; background: var(--bg); }
+.b-node { position: relative; z-index: 1; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 2px var(--line-past); color: var(--ok); font-size: 17px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.b-sec.now .b-node { background: var(--accent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 20%, var(--bg)); color: #fff; }
+.b-sec.future .b-node { box-shadow: inset 0 0 0 2px var(--line-strong); color: var(--text-2); }
+.b-node.span { font-size: 14px; letter-spacing: -.02em; }
+.b-t { display: grid; gap: 1px; min-width: 0; }
+.b-t b { display: flex; align-items: center; gap: 8px; font-size: 16.5px; font-weight: 720; letter-spacing: -.015em; white-space: nowrap; }
+.b-t small { font-size: 13px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-fig { display: grid; justify-items: end; gap: 6px; padding-right: 2px; }
+.b-fig small { font-size: 12.5px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.b-fig .bar { width: 64px; }
+.b-rows .rr { grid-template-columns: 44px minmax(0, 1fr) auto 12px; min-height: 46px; padding: 7px 0; border-radius: 10px; }
+.b-rows .gl-w { position: relative; z-index: 1; justify-self: center; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--bg); }
+.b-rows .grp { margin: 8px 0 2px 56px; padding: 6px 0 0; }
+.b-nowpill { position: absolute; left: 50%; bottom: 86px; z-index: 15; translate: -50% 0; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px 0 11px; border: 0; border-radius: 18px; background: var(--accent); color: #fff; font-size: 13.5px; font-weight: 680; box-shadow: 0 10px 24px -10px rgba(15, 23, 42, .5); cursor: pointer; white-space: nowrap; }
+.phone.full .b-nowpill { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+.b-nowpill svg.i { width: 16px; height: 16px; stroke-width: 2.4; }
+
+/* ---------- C: the plan as a grid, one semester below it ---------- */
+.c-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 2fr; gap: 5px; margin-top: 14px; padding: 8px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.c-col { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; padding: 6px 4px 7px; border: 0; border-radius: 10px; background: transparent; cursor: pointer; }
+.c-col[aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.c-h { display: grid; justify-items: center; gap: 1px; line-height: 1.1; }
+.c-h b { font-size: 15px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.c-h small { font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.c-h small.nw { color: var(--accent-ink); font-weight: 700; }
+.c-col[aria-selected="true"] .c-h b { color: var(--accent-ink); }
+.c-stack { display: flex; flex-direction: column; gap: 2px; height: 166px; }
+.c-tile { display: grid; place-items: center; flex: none; min-height: 6px; border-radius: 4px; font-size: 10.5px; font-weight: 650; letter-spacing: -.01em; line-height: 1; overflow: hidden; white-space: nowrap; }
+.c-tile.passed { background: var(--ok); color: var(--panel); }
+.c-tile.running { background: color-mix(in oklab, var(--accent) 62%, var(--panel)); color: #fff; }
+.c-tile.planned { background: color-mix(in oklab, var(--accent) 24%, var(--panel)); color: var(--accent-ink); }
+.c-tile.moved { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--accent) 30%, var(--panel)) 0 3px, var(--panel) 3px 6px); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, var(--panel)); color: var(--accent-ink); }
+.c-tile.again { background: repeating-linear-gradient(135deg, var(--warn-soft) 0 3px, color-mix(in oklab, var(--warn-dot) 35%, var(--panel)) 3px 6px); box-shadow: inset 0 0 0 1px var(--warn-dot); color: var(--warn); }
+.c-tile.open { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--text-3); }
+.c-tile.open.part { background: linear-gradient(to top, color-mix(in oklab, var(--accent) 24%, var(--panel)) var(--part), transparent var(--part)); }
+.c-fig { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c-key { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 10px 4px 0; font-size: 12px; color: var(--text-2); }
+.c-key span { display: inline-flex; align-items: center; gap: 5px; }
+.c-key i { width: 14px; height: 10px; border-radius: 2px; }
+.c-key i.passed { background: var(--ok); }
+.c-key i.running { background: color-mix(in oklab, var(--accent) 62%, var(--panel)); }
+.c-key i.planned { background: color-mix(in oklab, var(--accent) 24%, var(--panel)); }
+.c-key i.moved { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--accent) 30%, var(--panel)) 0 2px, var(--panel) 2px 4px); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, var(--panel)); }
+.c-key i.open { box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.c-page { margin-top: 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); touch-action: pan-y; }
+.c-page.in-next { animation: in-next .24s ease-out; }
+.c-page.in-prev { animation: in-prev .24s ease-out; }
+@keyframes in-next { from { opacity: .3; translate: 28px 0; } }
+@keyframes in-prev { from { opacity: .3; translate: -28px 0; } }
+.c-head { position: sticky; top: var(--tb); z-index: 3; display: grid; gap: 9px; padding: 10px 8px 12px; border-radius: 14px 14px 0 0; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+.c-l1 { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 4px; }
+.c-arrow { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); cursor: pointer; }
+.c-arrow:disabled { opacity: .3; cursor: default; }
+.c-arrow svg.i { width: 20px; height: 20px; }
+.c-t { display: grid; justify-items: center; gap: 1px; min-width: 0; text-align: center; }
+.c-t b { display: flex; align-items: center; gap: 7px; font-size: 17px; font-weight: 720; letter-spacing: -.015em; white-space: nowrap; }
+.c-t small { font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.c-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 0 8px; }
+.c-l2 small { font-size: 12.5px; font-weight: 560; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.c-rows { padding: 2px 14px 4px 16px; }
+.c-rows .rr + .rr, .c-rows .grp + .rr { border-top: 1px solid var(--line); }
+.c-swipe { margin: 10px 4px 0; font-size: 12.5px; color: var(--text-3); text-align: center; }
+
+/* The press of a finger on a row or a head. */
+@media (hover: hover) { .rr:hover, .a-head:hover { background-color: color-mix(in oklab, var(--text) 3%, transparent); } .a-head:hover { background: var(--panel-2); } .c-col:hover:not([aria-selected="true"]) { background: var(--panel-2); } }
+.rr:active { background-color: var(--row-press); }
+
+/* The sheet of a row, the list of the semesters (A), the note at the foot with „Rückgängig". */
+.scrim { position: absolute; inset: 0; z-index: 30; background: var(--scrim); animation: fade .18s ease-out; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 31; max-height: 80%; overflow-y: auto; padding: 8px 18px calc(22px + env(safe-area-inset-bottom, 0px)); border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); animation: up .24s cubic-bezier(.2, .8, .2, 1); }
+.phone:not(.full) .sheet { padding-bottom: 22px; }
+@keyframes up { from { translate: 0 40%; opacity: .4; } }
+@keyframes fade { from { opacity: 0; } }
+.sh-grab { display: block; width: 40px; height: 5px; margin: 0 auto 12px; border-radius: 3px; background: var(--line-strong); }
+.sh-h { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+.sh-h h3 { font-size: 19px; font-weight: 740; letter-spacing: -.018em; line-height: 1.25; overflow-wrap: anywhere; hyphens: auto; }
+.sh-h p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 5px; font-size: 13.5px; color: var(--text-2); }
+.sh-h .mono { font: 500 12.5px var(--mono); color: var(--text-3); }
+.sh-h .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.sh-x { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--panel-3); color: var(--text-2); cursor: pointer; }
+.sh-x svg.i { width: 18px; height: 18px; }
+.sh-dl { display: grid; gap: 0; margin: 14px 0 0; }
+.sh-dl > div { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.sh-dl dt { color: var(--text-3); }
+.sh-dl dd { margin: 0; color: var(--text); text-wrap: pretty; }
+.sh-dl dd.warn { color: var(--warn); }
+.sh-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--panel-3); color: var(--text); font-size: 14.5px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.btn svg.i { width: 17px; height: 17px; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.quiet { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.btn.state { background: var(--ok-soft); color: var(--ok); cursor: default; }
+.btn.grow { flex: 1; }
+.jl { display: grid; gap: 4px; margin-top: 6px; }
+.jl button { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; text-align: left; cursor: pointer; }
+.jl button:hover { background: var(--panel-2); }
+.jl button.here { background: var(--accent-soft); }
+.jl b { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 650; }
+.jl small { display: block; font-size: 12.5px; color: var(--text-3); }
+.jl .jfig { display: grid; justify-items: end; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.jl .jfig .bar { width: 64px; }
+.jl .n { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); font-size: 11px; font-weight: 700; color: var(--text-2); }
+.jl .n.past { background: var(--ok); color: var(--panel); box-shadow: none; }
+.jl .n.now { background: var(--accent); color: #fff; box-shadow: none; }
+.toast { position: absolute; left: 12px; right: 12px; bottom: 84px; z-index: 40; display: flex; align-items: center; gap: 12px; padding: 11px 10px 11px 16px; border-radius: 13px; background: var(--toast); color: var(--on-toast); font-size: 14px; box-shadow: 0 12px 30px -10px rgba(15, 23, 42, .5); animation: rise .2s ease-out; }
+.phone.full .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+.toast span { flex: 1; min-width: 0; text-wrap: pretty; }
+.toast button { flex: none; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--toast-link); font-weight: 700; cursor: pointer; }
+@keyframes rise { from { opacity: 0; translate: 0 8px; } }
+.full-close { position: fixed; z-index: 1001; display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .scrim, .toast, .c-page.in-next, .c-page.in-prev, .rr.flash { animation: none; }
+}
+</style>
+
+<div class="page">
+  <section class="intro" aria-labelledby="top-title">
+    <div>
+      <p class="kicker">Folia · Mein Studium · Regelstudienplan am Handy · 18. November 2026 · gelesen in Folia 1.100.0 · entschieden: A, gebaut in Folia 1.102.0</p>
+      <h1 id="top-title">Der Regelstudienplan am Handy</h1>
+      <p class="lead">Heute sieht man am Handy schwer, welches Modul in welches Semester gehört, und die Karten sind unruhig. Hier sind drei Konzepte. Alle drei haben dieselben ruhigen Zeilen, aber jedes beantwortet die Frage <b>„Welches Semester ist das?“</b> anders: <b>A</b> gibt jedem Semester einen Kasten, dessen Kopf beim Scrollen oben stehen bleibt. <b>B</b> legt das Studium auf eine Linie, die Semester sind ihre Halte. <b>C</b> zeigt oben den ganzen Plan als Raster und darunter immer genau ein Semester. Jedes ist ein Handy zum Anklicken, mit deinem Studiengang und einem Beispielstudium.</p>
+      <p class="quote"><b>Entschieden: A.</b> „Ja Option a ist super! Setz das bitte um“ <span>— du, am selben Tag.</span> Gebaut in Folia 1.102.0 mit den Vorschlägen zu den Fragen. Anders als hier gezeichnet: Eine Modul-Zeile öffnet das Blatt des Moduls selbst, und eine Wahl-Zeile führt direkt zu ihrer Seite in der Wahlpflicht, deren Pfeil zurück zum Regelstudienplan führt.</p>
+      <p class="quote">„Hey claude, wir müssen nochmal am regelstudienplan in mein Studium am Handy arbeiten. Der ist da schwer zu erknnen. Bitte erstelle ein paar Konzepte, so dass ich mir angucken kann, wie es am besten laufen sollte. Das größte Problem ist meiner Ansicht nach, dass man nicht richtig erkennen kann, welches Modul in welchem Semester belegt werden soll und die Anzeige der Module sehr unruhig ist.“ <span>— du</span></p>
+    </div>
+    <div class="rules">
+      <p class="kicker">Was alle drei teilen</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></i><span><b>Ein Modul, ein Ort.</b> Jede Zeile steht in dem Semester, in das der Plan sie legt, und nur dort. Hast du das Modul woanders, steht darunter „bei dir im WiSe 27/28“. Wo dein Semester dem Plan entspricht, steht es nicht noch einmal an der Zeile.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></i><span><b>Eine Zeile, drei Dinge:</b> Zeichen, Name, LP. Nummer, Bereich und alle Knöpfe stehen im Blatt des Moduls. Jede Zeile ist gleich gebaut, ohne eigenen Kasten und ohne Schatten.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></i><span><b>Die Zeichen von „Mein Studium“.</b> Farbe heißt nur noch Stand, nicht Bereich.<span class="glrow" data-legend></span></span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 14h18"/></svg></i><span><b>Ein Tippen öffnet das Blatt.</b> Dort stehen Einplanen, Als bestanden markieren und „Modul ansehen“, wie in der Wahlpflicht. Eine Wahl hat ein Blatt mit dem, was sie verlangt, und „Module ansehen“ führt in die Wahlpflicht.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 10h10"/><rect x="4" y="14" width="16" height="5" rx="2.5"/></svg></i><span><b>Der Kopf trägt das Gemeinsame:</b> Fachsemester, Semester, „jetzt“ und ein Balken mit „24 von 30 LP eingeplant“. Der Kasten „1. und 2. FS: 54 von 60 LP bestanden“ entfällt; das sagen die Köpfe, die Wiederholung steht an ihrer Zeile.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></i><span><b>Kurze Namen der Wahlen,</b> wie in der Wahlpflicht: „Praktische Mathematik“, „Wahlpflicht“, die drei Komplexe ohne „Komplex“. Der volle Name steht im Blatt.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht und Abschnitte">
+    <div class="group">
+      <span class="kicker">Ansicht</span>
+      <span class="seg" role="group" aria-label="Farbschema">
+        <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+        <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+      </span>
+      <button type="button" class="linkb" id="reset">Beispiel zurücksetzen</button>
+    </div>
+    <div class="jump">
+      <a href="#heute">Heute</a>
+      <a href="#a">A</a>
+      <a href="#b">B</a>
+      <a href="#c">C</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#empfehlung">Empfehlung</a>
+      <a href="#fragen">Fragen</a>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <header>
+      <p class="kicker">Ausgangslage</p>
+      <h2 id="heute-title">Was heute ist</h2>
+      <p class="sub">Die Ansicht am Handy (390 × 844) mit dem Beispielstudium, so wie develop sie zeichnet (Folia 1.100.0, der Stand von canary), auf canarys Datenstand von heute.</p>
+    </header>
+    <div class="shots">
+      <figure class="shot">
+        <img src="bilder/heute-oben.webp" width="780" height="1688" loading="lazy" alt="Der heutige Regelstudienplan am Handy, oben: Titel, eine Leiste mit 1. FS, 2. FS, 3. FS · jetzt, 4. FS und einem abgeschnittenen 5.–6., ein Kasten „1. und 2. FS: 54 von 60 LP bestanden · Digitaltechnik wieder im SoSe 27“, darunter die Überschrift 1. FS und weiße Karten mit Name, Nummer, Bereich und einem Chip „bestanden · WiSe 25/26“.">
+        <figcaption><b>Oben.</b> Leiste, Kasten mit dem Bisher, dann Karten.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="bilder/heute-mitte.webp" width="780" height="1688" loading="lazy" alt="Weiter unten: Karten des 4. FS mit Knöpfen „Wählen“, die Wahlpflicht mit einem Namen über vier Zeilen, dann die Überschrift 5. und 6. FS; oben leuchtet in der Leiste „3. FS · jetzt“.">
+        <figcaption><b>Weiter unten.</b> Module des 4. FS, aber oben leuchtet „3. FS · jetzt“.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="bilder/heute-3fs.webp" width="780" height="1688" loading="lazy" alt="Das 3. FS: Theoretische Informatik „geplant · WiSe 26/27“, Softwarepraktikum „geplant · WiSe 27/28“, Mathematik IT-3 „geplant · WiSe 26/27“, Anwendungsfach mit „Wählen“.">
+        <figcaption><b>Das 3. FS.</b> Softwarepraktikum sagt „geplant · WiSe 27/28“.</figcaption>
+      </figure>
+    </div>
+    <ol class="wrong">
+      <li><span><b>Oben steht „3. FS · jetzt“, darunter das 4. FS.</b> Die Leiste hebt immer das jetzige Semester hervor, nicht das, das man gerade sieht. Ist die Überschrift eines Abschnitts weggescrollt, sagt nichts mehr, zu welchem Semester die Karten gehören. „5.–6.“ ist am Rand abgeschnitten.</span></li>
+      <li><span><b>Die Überschrift ist leiser als jede Karte.</b> „4. FS“ steht in 16 px auf dem grauen Grund, jede Karte ist ein weißer Kasten mit Schatten und einem Namen fast derselben Größe. Ein Semester ist 450 bis 600 px lang, die meiste Zeit steht keine Überschrift auf dem Bildschirm.</span></li>
+      <li><span><b>Das Semester steht doppelt, oder zweimal verschieden.</b> Unter „1. FS WiSe 25/26“ sagt jede Karte noch einmal „bestanden · WiSe 25/26“. Unter „3. FS WiSe 26/27“ sagt Softwarepraktikum „geplant · WiSe 27/28“ und sieht dabei aus wie die Karten daneben.</span></li>
+      <li><span><b>Jede Karte erzählt alles, und jede anders.</b> Name, Nummer, Bereich mit Punkt, ein Chip, mal ein Hinweis, mal ein Knopf; weiße Karten neben umrandeten. Die Karten sind 91 bis 163 px hoch, „Wahlpflicht: Komplex Grundlagen der In-formatik / …“ läuft über vier Zeilen.</span></li>
+      <li><span><b>Die lautesten Dinge sind Knöpfe.</b> Acht umrandete „Wählen ›“ und ein „Einplanen“ in der zweiten Hälfte. Die offenen Zeilen sehen aus wie ein Formular, das man ausfüllen muss.</span></li>
+      <li><span><b>Lang.</b> 23 Zeilen brauchen 3.170 px, fast fünf Bildschirme. Der Knopf „↑“ liegt dabei über den LP der Karten.</span></li>
+    </ol>
+  </section>
+
+  <section class="sec" id="a" aria-labelledby="a-title">
+    <header>
+      <p class="kicker">Konzept A</p>
+      <h2 id="a-title"><span class="tag">A</span>Ein Kasten je Semester</h2>
+      <p class="sub">Jedes Fachsemester ist ein Kasten. <b>Sein Kopf bleibt beim Scrollen oben stehen,</b> bis der Kopf des nächsten ihn hinausschiebt. So steht über jeder Zeile, die man sieht, ihr Semester. Ein Tippen auf den Kopf öffnet die Liste aller Semester zum Springen; sie ersetzt die Leiste mit den Chips.</p>
+    </header>
+    <div class="concept">
+      <div class="stage" data-stage="A"></div>
+      <div class="side">
+        <p class="tryit"><b>Probier:</b> Scroll im Handy. „3. Fachsemester“ bleibt oben, bis „4. Fachsemester“ es wegschiebt. Tipp auf einen Kopf: Die Semester kommen als Liste, ein Tippen springt. Tipp auf eine Zeile: ihr Blatt. Bei der Bachelor-Arbeit plant „Einplanen“ sie ein, „Rückgängig“ nimmt es zurück.</p>
+        <div class="how">
+          <div>
+            <h3>Was man sieht</h3>
+            <ul>
+              <li>Fünf Kästen untereinander, einer je Fachsemester; das 5. und 6. teilen sich einen, weil der Plan sie zusammen nennt.</li>
+              <li>Im Kopf <b>„3. Fachsemester“, „jetzt“ und „WiSe 2026/27“</b>, darunter ein Balken mit „24 von 30 LP eingeplant“: hell, was läuft, schraffiert, was du in einem anderen Semester hast.</li>
+              <li>Darunter die Zeilen, durch feine Linien getrennt: Zeichen, Name, LP. Eine zweite Zeile nur, wo etwas abweicht.</li>
+              <li>Die drei Komplexe stehen unter einer kleinen Zeile „Komplexe · zusammen 44 LP“.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Wie es sich verhält</h3>
+            <ul>
+              <li>Der Kopf klebt unter der Suche, solange sein Kasten im Bild ist; der nächste schiebt ihn hinaus. <b>Man sieht immer, in welchem Semester man ist.</b></li>
+              <li>Ein Tippen auf einen Kopf öffnet die Semester mit ihrem Stand als Blatt; ein Tippen dort springt hin.</li>
+              <li>Die Ansicht öffnet oben beim 1. FS, wie heute.</li>
+            </ul>
+          </div>
+          <div class="weak">
+            <h3>Worauf zu achten ist</h3>
+            <ul>
+              <li>Es bleiben fünf Kästen; die Seite ist mit <span data-len="A">1.900</span> px kürzer als heute, aber nicht kurz.</li>
+              <li>Der Kopf nimmt beim Scrollen 70 px des Bildschirms.</li>
+              <li>Wohin man springen kann, sieht man erst nach dem Tippen auf den Kopf.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="b" aria-labelledby="b-title">
+    <header>
+      <p class="kicker">Konzept B</p>
+      <h2 id="b-title"><span class="tag">B</span>Eine Linie durchs Studium</h2>
+      <p class="sub">Das Studium ist eine Linie von oben nach unten, <b>die Fachsemester sind ihre Halte.</b> Die Module hängen an der Linie, ihr Zeichen sitzt auf ihr. Grün, so weit du gekommen bist, im Grün von Betula beim jetzigen Semester, gestrichelt in der Zukunft. Keine Kästen: Linie und Halt zeigen, wohin eine Zeile gehört.</p>
+    </header>
+    <div class="concept">
+      <div class="stage" data-stage="B"></div>
+      <div class="side">
+        <p class="tryit"><b>Probier:</b> Scroll im Handy. Der Halt mit der großen Nummer gleitet die Linie hinab, bis der nächste kommt. Ist das jetzige Semester außer Sicht, holt „3. FS · jetzt“ unten es zurück. Tipp auf eine Zeile: ihr Blatt.</p>
+        <div class="how">
+          <div>
+            <h3>Was man sieht</h3>
+            <ul>
+              <li>Links die Linie, je Semester ein Halt: ein Kreis mit der Nummer, daneben „3. Fachsemester · jetzt“ und „WiSe 2026/27“, rechts „24 / 30 LP“ mit Balken.</li>
+              <li>Die Zeilen ohne Rahmen und ohne Linien dazwischen: <b>das Zeichen auf der Linie</b>, Name, LP.</li>
+              <li>Der Halt des jetzigen Semesters ist gefüllt; die Linie wechselt dort von Grün zu gestrichelt.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Wie es sich verhält</h3>
+            <ul>
+              <li>Der Halt bleibt oben stehen, solange seine Zeilen im Bild sind; <b>die Nummer läuft auf der Linie mit.</b></li>
+              <li>Liegt das jetzige Semester außer Sicht, steht über der Leiste unten „3. FS · jetzt“ mit einem Pfeil; ein Tippen scrollt hin.</li>
+              <li>Die Ansicht öffnet oben beim 1. FS, wie heute. Das jetzige Semester beginnt knapp unter dem ersten Bildschirm; „3. FS · jetzt“ steht von Anfang an da.</li>
+            </ul>
+          </div>
+          <div class="weak">
+            <h3>Worauf zu achten ist</h3>
+            <ul>
+              <li>Wohin eine Zeile gehört, zeigen Linie und Abstand, kein Rahmen. Der Abstand vor jedem Halt muss groß bleiben.</li>
+              <li>Keine Liste zum Springen; bei 8 oder 10 Semestern scrollt man, mit „jetzt“ als Anker.</li>
+              <li>Die Linie ist Zeichnung: Sie muss hell wie dunkel sauber durch die Zeichen laufen.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="c" aria-labelledby="c-title">
+    <header>
+      <p class="kicker">Konzept C</p>
+      <h2 id="c-title"><span class="tag">C</span>Der Plan im Bild, ein Semester darunter</h2>
+      <p class="sub">Oben steht der ganze Plan als Raster, wie die Tabelle der Ordnung: <b>eine Spalte je Fachsemester, ein Baustein je Modul,</b> so hoch wie seine LP, in der Farbe seines Stands. Darunter steht genau ein Semester als Liste. Ein Tippen auf eine Spalte, die Pfeile oder ein Wischen wechseln es.</p>
+    </header>
+    <div class="concept">
+      <div class="stage" data-stage="C"></div>
+      <div class="side">
+        <p class="tryit"><b>Probier:</b> Tipp auf die Spalte 4 oder wisch die Liste nach links: Das 4. FS kommt, im Raster ist seine Spalte markiert. Tipp auf eine Zeile: ihr Blatt.</p>
+        <div class="how">
+          <div>
+            <h3>Was man sieht</h3>
+            <ul>
+              <li>Das Raster: fünf Spalten mit den Kürzeln der Module (EvS, MIT1, ThI …), bestanden grün, laufend kräftig, geplant hell, woanders schraffiert, offen umrandet; unter jeder Spalte „24/30“.</li>
+              <li>Die gewählte Spalte ist hinterlegt. <b>Darunter nur ihr Semester:</b> Kopf mit Pfeilen und Balken, dann seine Zeilen.</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Wie es sich verhält</h3>
+            <ul>
+              <li><b>Die Ansicht öffnet beim jetzigen Semester;</b> was dran ist, steht ohne Scrollen da.</li>
+              <li>Spalte, ‹ › und Wischen wählen das Semester. Das Raster wählt nur, was darunter steht. Die Wahl ist kein Schritt im Verlauf; Zurück führt zur Übersicht.</li>
+            </ul>
+          </div>
+          <div class="weak">
+            <h3>Worauf zu achten ist</h3>
+            <ul>
+              <li>Zwei Arten zu lesen auf einer Seite: Raster und Liste. Das Raster ist bunter als der Rest.</li>
+              <li>Kürzel kennt nicht jeder, und Wahlen haben keine: „AwF“, „WP“, „GdI“ müsste Betula bilden.</li>
+              <li>Zwei Semester vergleicht man nur im Raster; die Listen stehen nie nebeneinander.</li>
+              <li>Am meisten zu bauen: Raster, Wischen, Kürzel.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
+    <header>
+      <p class="kicker">Nebeneinander</p>
+      <h2 id="vergleich-title">Im Vergleich</h2>
+    </header>
+    <div class="tablewrap">
+      <table class="t">
+        <thead><tr><th></th><th>A · Ein Kasten je Semester</th><th>B · Eine Linie</th><th>C · Raster und Semester</th></tr></thead>
+        <tbody>
+          <tr><td>Welches Semester sehe ich?</td><td><span class="verdict ok"><i></i>Der Kopf klebt oben</span></td><td><span class="verdict ok"><i></i>Der Halt klebt oben, auf der Linie</span></td><td><span class="verdict ok"><i></i>Es gibt nur eins, seine Spalte ist markiert</span></td></tr>
+          <tr><td>Wohin gehört eine Zeile?</td><td><span class="verdict ok"><i></i>In ihren Kasten</span></td><td><span class="verdict ok"><i></i>An ihren Halt, ihr Zeichen auf der Linie</span></td><td><span class="verdict ok"><i></i>Zum Semester darüber</span></td></tr>
+          <tr><td>Ruhe</td><td><span class="verdict ok"><i></i>Gleiche Zeilen, fünf Kästen</span></td><td><span class="verdict ok"><i></i>Gleiche Zeilen, keine Kästen</span></td><td><span class="verdict meh"><i></i>Ruhige Liste unter einem bunten Raster</span></td></tr>
+          <tr><td>Der ganze Plan auf einen Blick</td><td><span class="verdict meh"><i></i>Nein, <span data-screens="A">2,8</span> Bildschirme</span></td><td><span class="verdict meh"><i></i>Nein, <span data-screens="B">2,4</span> Bildschirme</span></td><td><span class="verdict ok"><i></i>Ja, im Raster</span></td></tr>
+          <tr><td>Was jetzt dran ist</td><td><span class="verdict meh"><i></i>Scrollen oder den Kopf antippen</span></td><td><span class="verdict ok"><i></i>Ein Tippen auf „3. FS · jetzt“, das immer da ist</span></td><td><span class="verdict ok"><i></i>Sofort</span></td></tr>
+          <tr><td>Länge der Seite</td><td><span data-len="A">1.900</span> px</td><td><span data-len="B">1.650</span> px</td><td><span data-len="C">900</span> px mit dem jetzigen Semester</td></tr>
+          <tr><td>Bei 8 oder 10 Semestern</td><td><span class="verdict ok"><i></i>Mehr Kästen, die Liste zum Springen hilft</span></td><td><span class="verdict meh"><i></i>Längere Linie, nur „jetzt“ als Anker</span></td><td><span class="verdict no"><i></i>Das Raster wird zu schmal</span></td></tr>
+          <tr><td>Zu bauen</td><td><span class="verdict ok"><i></i>Wenig: Kopf, Zeile, Blatt</span></td><td><span class="verdict ok"><i></i>Wenig bis mittel: dazu Linie und Halt</span></td><td><span class="verdict meh"><i></i>Viel: Raster, Wischen, Kürzel</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
+    <header>
+      <p class="kicker">Was ich bauen würde</p>
+      <h2 id="empfehlung-title">Empfehlung: B</h2>
+      <p class="sub">Die Linie beantwortet beide Probleme am direktesten. Ein Semester ist ein Halt mit großer Nummer, der beim Scrollen mitläuft, und jede Zeile hängt sichtbar daran. Ohne Kästen ist sie die ruhigste der drei, und „3. FS · jetzt“ bringt einen mit einem Tippen dahin, wo man gerade steht.</p>
+    </header>
+    <div class="reco">
+      <ul>
+        <li><b>Beide Probleme gelöst:</b> Die Nummer steht immer da, die Zeile gehört zu dem Halt, an dem sie hängt, und eine abweichende Zeile sagt in einer zweiten Zeile, wo du sie hast.</li>
+        <li><b>Die Zeilen sind dieselben wie in A und C.</b> Wer lieber Kästen will, bekommt A mit einem anderen Rahmen um dieselben Zeilen; der Bau ist fast derselbe.</li>
+        <li><b>Die Linie sagt ohne Worte, wie weit du bist:</b> grün bis heute, gestrichelt danach, wie die Linie von heute im Gesamtplan.</li>
+      </ul>
+      <ul>
+        <li><b>Aus A</b> würde ich das Blatt mit den Semestern übernehmen, wenn ein Studiengang mehr als acht hat: Ein Tippen auf den Halt öffnet es.</li>
+        <li><b>C</b> ist das stärkste Bild, aber zwei Arten zu lesen auf einer Seite; das Raster passt eher in die Übersicht als Vorschau („Studium planen“ zeigt dort schon eine Spalte je Semester).</li>
+        <li><b>Zum Bauen:</b> nur <code>PlanPhone</code> in <code>regular.rs</code> und sein Stil; der Rechner behält die Tabelle. Folia ginge um eine Nebenversion hoch.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <header>
+      <p class="kicker">Zum Entscheiden</p>
+      <h2 id="fragen-title">Fragen an dich</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>A, B oder C?</b> Oder eine Mischung, etwa B mit dem Blatt der Semester aus A.<span class="pro">Vorschlag: B.</span></span></li>
+      <li><span><b>Einplanen nur im Blatt?</b> Wie in der Wahlpflicht: kein Knopf an der Zeile; „Wählen ›“ und „Einplanen“ gehen ins Blatt.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Ein verschobenes Modul nur an seinem Platz im Plan?</b> Softwarepraktikum steht im 3. FS mit „bei dir im WiSe 27/28“, nicht noch einmal als Schatten im 5. FS wie die gestrichelte Zelle am Rechner.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Der Bereich nur noch im Blatt?</b> Kein Punkt und kein „Informatik“ an der Zeile; Farbe heißt Stand.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Kurze Namen der Wahlen</b> wie in der Wahlpflicht: „Praktische Mathematik“, „Wahlpflicht“, „Praktische Informatik“.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Fertige Semester zuklappen?</b> Ein ganz bestandenes Semester als eine Zeile mit vollem Balken, wie „Bisher zuklappen“ im Gesamtplan.<span class="pro">Vorschlag: nein, fertig sieht aus wie offen.</span></span></li>
+      <li><span><b>Wo öffnet die Ansicht?</b> Oben beim 1. FS wie heute, oder gleich beim jetzigen Semester, mit dem Bisher darüber.<span class="pro">Vorschlag: oben; „jetzt“ ist einen Tipp entfernt.</span></span></li>
+    </ol>
+  </section>
+
+  <p class="foot">Daten: canarys Datenstand vom 18. November 2026, Informatik B.Sc. (PO 2008, 079-82-2008), die 23 Zeilen seines Regelstudienplans (Anlage 2, Seite 7), die Nummern, Kürzel und das Angebot der Module. Das Studium ist ein Beispiel: begonnen im WiSe 2025/26, jetzt im 3. FS; Digitaltechnik im SoSe 2026 nicht bestanden und im SoSe 2027 wieder geplant, Softwarepraktikum ins WiSe 2027/28 geschoben, das Proseminar füllt „Proseminar oder Praktikum“, Datenbanken zählt für den Komplex Praktische Informatik. Die Kürzel der Wahlen in C sind ausgedacht. Nichts davon ist gebaut.</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Icons (Lucide's shapes, as the app's) ----------
+  const P = {
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    x: '<path d="M18 6 6 18M6 6l12 12"/>',
+    repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+    arrowRight: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+    arrowLeft: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+    arrowUp: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+    arrowDown: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
+    chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+    upDown: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/>',
+    modules: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/>',
+    cap: '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
+    bookmark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>',
+    calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/>',
+    expand: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    external: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  };
+  const ic = (name, cls = "i") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name]}</svg>`;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  // ---------- The data: Informatik B.Sc. (PO 2008) and the example study ----------
+  const AREAS = {
+    inf: { name: "Informatik", c: "var(--fac-1)" },
+    mat: { name: "Mathematik", c: "var(--fac-4)" },
+    neb: { name: "Nebenfach", c: "var(--t-sun)" },
+    fues: { name: "FÜS", c: "var(--t-teal)" },
+    fach: { name: "Fachstudium", c: "var(--fac-6)" },
+    ba: { name: "Bachelor-Arbeit", c: "var(--fac-2)" },
+  };
+  const TERMS = [
+    { k: 1, n: "1", long: "1. Fachsemester", short: "1. FS", when: "WiSe 2025/26", w: "WiSe 25/26", plan: 32, time: "past" },
+    { k: 2, n: "2", long: "2. Fachsemester", short: "2. FS", when: "SoSe 2026", w: "SoSe 26", plan: 28, time: "past" },
+    { k: 3, n: "3", long: "3. Fachsemester", short: "3. FS", when: "WiSe 2026/27", w: "WiSe 26/27", plan: 30, time: "now" },
+    { k: 4, n: "4", long: "4. Fachsemester", short: "4. FS", when: "SoSe 2027", w: "SoSe 27", plan: 30, time: "future" },
+    { k: 5, n: "5–6", long: "5. und 6. Fachsemester", short: "5.–6. FS", when: "WiSe 2027/28 – SoSe 2028", w: "WiSe 27/28 – SoSe 28", plan: 60, time: "future", span: 2 },
+  ];
+  const NOW = 3;
+  // st: passed, running (planned in the semester now), planned, again (not passed, planned again), open.
+  // moved: the student's semester where it is not the plan's; lp: credits or a range, w: its weight.
+  const ROWS = [
+    { id: "evs", t: 1, name: "Entwicklung von Softwaresystemen", ab: "EvS", nr: "12104", lp: 8, area: "inf", st: "passed", sem: "WiSe 2025/26", turn: "jedes WiSe" },
+    { id: "eeg", t: 1, name: "Elektrische und elektronische Grundlagen der Informatik", ab: "EEG", nr: "12107", lp: 6, area: "inf", st: "passed", sem: "WiSe 2025/26", turn: "jedes WiSe" },
+    { id: "pp", t: 1, name: "Programmierpraktikum", ab: "PP", nr: "12102", lp: 4, area: "inf", st: "passed", sem: "WiSe 2025/26", turn: "jedes WiSe" },
+    { id: "mit1", t: 1, name: "Mathematik IT-1 (Diskrete Mathematik)", ab: "MIT1", nr: "11112", lp: 8, area: "mat", st: "passed", sem: "WiSe 2025/26", turn: "jedes WiSe" },
+    { id: "fues", t: 1, name: "Fachübergreifendes Studium", ab: "FÜS", choice: true, lp: 6, area: "fues", st: "passed", sem: "WiSe 2025/26", asks: "6 LP aus dem Fachübergreifenden Studium" },
+    { id: "aup", t: 2, name: "Algorithmieren und Programmieren", ab: "AuP", nr: "12101", lp: 10, area: "inf", st: "passed", sem: "SoSe 2026", turn: "jedes SoSe" },
+    { id: "dt", t: 2, name: "Digitaltechnik", ab: "DT", nr: "11903", lp: 6, area: "inf", st: "again", sem: "SoSe 2026", again: "SoSe 2027", againShort: "SoSe 27", turn: "jedes SoSe" },
+    { id: "pro", t: 2, name: "Proseminar oder Praktikum", ab: "Pro", choice: true, lp: 4, area: "inf", st: "passed", sem: "SoSe 2026", with: "Proseminar", asks: "4 LP: ein Proseminar oder ein Praktikum" },
+    { id: "mit2", t: 2, name: "Mathematik IT-2 (Lineare Algebra)", ab: "MIT2", nr: "11113", lp: 8, area: "mat", st: "passed", sem: "SoSe 2026", turn: "jedes SoSe" },
+    { id: "thi", t: 3, name: "Theoretische Informatik", ab: "ThI", nr: "11787", lp: 8, area: "inf", st: "running", sem: "WiSe 2026/27", turn: "jedes WiSe" },
+    { id: "swp", t: 3, name: "Softwarepraktikum", ab: "SWP", nr: "12202", lp: 8, area: "inf", st: "planned", sem: "WiSe 2027/28", moved: "WiSe 27/28", turn: "jedes WiSe" },
+    { id: "mit3", t: 3, name: "Mathematik IT-3 (Analysis)", ab: "MIT3", nr: "11213", lp: 8, area: "mat", st: "running", sem: "WiSe 2026/27", turn: "jedes WiSe" },
+    { id: "awf3", t: 3, name: "Anwendungsfach", ab: "AwF", choice: true, lp: 6, area: "neb", st: "open", asks: "6 LP aus einem Anwendungsfach; mit dem 4. FS zusammen 12 LP" },
+    { id: "bs1", t: 4, name: "Betriebssysteme I", ab: "BS1", nr: "12204", lp: 8, area: "inf", st: "planned", sem: "SoSe 2027", turn: "jedes SoSe" },
+    { id: "dtp", t: 4, name: "Digitaltechnik-Praktikum", ab: "DTP", nr: "12214", lp: 4, area: "inf", st: "planned", sem: "SoSe 2027", turn: "jedes SoSe" },
+    { id: "pm", t: 4, name: "Praktische Mathematik", full: "Modul aus dem Bereich Praktische Mathematik", ab: "PM", choice: true, lp: 6, area: "neb", st: "open", asks: "6 LP aus den Modulen der Praktischen Mathematik" },
+    { id: "awf4", t: 4, name: "Anwendungsfach", ab: "AwF", choice: true, lp: 6, area: "neb", st: "open", asks: "6 LP aus dem Anwendungsfach; mit dem 3. FS zusammen 12 LP" },
+    { id: "wp", t: 4, name: "Wahlpflicht", full: "Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik", ab: "WP", choice: true, lp: 6, area: "fach", st: "open", asks: "6 LP aus einem der drei Komplexe des Fachstudiums" },
+    { id: "gdi", t: 5, name: "Grundlagen der Informatik", full: "Komplex Grundlagen der Informatik", ab: "GdI", choice: true, lp: "10–24", w: 44 / 3, area: "fach", st: "open", group: true, asks: "10 bis 24 LP; die drei Komplexe zusammen 44 LP" },
+    { id: "pi", t: 5, name: "Praktische Informatik", full: "Komplex Praktische Informatik", ab: "PI", choice: true, lp: "10–24", w: 44 / 3, area: "fach", st: "open", group: true, taken: 6, takenWith: "Datenbanken", takenSem: "WiSe 2027/28", asks: "10 bis 24 LP; die drei Komplexe zusammen 44 LP" },
+    { id: "ati", t: 5, name: "Angewandte und Technische Informatik", full: "Komplex Angewandte und Technische Informatik", ab: "ATI", choice: true, lp: "10–24", w: 44 / 3, area: "fach", st: "open", group: true, asks: "10 bis 24 LP; die drei Komplexe zusammen 44 LP" },
+    { id: "sop", t: 5, name: "Seminar oder Praktikum", ab: "S/P", choice: true, lp: 4, area: "fach", st: "open", asks: "4 LP: ein Seminar oder ein Praktikum der Informatik" },
+    { id: "ba", t: 5, name: "Bachelor-Arbeit", ab: "BA", nr: "12333", lp: 12, area: "ba", st: "open", turn: "jedes Semester", into: "SoSe 2028" },
+  ];
+  const fresh = () => ROWS.map((r) => ({ ...r }));
+  let rows = fresh();
+  const rowOf = (id) => rows.find((r) => r.id === id);
+  const termOf = (k) => TERMS.find((t) => t.k === k);
+  const weight = (r) => (typeof r.lp === "number" ? r.lp : r.w || 0);
+  const num = (v) => String(Math.round(v * 10) / 10).replace(".", ",");
+
+  // What a semester holds, by the state of its rows.
+  function stats(t) {
+    const s = { pa: 0, ru: 0, pl: 0, el: 0, ag: 0 };
+    for (const r of rows.filter((r) => r.t === t.k)) {
+      const v = weight(r);
+      if (r.st === "passed") s.pa += v;
+      else if (r.st === "running") s.ru += v;
+      else if (r.st === "planned") r.moved ? (s.el += v) : (s.pl += v);
+      else if (r.st === "again") s.ag += v;
+      else if (r.taken) s.pl += r.taken;
+    }
+    s.held = s.pa + s.ru + s.pl + s.el + s.ag;
+    return s;
+  }
+  const figure = (t, short) => {
+    const s = stats(t);
+    if (t.time === "past") return short ? `${num(s.pa)} / ${t.plan} LP` : `${num(s.pa)} von ${t.plan} LP bestanden`;
+    return short ? `${num(s.held)} / ${t.plan} LP` : `${num(s.held)} von ${t.plan} LP eingeplant`;
+  };
+  const bar = (t) => {
+    const s = stats(t);
+    const parts = [["pa", s.pa], ["ru", s.ru], ["pl", s.pl], ["el", s.el], ["ag", s.ag]];
+    return `<span class="bar" aria-hidden="true">${parts.filter(([, v]) => v > 0).map(([c, v]) => `<i class="${c}" style="width:${(Math.min(v, t.plan) / t.plan * 100).toFixed(2)}%"></i>`).join("")}</span>`;
+  };
+
+  // ---------- The shared pieces ----------
+  const GLYPH_WORD = { passed: "bestanden", running: "läuft", planned: "geplant", open: "offen", again: "wird wiederholt" };
+  const glyph = (st) => `<span class="gl ${st}" role="img" aria-label="${GLYPH_WORD[st]}">${st === "passed" ? ic("check", "") : st === "again" ? ic("repeat", "") : ""}</span>`;
+  const legend = () => ["passed", "running", "planned", "open", "again"].map((st) => `<span>${glyph(st)}${st === "again" ? "wiederholt" : GLYPH_WORD[st]}</span>`).join("");
+  function note(r) {
+    if (r.st === "again") return `<small class="warn">nicht bestanden · wieder im ${r.againShort}</small>`;
+    if (r.moved && (r.st === "planned" || r.st === "running")) return `<small>${ic("arrowRight")}bei dir im ${r.moved}</small>`;
+    if (r.with) return `<small>mit ${r.with}</small>`;
+    if (r.taken) return `<small>${r.takenWith} · ${r.taken} von ${r.lp} LP gewählt</small>`;
+    return "";
+  }
+  const row = (r, wrap) => `<button type="button" class="rr ${r.st}" data-row="${r.id}">${wrap ? `<span class="gl-w">${glyph(r.st)}</span>` : glyph(r.st)}<span class="rr-t"><b>${esc(r.name)}</b>${note(r)}</span><span class="rr-lp">${r.lp}<small>LP</small></span>${r.choice ? ic("chevronRight") : "<span></span>"}</button>`;
+  // A semester's rows; the three Komplexe under a line of what they make together.
+  function rowsOf(t, wrap) {
+    let out = "";
+    let grouped = false;
+    for (const r of rows.filter((r) => r.t === t.k)) {
+      if (r.group && !grouped) {
+        out += `<p class="grp">Komplexe <span>· zusammen 44 LP, je 10–24</span></p>`;
+        grouped = true;
+      }
+      out += row(r, wrap);
+    }
+    return out;
+  }
+  const head = () => `<div class="pg-head"><h1>Regelstudienplan</h1><p>Informatik B.Sc. · PO 2008 · 180 LP</p></div>`;
+  const source = `<p class="src">${ic("file")}Der Plan beim Studiengang</p>`;
+  const topbar = `<header class="tb"><button type="button" class="tb-back" data-back aria-label="Zurück zur Übersicht">${ic("arrowLeft")}</button><div class="tb-search">${ic("search")}<span>Modul, Nummer oder Thema suchen</span></div></header>`;
+  const tabbar = `<nav class="tabs" aria-label="Bereiche der App">${[["home", "Start"], ["modules", "Module"], ["cap", "Studium", true], ["bookmark", "Merkliste"], ["calendar", "Stundenplan", false, 2]].map(([i, w, on, badge]) => `<span class="tab${on ? " on" : ""}"><span>${ic(i)}${badge ? `<b class="badge">${badge}</b>` : ""}</span>${w}</span>`).join("")}</nav>`;
+
+  // ---------- A: a panel per Fachsemester ----------
+  function renderA() {
+    return head() + `<p class="legend">${legend()}</p>` + TERMS.map((t) => `
+      <section class="a-sec" id="A-${t.k}" data-sec="${t.k}">
+        <button type="button" class="a-head" data-menu aria-haspopup="dialog" aria-label="${t.long}, ${figure(t)}. Semester wechseln">
+          <span class="a-l1"><b>${t.long}</b>${t.time === "now" ? '<i class="jetzt">jetzt</i>' : ""}<span class="a-w">${t.span ? t.w : t.when}</span>${ic("upDown")}</span>
+          <span class="a-l2">${bar(t)}<small>${figure(t)}</small></span>
+        </button>
+        <div class="a-rows">${rowsOf(t)}</div>
+      </section>`).join("") + source;
+  }
+
+  // ---------- B: the line ----------
+  function renderB() {
+    return head() + `<p class="legend">${legend()}</p><div class="b-tl">` + TERMS.map((t) => `
+      <section class="b-sec ${t.time}" id="B-${t.k}" data-sec="${t.k}">
+        <div class="b-st">
+          <span class="b-node${t.span ? " span" : ""}">${t.n}</span>
+          <span class="b-t"><b>${t.long}${t.time === "now" ? '<i class="jetzt">jetzt</i>' : ""}</b><small>${t.when}</small></span>
+          <span class="b-fig"><small>${figure(t, true)}</small>${bar(t)}</span>
+        </div>
+        <div class="b-rows">${rowsOf(t, true)}</div>
+      </section>`).join("") + `</div>` + source;
+  }
+
+  // ---------- C: the grid and one semester ----------
+  const K = 5; // px per credit in the grid; the 5th and 6th FS share a column twice as wide, half as high.
+  function tile(r, t) {
+    const h = Math.max(6, weight(r) * (t.span ? K / 2 : K) - 2);
+    let cls = r.st === "planned" && r.moved ? "moved" : r.st;
+    let style = `height:${h.toFixed(1)}px`;
+    if (r.st === "open" && r.taken) {
+      cls += " part";
+      style += `;--part:${(r.taken / weight(r) * 100).toFixed(0)}%`;
+    }
+    return `<span class="c-tile ${cls}" style="${style}">${h >= 15 ? esc(r.ab) : ""}</span>`;
+  }
+  function renderC(ui) {
+    const t = termOf(ui.c);
+    const grid = `<div class="c-grid" role="tablist" aria-label="Fachsemester">${TERMS.map((u) => `
+        <button type="button" class="c-col" role="tab" aria-selected="${u.k === t.k}" data-term="${u.k}" aria-label="${u.long}, ${figure(u)}">
+          <span class="c-h"><b>${u.n}</b><small class="${u.time === "now" ? "nw" : ""}">${u.time === "now" ? "jetzt" : u.span ? "WiSe 27 – SoSe 28" : u.w}</small></span>
+          <span class="c-stack">${rows.filter((r) => r.t === u.k).map((r) => tile(r, u)).join("")}</span>
+          <span class="c-fig">${figure(u, true).replace(" LP", "")}</span>
+        </button>`).join("")}</div>`;
+    const key = `<p class="c-key"><span><i class="passed"></i>bestanden</span><span><i class="running"></i>läuft</span><span><i class="planned"></i>geplant</span><span><i class="moved"></i>woanders</span><span><i class="open"></i>offen</span></p>`;
+    const i = TERMS.indexOf(t);
+    const page = `<section class="c-page${ui.cIn ? " " + ui.cIn : ""}" id="C-page" data-sec="${t.k}" aria-label="${t.long}">
+        <header class="c-head">
+          <span class="c-l1">
+            <button type="button" class="c-arrow" data-step="-1" aria-label="Semester davor" ${i === 0 ? "disabled" : ""}>${ic("chevronLeft")}</button>
+            <span class="c-t"><b>${t.long}${t.time === "now" ? '<i class="jetzt">jetzt</i>' : ""}</b><small>${t.when}</small></span>
+            <button type="button" class="c-arrow" data-step="1" aria-label="Semester danach" ${i === TERMS.length - 1 ? "disabled" : ""}>${ic("chevronRight")}</button>
+          </span>
+          <span class="c-l2">${bar(t)}<small>${figure(t)}</small></span>
+        </header>
+        <div class="c-rows">${rowsOf(t)}</div>
+      </section>`;
+    return head() + grid + key + page + `<p class="c-swipe">Wischen wechselt das Semester</p>` + source;
+  }
+
+  // ---------- The phones ----------
+  const RENDER = { A: renderA, B: renderB, C: renderC };
+  const phones = {};
+  for (const stage of document.querySelectorAll("[data-stage]")) {
+    const id = stage.dataset.stage;
+    stage.innerHTML = `
+      <div class="stage-bar"><span class="kicker">Konzept ${id} · am Handy</span><span class="grow"></span><button type="button" class="linkb full-open" data-full>${ic("expand")}Im Vollbild ausprobieren</button></div>
+      <div class="fit"><div class="phone" data-phone="${id}" lang="de"><div class="scr">${topbar}<main class="pg"></main></div>${tabbar}<div class="layer"></div></div></div>`;
+    const phone = stage.querySelector(".phone");
+    phones[id] = { id, stage, phone, scr: phone.querySelector(".scr"), pg: phone.querySelector(".pg"), layer: phone.querySelector(".layer"), ui: { c: NOW, cIn: "" }, sheet: null, toast: null };
+  }
+
+  function draw(p) {
+    const top = p.scr.scrollTop;
+    p.pg.innerHTML = RENDER[p.id](p.ui);
+    p.ui.cIn = "";
+    p.scr.scrollTop = top;
+    if (p.id === "B") watchNow(p);
+  }
+  const drawAll = () => Object.values(phones).forEach(draw);
+
+  // Where an element of a phone's page stands within its scroller (unscaled).
+  function topIn(el, scr) {
+    let y = 0;
+    for (let e = el; e && e !== scr; e = e.offsetParent) y += e.offsetTop;
+    return y;
+  }
+  const barOf = (p) => p.phone.querySelector(".tb").offsetHeight;
+  const scrollToSec = (p, k, smooth = true) => {
+    const sec = p.pg.querySelector(`[data-sec="${k}"]`);
+    if (sec) p.scr.scrollTo({ top: topIn(sec, p.scr) - barOf(p), behavior: smooth && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
+  };
+
+  // ---------- The sheet ----------
+  function openSheet(p, html, label) {
+    closeSheet(p);
+    p.layer.querySelector(".toast")?.remove();
+    p.layer.insertAdjacentHTML("beforeend", `<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(label)}"><span class="sh-grab"></span>${html}</div>`);
+    p.sheet = p.layer.querySelector(".sheet");
+    p.sheet.querySelector("[data-act], .sh-x, button")?.focus({ preventScroll: true });
+  }
+  function closeSheet(p) {
+    p.layer.querySelectorAll(".scrim, .sheet").forEach((el) => el.remove());
+    p.sheet = null;
+  }
+  const closeBtn = `<button type="button" class="sh-x" data-close aria-label="Schließen">${ic("x")}</button>`;
+  function rowSheet(p, r) {
+    const t = termOf(r.t);
+    const area = AREAS[r.area];
+    const meta = r.choice
+      ? `<span>${r.lp} LP</span><span class="dot" style="--c:${area.c}"></span><span>${area.name}</span><span>· Wahl</span>`
+      : `<span class="mono">${r.nr}</span><span>· ${r.lp} LP ·</span><span class="dot" style="--c:${area.c}"></span><span>${area.name}</span>`;
+    const plan = `${t.long} · ${t.when}`;
+    let mine = "";
+    let acts = "";
+    if (r.choice) {
+      mine = r.st === "passed" ? `bestanden im ${r.sem}${r.with ? ` mit ${r.with}` : ""}` : r.taken ? `${r.takenWith} (${r.taken} LP) im ${r.takenSem}` : "noch nichts gewählt";
+      acts = `<button type="button" class="btn ${r.st === "passed" ? "quiet" : "primary"} grow" data-act="choose">Module ansehen${ic("chevronRight")}</button>`;
+    } else if (r.st === "passed") {
+      mine = `bestanden im ${r.sem}`;
+      acts = `<span class="btn state">${ic("check")}Bestanden</span><button type="button" class="btn quiet grow" data-act="page">Modul ansehen</button>`;
+    } else if (r.st === "running" || r.st === "planned") {
+      mine = `${r.st === "running" ? "läuft" : "geplant"} im ${r.sem}${r.moved ? ", später als im Plan" : ""}`;
+      acts = `<button type="button" class="btn primary" data-act="pass">${ic("check")}Als bestanden markieren</button><button type="button" class="btn quiet grow" data-act="page">Modul ansehen</button>`;
+    } else if (r.st === "again") {
+      mine = `nicht bestanden im ${r.sem}, wieder geplant im ${r.again}`;
+      acts = `<button type="button" class="btn primary" data-act="pass">${ic("check")}Als bestanden markieren</button><button type="button" class="btn quiet grow" data-act="page">Modul ansehen</button>`;
+    } else {
+      mine = "noch nicht eingeplant";
+      acts = `<button type="button" class="btn primary grow" data-act="plan">${ic("plus")}Einplanen · ${r.into}</button><button type="button" class="btn quiet" data-act="page">Modul ansehen</button>`;
+    }
+    const dl = [["Laut Plan", plan], ["Bei dir", mine, r.st === "again" ? "warn" : ""]];
+    if (r.choice) dl.push(["Verlangt", r.asks]);
+    else dl.push(["Angeboten", r.turn]);
+    const html = `<div class="sh-h"><div><h3>${esc(r.full || r.name)}</h3><p>${meta}</p></div>${closeBtn}</div>
+      <dl class="sh-dl">${dl.map(([k, v, c]) => `<div><dt>${k}</dt><dd class="${c || ""}">${esc(v)}</dd></div>`).join("")}</dl>
+      <div class="sh-acts" data-for="${r.id}">${acts}</div>`;
+    openSheet(p, html, r.full || r.name);
+  }
+  function termSheet(p, here) {
+    const html = `<div class="sh-h"><div><h3>Semester</h3><p>Ein Tippen springt hin.</p></div>${closeBtn}</div>
+      <div class="jl">${TERMS.map((t) => `<button type="button" class="${t.k === here ? "here" : ""}" data-jump="${t.k}"><span class="n ${t.time}">${t.time === "past" ? ic("check", "i") : t.n}</span><span><b>${t.long}${t.time === "now" ? '<i class="jetzt">jetzt</i>' : ""}</b><small>${t.when}</small></span><span class="jfig">${figure(t, true)}${bar(t)}</span></button>`).join("")}</div>`;
+    openSheet(p, html, "Semester");
+    p.sheet.querySelectorAll(".jl .n.past svg").forEach((s) => s.setAttribute("style", "width:13px;height:13px;stroke-width:3"));
+  }
+
+  // ---------- The note with „Rückgängig" ----------
+  function toast(p, text, undo) {
+    p.layer.querySelector(".toast")?.remove();
+    clearTimeout(p.toastTimer);
+    p.layer.insertAdjacentHTML("beforeend", `<div class="toast" role="status"><span>${esc(text)}</span>${undo ? '<button type="button" data-undo>Rückgängig</button>' : ""}</div>`);
+    p.undo = undo || null;
+    p.toastTimer = setTimeout(() => p.layer.querySelector(".toast")?.remove(), 6000);
+  }
+
+  // ---------- What a row's sheet does ----------
+  function act(p, id, what) {
+    const r = rowOf(id);
+    if (!r) return;
+    if (what === "choose") {
+      closeSheet(p);
+      return toast(p, `Führt in die Wahlpflicht: „${r.name}“`);
+    }
+    if (what === "page") {
+      closeSheet(p);
+      return toast(p, `Führt zur Seite von „${r.name}“`);
+    }
+    const before = { ...r };
+    if (what === "plan") Object.assign(r, { st: "planned", sem: r.into });
+    if (what === "pass") Object.assign(r, { st: "passed", sem: r.st === "again" ? r.again : r.sem, moved: r.st === "again" ? undefined : r.moved });
+    closeSheet(p);
+    drawAll();
+    flash(p, id);
+    const said = what === "plan" ? `${r.name} im ${r.into} eingeplant` : `${r.name} als bestanden markiert`;
+    toast(p, said, () => {
+      Object.assign(rowOf(id), before);
+      drawAll();
+      flash(p, id);
+    });
+  }
+  function flash(p, id) {
+    const el = p.pg.querySelector(`[data-row="${id}"]`);
+    if (el) { el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+  }
+
+  // ---------- B: „3. FS · jetzt" when the semester now is out of sight ----------
+  function watchNow(p) {
+    p.io?.disconnect();
+    const target = p.pg.querySelector(`#B-${NOW}`);
+    if (!target) return;
+    const check = () => {
+      const s = p.phone.getBoundingClientRect();
+      const r = target.getBoundingClientRect();
+      const k = s.height / p.phone.offsetHeight || 1;
+      const top = (r.top - s.top) / k;
+      const bottom = (r.bottom - s.top) / k;
+      const view = p.phone.offsetHeight;
+      const away = bottom < barOf(p) + 60 ? "up" : top > view - 120 ? "down" : null;
+      let pill = p.layer.querySelector(".b-nowpill");
+      if (!away) return pill?.remove();
+      if (!pill) {
+        p.layer.insertAdjacentHTML("beforeend", `<button type="button" class="b-nowpill" data-now></button>`);
+        pill = p.layer.querySelector(".b-nowpill");
+      }
+      pill.innerHTML = `${ic(away === "up" ? "arrowUp" : "arrowDown")}3. FS · jetzt`;
+    };
+    p.checkNow = check;
+    check();
+  }
+
+  // ---------- Events ----------
+  for (const p of Object.values(phones)) {
+    p.phone.addEventListener("click", (e) => {
+      if (p.swiped) { p.swiped = false; return; }
+      const el = e.target.closest("[data-row], [data-menu], [data-jump], [data-act], [data-close], [data-undo], [data-term], [data-step], [data-now], [data-back]");
+      if (!el) return;
+      if (el.dataset.row) return rowSheet(p, rowOf(el.dataset.row));
+      if (el.hasAttribute("data-menu")) return termSheet(p, Number(el.closest("[data-sec]").dataset.sec));
+      if (el.dataset.jump) { closeSheet(p); return scrollToSec(p, Number(el.dataset.jump)); }
+      if (el.dataset.act) return act(p, el.closest("[data-for]").dataset.for, el.dataset.act);
+      if (el.hasAttribute("data-close")) return closeSheet(p);
+      if (el.hasAttribute("data-undo")) { p.layer.querySelector(".toast")?.remove(); return p.undo?.(); }
+      if (el.dataset.term) return pick(p, Number(el.dataset.term));
+      if (el.dataset.step) return pick(p, TERMS[Math.max(0, Math.min(TERMS.length - 1, TERMS.findIndex((t) => t.k === p.ui.c) + Number(el.dataset.step)))].k);
+      if (el.hasAttribute("data-now")) return scrollToSec(p, NOW);
+      if (el.hasAttribute("data-back")) return setFull(p, false);
+    });
+    p.scr.addEventListener("scroll", () => p.checkNow?.(), { passive: true });
+    // C: a swipe across the list changes the semester; the page scrolls under any other move.
+    if (p.id === "C") {
+      let start = null;
+      p.pg.addEventListener("pointerdown", (e) => { if (e.target.closest(".c-page")) start = { x: e.clientX, y: e.clientY }; });
+      p.pg.addEventListener("pointerup", (e) => {
+        if (!start) return;
+        const dx = e.clientX - start.x;
+        const dy = e.clientY - start.y;
+        start = null;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+          p.swiped = true;
+          setTimeout(() => (p.swiped = false), 350);
+          const i = TERMS.findIndex((t) => t.k === p.ui.c) + (dx < 0 ? 1 : -1);
+          if (i >= 0 && i < TERMS.length) pick(p, TERMS[i].k);
+        }
+      });
+      p.pg.addEventListener("pointercancel", () => (start = null));
+    }
+  }
+  // C: another semester below the grid, sliding in from the side it comes from.
+  function pick(p, k) {
+    if (k === p.ui.c) return;
+    const from = TERMS.findIndex((t) => t.k === p.ui.c);
+    const to = TERMS.findIndex((t) => t.k === k);
+    p.ui.c = k;
+    p.ui.cIn = to > from ? "in-next" : "in-prev";
+    const page = p.pg.querySelector("#C-page");
+    const pageTop = page ? topIn(page, p.scr) - barOf(p) : 0;
+    draw(p);
+    // Where the list had scrolled under its head, the new one starts at its head.
+    if (p.scr.scrollTop > pageTop) p.scr.scrollTop = pageTop;
+  }
+
+  // ---------- Fit to the desk, the full screen ----------
+  function fit() {
+    for (const p of Object.values(phones)) {
+      if (p.phone.classList.contains("full")) continue;
+      const box = p.stage.clientWidth - 40;
+      const s = Math.max(0.6, Math.min(1, box / 390, (innerHeight - 70) / 844));
+      p.stage.querySelector(".fit").style.setProperty("--s", s.toFixed(3));
+    }
+  }
+  function setFull(p, on) {
+    if (on === p.phone.classList.contains("full")) return;
+    p.phone.classList.toggle("full", on);
+    document.documentElement.classList.toggle("noscroll", on);
+    p.phone.querySelector("[data-back]").setAttribute("aria-label", on ? "Vollbild schließen" : "Zurück zur Übersicht");
+    if (on) p.phone.querySelector("[data-back]").focus({ preventScroll: true });
+    else p.stage.querySelector("[data-full]")?.focus({ preventScroll: true });
+    p.checkNow?.();
+  }
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-full]");
+    if (b) setFull(phones[b.closest("[data-stage]").dataset.stage], true);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    for (const p of Object.values(phones)) {
+      if (p.sheet) { closeSheet(p); return; }
+    }
+    for (const p of Object.values(phones)) if (p.phone.classList.contains("full")) setFull(p, false);
+  });
+  addEventListener("resize", () => { fit(); Object.values(phones).forEach((p) => p.checkNow?.()); });
+
+  // ---------- The bar of the page ----------
+  const themeButtons = document.querySelectorAll("[data-theme-set]");
+  function setTheme(v) {
+    if (v === "system") delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = v;
+    themeButtons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === v)));
+    try { localStorage.setItem("rsp-theme", v); } catch (_) { /* storage refused: the choice lasts the visit */ }
+  }
+  themeButtons.forEach((b) => b.addEventListener("click", () => setTheme(b.dataset.themeSet)));
+  try { const v = localStorage.getItem("rsp-theme"); if (v) setTheme(v); } catch (_) { /* no storage */ }
+  document.getElementById("reset").addEventListener("click", () => {
+    rows = fresh();
+    for (const p of Object.values(phones)) { closeSheet(p); p.layer.querySelector(".toast")?.remove(); p.ui.c = NOW; p.scr.scrollTop = 0; }
+    drawAll();
+  });
+  document.querySelectorAll("[data-legend]").forEach((el) => (el.innerHTML = legend()));
+
+  drawAll();
+  fit();
+  // The lengths the text names: each page as tall as it is drawn.
+  const de = (v) => Math.round(v / 10) * 10;
+  const fmt = (v) => de(v).toLocaleString("de-DE");
+  requestAnimationFrame(() => {
+    const view = 844 - 64 - 84;
+    for (const id of ["A", "B", "C"]) {
+      const h = phones[id].scr.scrollHeight - 120;
+      document.querySelectorAll(`[data-len="${id}"]`).forEach((el) => (el.textContent = fmt(h)));
+      document.querySelectorAll(`[data-screens="${id}"]`).forEach((el) => (el.textContent = num(Math.round(h / view * 10) / 10)));
+    }
+  });
+})();
+</script>

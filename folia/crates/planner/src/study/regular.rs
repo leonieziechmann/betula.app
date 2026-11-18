@@ -13,20 +13,33 @@
 //! the stand off: the plan as printed. The foot: what the plan puts into each Fachsemester, and
 //! what the student has there.
 //!
-//! On a phone a page of its own behind the overview (the way back at the head, `chrome::TopBack`):
-//! the Fachsemester as sections, a strip of them at the top to jump to, each row a card with its
-//! stand.
+//! On a phone a page of its own behind the overview (the way back at the head, `chrome::TopBack`;
+//! owner, 2026-11-18, folia/design/regelstudienplan, concept A: „Ja Option a ist super! Setz das
+//! bitte um", after „dass man nicht richtig erkennen kann, welches Modul in welchem Semester
+//! belegt werden soll und die Anzeige der Module sehr unruhig ist"): a panel per Fachsemester,
+//! whose head — the Fachsemester, its semester, „jetzt", a bar and „24 von 30 LP eingeplant" —
+//! stays under the bar at the top while its rows scroll, until the next head pushes it out; a tap
+//! on a head lists the Fachsemester to jump to. A row is its mark (the marks of „Mein Studium"),
+//! its name and its credits, a line under the name only where something differs from the plan
+//! (where the student has it, a retake, what fills it, what is taken of its choice); a module's
+//! row opens the module as the sheet, a choice's leads to it in the Wahlpflicht. A row stands in
+//! the Fachsemester the plan puts it into, and only there.
+
+use std::collections::VecDeque;
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Labelled;
-use folia_plans::choices::{self, PlanLine, RowState};
+use folia_plans::bench;
+use folia_plans::choices::{self, PlanLine, RowState, Taken};
 use folia_plans::study::{self, Input, Pick, When};
-use folia_routes::url::{ProgramTab, ProgramUrl, StudyUrl};
+use folia_routes::url::{ProgramTab, ProgramUrl, StudyUrl, StudyView};
 use leptos::prelude::*;
 
+use folia_design::modal::{Modal, ModalHead, ModalSize, Sheet as SheetWay};
 use folia_design::ui::{EmptyState, Icon};
 use folia_shell::chrome::{Back, TopBack};
 
+use super::focus::{Glyph, OpenGlyph, Status};
 use super::{n, now_secs, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -52,7 +65,6 @@ struct Row {
     first: u8,
     last: u8,
     tone: &'static str,
-    area: String,
     state: RowState,
     /// The Fachsemester the student has it in, where that is not the plan's.
     moved: Option<u8>,
@@ -63,6 +75,85 @@ struct Row {
     /// What fills it, or what is taken of its choice: „mit Proseminar", „8 von 12 LP gewählt".
     note: Option<String>,
     act: Act,
+    /// The choice it is one of (an index of `PlanView::choices`): on a phone its row leads there,
+    /// in the Wahlpflicht.
+    choice: Option<usize>,
+    /// Its name on a phone: a choice's as the Wahlpflicht says it (`bench::short_name`:
+    /// „Praktische Mathematik", „Wahlpflicht"), a module's as it is.
+    short: String,
+    /// The choices the regulation sums over that it is one of (an index of `Sheet::sums`): on a
+    /// phone a line over the first of them in a Fachsemester.
+    sum: Option<usize>,
+    /// Its mark on a phone.
+    mark: Mark,
+    /// On a phone the line under its name, where something differs from the plan.
+    line: Option<Line>,
+}
+
+/// A row's mark on a phone (app.css `.st-glyph`): the statuses of „Mein Studium", a retake amber
+/// with its arrows, what stands open a ring of dashes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Mark {
+    Status(Status),
+    Again,
+    Open,
+}
+
+/// The line under a row's name on a phone: where the student has it, where that is another
+/// Fachsemester than the plan's („bei dir im WiSe 27/28", after an arrow), a retake or a module not
+/// passed (`warn`), what fills it, what is taken of its choice.
+#[derive(Clone, Debug, PartialEq)]
+struct Line {
+    text: String,
+    warn: bool,
+    moved: bool,
+}
+
+/// Where a share of a row's credits stands, for a phone's bar.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Part {
+    Passed,
+    /// Planned into the current semester.
+    Running,
+    Planned,
+    /// Planned into a semester of another Fachsemester than the row's.
+    Elsewhere,
+    /// Not passed, and planned again.
+    Again,
+}
+
+/// What the student holds of what the plan asks of a phone's section, by where it stands: the
+/// parts of its bar.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Held {
+    passed: f64,
+    running: f64,
+    planned: f64,
+    elsewhere: f64,
+    again: f64,
+}
+
+impl Held {
+    fn add(&mut self, part: Part, credits: f64) {
+        match part {
+            Part::Passed => self.passed += credits,
+            Part::Running => self.running += credits,
+            Part::Planned => self.planned += credits,
+            Part::Elsewhere => self.elsewhere += credits,
+            Part::Again => self.again += credits,
+        }
+    }
+
+    /// All of it: what the head says is planned.
+    fn all(&self) -> f64 {
+        self.passed + self.running + self.planned + self.elsewhere + self.again
+    }
+
+    /// Its parts as the bar draws them, in this order (app.css `.st-rsp-bar`): their class and
+    /// credits.
+    fn parts(&self) -> [(&'static str, f64); 5] {
+        [("pa", self.passed), ("ru", self.running), ("pl", self.planned), ("el", self.elsewhere), ("ag", self.again)]
+    }
 }
 
 impl Row {
@@ -106,21 +197,21 @@ fn halves(short: &str) -> (String, String) {
     }
 }
 
-/// A Fachsemester, or several the plan's rows span together, as a phone's section.
+/// A Fachsemester, or several the plan's rows span together, as a phone's panel.
 #[derive(Clone, Debug, PartialEq)]
 struct Section {
     id: String,
-    /// „3. FS", „5. und 6. FS".
+    /// „3. Fachsemester", „5. und 6. Fachsemester".
     title: String,
-    /// What the strip says: „3. FS", „5.–6.".
-    chip: String,
     /// „WiSe 26/27", „WiSe 27/28 – SoSe 28".
     when: Option<String>,
     now: bool,
-    /// Over: all of it passed („✓" in the strip).
-    done: bool,
-    /// „24 von 32 bestanden", „32 von 30 geplant".
-    stand: String,
+    /// What the plan asks of it, what the student holds of that (the bar of its head), and the
+    /// words of the head: „32 von 32 LP bestanden" once it is over, else „24 von 30 LP
+    /// eingeplant".
+    sum: f64,
+    held: Held,
+    figure: String,
     rows: Vec<Row>,
 }
 
@@ -140,9 +231,9 @@ struct Sheet {
     /// „52 LP bestanden", „44 LP geplant".
     mine_total: (String, String),
     sections: Vec<Section>,
-    /// On a phone under the head: what is passed of the Fachsemester before the current one, and
-    /// a retake.
-    so_far: Option<String>,
+    /// On a phone the line over the choices the regulation sums over: „Komplexe des Fachstudiums ·
+    /// zusammen 44 LP".
+    sums: Vec<String>,
     /// The plan on the program's page.
     source: String,
 }
@@ -198,6 +289,26 @@ impl Sheet {
                 }
                 _ => Act::None,
             };
+            let mark = match line.state {
+                RowState::Passed(_) => Mark::Status(Status::Passed),
+                RowState::Planned(s) if s == study.now => Mark::Status(Status::Running),
+                RowState::Planned(_) => Mark::Status(Status::Planned),
+                RowState::Again { .. } => Mark::Again,
+                RowState::Failed(_) => Mark::Status(Status::Failed),
+                RowState::Open => Mark::Open,
+            };
+            // Under the name only what differs from the plan: the semester the student has it in,
+            // where that is not the plan's; a retake; what fills it; what is taken of its choice.
+            let line_of = match line.state {
+                RowState::Again { planned, .. } => Some(Line { text: (v.again_note)(&short(planned, t)), warn: true, moved: false }),
+                RowState::Failed(s) => Some(Line { text: (v.state_failed)(&short(s, t)), warn: true, moved: false }),
+                state => match (moved.and(state.semester()), note.clone()) {
+                    (Some(s), Some(note)) => Some(Line { text: format!("{note} · {}", (v.moved_note)(&short(s, t))), warn: false, moved: true }),
+                    (Some(s), None) => Some(Line { text: (v.moved_note)(&short(s, t)), warn: false, moved: true }),
+                    (None, Some(note)) => Some(Line { text: note, warn: false, moved: false }),
+                    (None, None) => None,
+                },
+            };
             Row {
                 key: format!("{}:{}", line.caption, line.ord),
                 name: line.name.clone(),
@@ -206,7 +317,6 @@ impl Sheet {
                 first: line.first,
                 last: line.last,
                 tone: ready.tone(line.area),
-                area: ready.area_name(line.area, t),
                 state: line.state,
                 moved,
                 stand,
@@ -214,6 +324,11 @@ impl Sheet {
                 note,
                 act,
                 module_id,
+                choice: line.choice,
+                short: if line.module_id.is_some() { line.name.clone() } else { bench::short_name(&line.name) },
+                sum: line.choice.and_then(|at| view.groups.iter().position(|group| group.members.contains(&at))),
+                mark,
+                line: line_of,
             }
         };
         let rows: Vec<Row> = view.lines.iter().map(row_of).collect();
@@ -293,6 +408,63 @@ impl Sheet {
         let totals = study.totals();
         let mine_total = ((v.foot_passed)(&(t.study.credits)(&n(totals.passed_all(), t))), (v.foot_planned)(&(t.study.credits)(&n(totals.planned_all(), t))));
 
+        // Where each row's credits stand, for a phone's bars: its own state; for a row of a choice
+        // that nothing fills, its share of what the choice's modules hold beyond the rows they
+        // fill, shared out over its open rows in the plan's order, what is passed first.
+        let part_of = |s: SemesterKey, line: &PlanLine, passed: bool| -> Part {
+            let outside = fs_of(s).is_some_and(|fs| !(line.first..=line.last).contains(&fs));
+            match (passed, outside) {
+                (true, _) => Part::Passed,
+                (false, true) => Part::Elsewhere,
+                (false, false) if s == study.now => Part::Running,
+                (false, false) => Part::Planned,
+            }
+        };
+        let mut parts: Vec<Vec<(Part, f64)>> = view
+            .lines
+            .iter()
+            .map(|line| {
+                let credits = line.credits.unwrap_or(0.0);
+                match line.state {
+                    RowState::Passed(_) => vec![(Part::Passed, credits)],
+                    RowState::Planned(s) => vec![(part_of(s, line, false), credits)],
+                    RowState::Again { .. } => vec![(Part::Again, credits)],
+                    RowState::Failed(_) | RowState::Open => Vec::new(),
+                }
+            })
+            .collect();
+        for choice in &view.choices {
+            let mut skip: f64 = choice.lines.iter().filter_map(|at| view.lines.get(*at)).filter(|line| !matches!(line.state, RowState::Open | RowState::Failed(_))).filter_map(|line| line.credits).sum();
+            let mut taken: Vec<&Taken> = choice.taken.iter().collect();
+            taken.sort_by_key(|taken| !taken.passed);
+            let mut left: VecDeque<(f64, &Taken)> = VecDeque::new();
+            for taken in taken {
+                let credits = taken.credits.unwrap_or(0.0);
+                let used = credits.min(skip);
+                skip -= used;
+                if credits - used > 1e-6 {
+                    left.push_back((credits - used, taken));
+                }
+            }
+            for at in &choice.lines {
+                let (Some(line), Some(share)) = (view.lines.get(*at), parts.get_mut(*at)) else { continue };
+                if line.state != RowState::Open {
+                    continue;
+                }
+                let mut room = line.credits.unwrap_or(0.0);
+                while room > 1e-6 {
+                    let Some((credits, taken)) = left.front_mut() else { break };
+                    let used = credits.min(room);
+                    share.push((part_of(taken.semester, line, taken.passed), used));
+                    *credits -= used;
+                    room -= used;
+                    if *credits <= 1e-6 {
+                        left.pop_front();
+                    }
+                }
+            }
+        }
+
         // A phone's sections: the rows by their first Fachsemester; rows over several together
         // where all of a section's do.
         let mut sections: Vec<Section> = Vec::new();
@@ -303,11 +475,8 @@ impl Sheet {
             let of: Vec<Row> = rows.iter().filter(|row| row.first == first).cloned().collect();
             let to = of.iter().map(|row| row.last).min().unwrap_or(first).max(first);
             let together = to > first && of.iter().all(|row| row.last == to);
-            let (title, chip, span) = if together {
-                ((t.study.fs_span)(first, to), format!("{first}.–{to}."), (first, to))
-            } else {
-                ((t.study.fs)(first), (t.study.fs)(first), (first, first))
-            };
+            let span = if together { (first, to) } else { (first, first) };
+            let title = if together { (v.term_span)(first, to) } else { (t.study.fs_long)(first) };
             let semesters: Vec<SemesterKey> = (span.0..=span.1).filter_map(semester_of).collect();
             let when = match (semesters.first(), semesters.last()) {
                 (Some(a), Some(b)) if a != b => Some(format!("{} – {}", short(*a, t), short(*b, t))),
@@ -321,38 +490,15 @@ impl Sheet {
                 (a, b) => core.stated_for(i64::from(a), i64::from(b)).map(|(credits, _)| credits),
             }
             .unwrap_or_else(|| view.lines.iter().filter(|line| line.first == first).filter_map(|line| line.credits).sum());
-            let credits_of = |pick: &dyn Fn(&RowState) -> bool| -> f64 { view.lines.iter().filter(|line| line.first == first && pick(&line.state)).filter_map(|line| line.credits).sum() };
-            let passed = credits_of(&|state| matches!(state, RowState::Passed(_)));
-            let planned = credits_of(&|state| matches!(state, RowState::Passed(_) | RowState::Planned(_) | RowState::Again { .. }));
-            let stand = if over {
-                (v.section_passed)(&n(passed, t), &(t.study.credits)(&n(sum, t)))
-            } else if planned > 0.0 {
-                (v.section_planned)(&n(planned, t), &(t.study.credits)(&n(sum, t)))
-            } else {
-                (v.section_plain)(&n(sum, t))
-            };
-            let done = over && of.iter().all(|row| matches!(row.state, RowState::Passed(_)));
-            sections.push(Section { id: format!("st-fs-{first}"), title, chip, when, now, done, stand, rows: of });
-        }
-
-        // What is passed of the Fachsemester before the current one, and the first retake.
-        let current = study.semester(study.now).and_then(|semester| semester.fs);
-        let so_far = current.filter(|fs| *fs > 1).map(|fs| {
-            let before: Vec<&PlanLine> = view.lines.iter().filter(|line| line.last < fs).collect();
-            let all: f64 = before.iter().filter_map(|line| line.credits).sum();
-            let passed: f64 = before.iter().filter(|line| matches!(line.state, RowState::Passed(_))).filter_map(|line| line.credits).sum();
-            let mut text = (v.so_far)(&(t.study.fs_span)(1, fs - 1), &n(passed, t), &n(all, t));
-            let retake = view.lines.iter().find_map(|line| match line.state {
-                RowState::Again { planned, .. } => Some((v.retake_line)(&line.name, &short(planned, t))),
-                RowState::Failed(_) => Some((v.retake_open)(&line.name)),
-                _ => None,
-            });
-            if let Some(retake) = retake {
-                text.push_str(" · ");
-                text.push_str(&retake);
+            let mut held = Held::default();
+            for (_, share) in view.lines.iter().zip(&parts).filter(|(line, _)| line.first == first) {
+                for (part, credits) in share {
+                    held.add(*part, *credits);
+                }
             }
-            text
-        });
+            let figure = if over { (v.section_passed)(&n(held.passed, t), &n(sum, t)) } else { (v.section_planned)(&n(held.all(), t), &n(sum, t)) };
+            sections.push(Section { id: format!("st-fs-{first}"), title, when, now, sum, held, figure, rows: of });
+        }
 
         let shown = ready.setup.shown.map_or(1, |shown| shown + 1);
         let direction = ready.setup.shown.and_then(|shown| ready.plans.iter().find(|(index, _)| *index == shown)).map(|(_, label)| label.clone());
@@ -366,7 +512,7 @@ impl Sheet {
             mine_foot,
             mine_total,
             sections,
-            so_far,
+            sums: view.groups.iter().map(|group| (v.group_line)(&group.label, &n(group.together, t))).collect(),
             source: ProgramUrl::new(&ready.program.slug, ProgramTab::Plan).with_variant(shown).path(),
         })
     }
@@ -582,73 +728,173 @@ pub(super) fn view_back(ctx: StudyCtx) {
     });
 }
 
-/// The Fachsemester on a phone.
+/// The Fachsemester on a phone (folia/design/regelstudienplan, concept A): a panel each, whose
+/// head stays under the bar at the top while its rows scroll and, tapped, lists the Fachsemester to
+/// jump to (a sheet as tall as they are); the marks under the title once.
 #[component]
 fn PlanPhone(ctx: StudyCtx, sheet: Sheet) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
+    let s = &t.study;
+    // The list of the Fachsemester to jump to, open while it names the one it was opened from.
+    let asked: RwSignal<Option<String>> = RwSignal::new(None);
+    let close = Callback::new(move |()| asked.set(None));
+    let jumps = sheet.sections.clone();
+    let sums = sheet.sums.clone();
+    let marks = [
+        (Mark::Status(Status::Passed), s.passed_short),
+        (Mark::Status(Status::Running), s.running_short),
+        (Mark::Status(Status::Planned), s.planned_short),
+        (Mark::Open, s.open_short),
+        (Mark::Again, v.legend_again),
+    ];
     view! {
         <div class="st-phone-page st-rsp-phone">
             <header class="st-vhead">
                 <h1>{v.plan}</h1>
                 <p>{sheet.program.clone()}{sheet.direction.clone().map(|direction| format!(" · {direction}"))}</p>
             </header>
-            <nav class="st-fsidx" aria-label=v.fs_strip>
-                {sheet.sections.iter().map(|section| view! {
-                    <a href=format!("#{}", section.id) data-action="jump" class:now=section.now class:done=section.done>
-                        {section.chip.clone()}
-                        {section.done.then(|| view! { <Icon name="check"/> })}
-                        {section.now.then(|| format!(" · {}", t.study.now))}
-                    </a>
-                }).collect_view()}
-            </nav>
-            {sheet.so_far.clone().map(|line| view! { <p class="st-soll"><Icon name="circle-check-big"/><span>{line}</span></p> })}
-            {sheet.sections.into_iter().map(|section| view! {
-                <section class="st-fs-sec" id=section.id.clone() aria-label=section.title.clone()>
-                    <h2 class="st-sech">
-                        <span>{section.title.clone()}</span>
-                        {section.now.then(|| view! { <span class="st-now">{t.study.now}</span> })}
-                        {section.when.clone().map(|when| view! { <small>{when}</small> })}
-                        <span class="ln"></span>
-                        <small>{section.stand.clone()}</small>
-                    </h2>
-                    <ul class="st-pcards">
-                        {section.rows.into_iter().map(|row| view! { <li>{plan_card(ctx, row, t)}</li> }).collect_view()}
-                    </ul>
-                </section>
+            <ul class="st-rsp-legend" aria-label=s.legend_marks>
+                {marks.into_iter().map(|(mark, word)| view! { <li>{mark_view(mark)}{word}</li> }).collect_view()}
+            </ul>
+            {sheet.sections.into_iter().map(|section| {
+                let id = section.id.clone();
+                view! {
+                    <section class="st-rsp-sec" class:now=section.now id=section.id.clone() aria-label=section.title.clone()>
+                        <button type="button" class="st-rsp-head" aria-haspopup="dialog" title=v.jump on:click=move |_| asked.set(Some(id.clone()))>
+                            <span class="st-rsp-h1">
+                                <b>{section.title.clone()}</b>
+                                {section.now.then(|| view! { <span class="st-now">{s.now}</span> })}
+                                <span class="st-rsp-w">{section.when.clone().map(|when| view! { <small>{when}</small> })}<Icon name="chevrons-up-down"/></span>
+                            </span>
+                            <span class="st-rsp-h2">{bar_view(&section.held, section.sum)}<small>{section.figure.clone()}</small></span>
+                        </button>
+                        <ul class="st-rsp-rows">
+                            {rows_view(ctx, section.rows, &sums, t)}
+                        </ul>
+                    </section>
+                }
             }).collect_view()}
             <p class="hint st-rsp-source"><Icon name="file-check-2"/><a href=t.path(&sheet.source)>{v.plan_source}</a></p>
+            <Modal open=Signal::derive(move || asked.with(Option::is_some)) on_close=close size=ModalSize::S sheet=Signal::derive(|| SheetWay::Menu) class="st-rsp-jumps" labelled_by="st-rsp-jumps-title">
+                <ModalHead id="st-rsp-jumps-title" title=v.jump_title sub=Some(v.jump_hint.to_string()) on_close=close/>
+                <div class="st-dlg-body">
+                    <ul class="st-rsp-jump">
+                        {jumps.iter().map(|section| {
+                            let id = section.id.clone();
+                            let here = id.clone();
+                            view! {
+                                <li>
+                                    <a
+                                        href=format!("#{id}")
+                                        class:here=move || asked.with(|asked| asked.as_deref() == Some(here.as_str()))
+                                        on:click=move |ev: leptos::ev::MouseEvent| {
+                                            ev.prevent_default();
+                                            asked.set(None);
+                                            jump_to(id.clone());
+                                        }
+                                    >
+                                        <span class="st-rsp-jt">
+                                            <b>{section.title.clone()}{section.now.then(|| view! { <span class="st-now">{s.now}</span> })}</b>
+                                            {section.when.clone().map(|when| view! { <small>{when}</small> })}
+                                        </span>
+                                        <span class="st-rsp-jf"><small>{section.figure.clone()}</small>{bar_view(&section.held, section.sum)}</span>
+                                    </a>
+                                </li>
+                            }
+                        }).collect_view()}
+                    </ul>
+                </div>
+            </Modal>
         </div>
     }
 }
 
-/// A row of the plan as a phone's card: its name, its number and area, its credits, where it
-/// stands, what it offers.
-fn plan_card(ctx: StudyCtx, row: Row, t: &'static Texts) -> AnyView {
-    let class = row.class();
-    let chip = row.stand.clone().map(|stand| {
-        let (icon, kind) = match row.state {
-            RowState::Passed(_) => (Some("check"), "ok"),
-            RowState::Again { .. } => (Some("repeat"), "warn"),
-            RowState::Failed(_) => (Some("triangle-alert"), "warn"),
-            _ => (None, ""),
-        };
-        view! { <span class=format!("st-chip {kind}")>{icon.map(|icon| view! { <Icon name=icon/> })}{stand}</span> }
-    });
-    let act = act_view(ctx, &row, t);
-    view! {
-        <div class=format!("st-pcard {class}") style=format!("--c: {}", row.tone)>
-            <div class="st-pcard-t">
-                {name_view(ctx, &row, t)}
-                <span class="st-meta">
-                    {row.module_id.clone().map(|id| view! { <span class="st-code mono">{id}</span> })}
-                    <span class="st-area"><span class="st-dot"></span>{row.area.clone()}</span>
-                </span>
-                {row.note.clone().map(|note| view! { <span class="st-pcard-note"><Icon name="arrow-right"/>{note}</span> })}
-                {(chip.is_some() || !matches!(row.act, Act::None)).then(|| view! { <span class="st-pcard-chips">{chip}{act}</span> })}
-            </div>
-            <span class="st-lp">{row.credits.clone()}<small>{t.study_views.col_credits}</small></span>
-        </div>
+/// A Fachsemester's rows, the line of a sum the regulation prints over the first of its choices.
+fn rows_view(ctx: StudyCtx, rows: Vec<Row>, sums: &[String], t: &'static Texts) -> impl IntoView {
+    let mut shown: Option<usize> = None;
+    let mut out = Vec::new();
+    for row in rows {
+        if let Some(sum) = row.sum.filter(|sum| shown != Some(*sum)) {
+            if let Some(line) = sums.get(sum) {
+                out.push(view! { <li class="st-rsp-grp">{line.clone()}</li> }.into_any());
+            }
+        }
+        shown = row.sum;
+        out.push(view! { <li>{plan_row(ctx, row, t)}</li> }.into_any());
     }
-    .into_any()
+    out
+}
+
+/// A Fachsemester's bar: what is passed, under way, planned, planned in another Fachsemester and
+/// taken again, of what the plan asks of it (app.css `.st-rsp-bar`).
+fn bar_view(held: &Held, sum: f64) -> impl IntoView {
+    let parts = held.parts();
+    view! {
+        <span class="st-rsp-bar" aria-hidden="true">
+            {parts.into_iter().filter(|(_, credits)| *credits > 0.0 && sum > 0.0).map(|(class, credits)| view! {
+                <i class=class style=format!("width: {:.2}%", (credits / sum * 100.0).min(100.0))></i>
+            }).collect_view()}
+        </span>
+    }
+}
+
+/// A row's mark (app.css `.st-glyph`).
+fn mark_view(mark: Mark) -> AnyView {
+    match mark {
+        Mark::Status(status) => view! { <Glyph status=Signal::stored(status)/> }.into_any(),
+        Mark::Again => view! { <span class="st-glyph again" aria-hidden="true"><Icon name="repeat"/></span> }.into_any(),
+        Mark::Open => view! { <OpenGlyph/> }.into_any(),
+    }
+}
+
+/// The word of a row's mark, for screen readers.
+fn mark_word(mark: Mark, t: &Texts) -> &'static str {
+    let s = &t.study;
+    match mark {
+        Mark::Status(status) => status.word(t),
+        Mark::Again => t.study_views.legend_again,
+        Mark::Open => s.status_open,
+    }
+}
+
+/// A row of the plan on a phone: its mark, its name with the line under it where something
+/// differs, its credits. A module's opens the module as the sheet; a choice's leads to it in the
+/// Wahlpflicht, whose way back comes back here.
+fn plan_row(ctx: StudyCtx, row: Row, t: &'static Texts) -> AnyView {
+    let body = |row: &Row| {
+        view! {
+            {mark_view(row.mark)}
+            <span class="st-rsp-t">
+                <b>{row.short.clone()}</b>
+                <span class="visually-hidden">{format!(", {}", mark_word(row.mark, t))}</span>
+                {row.line.clone().map(|line| view! { <small class:warn=line.warn>{line.moved.then(|| view! { <Icon name="arrow-right"/> })}{line.text}</small> })}
+            </span>
+            <span class="st-lp">{row.credits.clone()}<small>{t.study_views.col_credits}</small></span>
+        }
+    };
+    let class = format!("st-rsp-row {}", row.class());
+    match (row.module_id.clone(), row.choice) {
+        (Some(id), _) => view! { <a class=class href=super::module_href(ctx, &id, t) data-noscroll="">{body(&row)}<span></span></a> }.into_any(),
+        (None, Some(at)) => {
+            let href = t.path(&StudyUrl::default().with_view(StudyView::Choices).with_choice(Some(at)).path());
+            view! { <a class=format!("{class} is-choice") href=href data-push="" on:click=move |_| ctx.choice_from_plan.set(true)>{body(&row)}<Icon name="chevron-right"/></a> }.into_any()
+        }
+        (None, None) => view! { <div class=class>{body(&row)}<span></span></div> }.into_any(),
+    }
+}
+
+/// Scrolls the page to a Fachsemester, its head at the top, once the list of them has closed.
+#[allow(unused_variables)]
+fn jump_to(id: String) {
+    #[cfg(feature = "csr")]
+    request_animation_frame(move || {
+        let Some(window) = web_sys::window() else { return };
+        let Some(section) = folia_design::stage::by_id(&id) else { return };
+        let reduced = window.match_media("(prefers-reduced-motion: reduce)").ok().flatten().is_some_and(|query| query.matches());
+        let options = web_sys::ScrollIntoViewOptions::new();
+        options.set_block(web_sys::ScrollLogicalPosition::Start);
+        options.set_behavior(if reduced { web_sys::ScrollBehavior::Instant } else { web_sys::ScrollBehavior::Smooth });
+        section.scroll_into_view_with_scroll_into_view_options(&options);
+    });
 }
