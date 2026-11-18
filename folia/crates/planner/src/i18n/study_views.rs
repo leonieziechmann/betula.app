@@ -68,18 +68,27 @@ pub struct Texts {
     pub plan_into: fn(&str) -> String,
     /// „„Theoretische Informatik“ ins WiSe 2026/27 eingeplant".
     pub planned_note: fn(&str, &str) -> String,
-    /// The Fachsemester on a phone: „jetzt", the line under the head („Bis zum 2. FS 52 von 60
-    /// LP bestanden"), a retake („Mathematik IT-1 wieder im WiSe 26/27"), a section's stand.
-    pub so_far: fn(&str, &str, &str) -> String,
-    pub retake_line: fn(&str, &str) -> String,
-    pub retake_open: fn(&str) -> String,
+    /// The Fachsemester on a phone (folia/design/regelstudienplan, concept A): the title of
+    /// several the plan names together („5. und 6. Fachsemester"); what a head says of its
+    /// Fachsemester („32 von 32 LP bestanden" once it is over, else „24 von 30 LP eingeplant");
+    /// the title of a head, what lists the Fachsemester to jump to, and its line.
+    pub term_span: fn(u8, u8) -> String,
     pub section_passed: fn(&str, &str) -> String,
     pub section_planned: fn(&str, &str) -> String,
-    pub section_plain: fn(&str) -> String,
+    pub jump: &'static str,
+    pub jump_title: &'static str,
+    pub jump_hint: &'static str,
+    /// The line under a row's name on a phone: where the student has it („bei dir im WiSe
+    /// 27/28"), a retake („nicht bestanden · wieder im SoSe 27"); the mark of a retake in the
+    /// line of the marks („wiederholt").
+    pub moved_note: fn(&str) -> String,
+    pub again_note: fn(&str) -> String,
+    pub legend_again: &'static str,
+    /// The line over the choices the regulation sums over: „Komplexe des Fachstudiums · zusammen
+    /// 44 LP".
+    pub group_line: fn(&str, &str) -> String,
     /// The program's own page of the plan, where it comes from.
     pub plan_source: &'static str,
-    /// „Fachsemester": the strip of a phone's sections, for screen readers.
-    pub fs_strip: &'static str,
 
     // The Wahlpflicht.
     /// „Noch 72 LP zu wählen".
@@ -199,14 +208,21 @@ pub const DE: Texts = Texts {
     choose: "Wählen",
     plan_into: |semester| format!("Ins {semester} einplanen"),
     planned_note: |name, semester| format!("„{name}“ ins {semester} eingeplant"),
-    so_far: |span, passed, all| format!("{span}: {passed} von {all}\u{a0}LP bestanden"),
-    retake_line: |name, semester| format!("{name} wieder im {semester}"),
-    retake_open: |name| format!("{name} noch nicht wieder eingeplant"),
-    section_passed: |passed, all| format!("{passed} von {all} bestanden"),
-    section_planned: |planned, all| format!("{planned} von {all} geplant"),
-    section_plain: |all| format!("{all}\u{a0}LP"),
+    term_span: |from, to| match to.saturating_sub(from) {
+        0 => format!("{from}. Fachsemester"),
+        1 => format!("{from}. und {to}. Fachsemester"),
+        _ => format!("{from}.–{to}. Fachsemester"),
+    },
+    section_passed: |passed, all| format!("{passed} von {all}\u{a0}LP bestanden"),
+    section_planned: |planned, all| format!("{planned} von {all}\u{a0}LP eingeplant"),
+    jump: "Zu einem anderen Fachsemester",
+    jump_title: "Fachsemester",
+    jump_hint: "Ein Tippen springt hin.",
+    moved_note: |semester| format!("bei dir im {semester}"),
+    again_note: |semester| format!("nicht bestanden · wieder im {semester}"),
+    legend_again: "wiederholt",
+    group_line: |label, credits| format!("{label} · zusammen {credits}\u{a0}LP"),
     plan_source: "Der Plan beim Studiengang",
-    fs_strip: "Fachsemester",
 
     choices_lead: |credits| format!("Noch {credits}\u{a0}LP zu wählen"),
     choices_done_lead: "Alles gewählt. Tauschen kannst du trotzdem.",
@@ -304,14 +320,21 @@ pub const EN: Texts = Texts {
     choose: "Choose",
     plan_into: |semester| format!("Plan into {semester}"),
     planned_note: |name, semester| format!("\u{201c}{name}\u{201d} planned into {semester}"),
-    so_far: |span, passed, all| format!("{span}: {passed} of {all}\u{a0}CP passed"),
-    retake_line: |name, semester| format!("{name} again in {semester}"),
-    retake_open: |name| format!("{name} not planned again yet"),
-    section_passed: |passed, all| format!("{passed} of {all} passed"),
-    section_planned: |planned, all| format!("{planned} of {all} planned"),
-    section_plain: |all| format!("{all}\u{a0}CP"),
+    term_span: |from, to| match to.saturating_sub(from) {
+        0 => format!("Semester {from}"),
+        1 => format!("Semesters {from} and {to}"),
+        _ => format!("Semesters {from}–{to}"),
+    },
+    section_passed: |passed, all| format!("{passed} of {all}\u{a0}CP passed"),
+    section_planned: |planned, all| format!("{planned} of {all}\u{a0}CP planned"),
+    jump: "To another semester",
+    jump_title: "Semesters",
+    jump_hint: "Tap one to go there.",
+    moved_note: |semester| format!("yours in {semester}"),
+    again_note: |semester| format!("not passed · again in {semester}"),
+    legend_again: "retaken",
+    group_line: |label, credits| format!("{label} · {credits}\u{a0}CP together"),
     plan_source: "The plan on the programme's page",
-    fs_strip: "Semesters",
 
     choices_lead: |credits| format!("{credits}\u{a0}CP left to choose"),
     choices_done_lead: "All chosen. You can still swap.",
