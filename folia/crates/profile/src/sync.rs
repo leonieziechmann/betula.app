@@ -28,7 +28,7 @@
 
 use leptos::prelude::*;
 
-use folia_design::modal::{Modal, ModalHead, ModalSize};
+use folia_design::modal::{Modal, ModalHead, ModalSize, Sheet};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanModulesAsk;
@@ -37,7 +37,7 @@ use folia_routes::url;
 use folia_stores::profiles::{Profiles, FIRST};
 use folia_stores::sync::{Conflict, Pairing, Problem, Request, State, Sync};
 use folia_widgets::syncdone::{ways, ConnectProgress, Connected};
-use folia_widgets::syncpair::{copy, now_ms, PairLink, COPIED_MS};
+use folia_widgets::syncpair::{copy, now_ms, PairLink, PairWait, COPIED_MS};
 
 pub use folia_widgets::syncpair::problem_text;
 
@@ -477,7 +477,7 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
             </div>
         }
         .into_any(),
-        Step::Starting | Step::Pair(None) => view! { <p class="pf-sync-wait" role="status">{if matches!(step.get_untracked(), Step::Starting) { s.starting } else { s.pairing }}</p> }.into_any(),
+        Step::Starting | Step::Pair(None) => view! { <PairWait said=if matches!(step.get_untracked(), Step::Starting) { s.starting } else { s.pairing }/> }.into_any(),
         Step::Pair(Some(Ok(pairing))) => view! { <PairLink pairing again=Callback::new(move |()| pair())/> }.into_any(),
         Step::Pair(Some(Err(problem))) => view! {
             <p class="action note-action pf-refused" role="status">
@@ -542,7 +542,9 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
         _ => None,
     };
     view! {
-        <Modal open=Signal::derive(move || direction.get().is_some()) on_close=close size=ModalSize::M class="pf-connect-dlg" labelled_by=DIALOG_TITLE_ID>
+        // On a phone all up at once, the code large and „Link kopieren" at the screen's foot (owner,
+        // 2026-11-18: „Der modal soll sich gleich maximal öffnen").
+        <Modal open=Signal::derive(move || direction.get().is_some()) on_close=close size=ModalSize::M sheet=Sheet::Full class="pf-connect-dlg" labelled_by=DIALOG_TITLE_ID>
             <ModalHead id=DIALOG_TITLE_ID title=s.pair on_close=close/>
             <div class="st-dlg-body pf-connect-body">{ways}{body}</div>
             {foot}

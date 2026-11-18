@@ -8175,7 +8175,8 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 /* „Gerät verbinden": the dialog's body; a device that came while it was open. */
 .pf-connect-body, .pf-sync-explain { align-content: start; }
 .pf-connect-body { display: grid; gap: 14px; }
-/* On a wide screen as high as what it says; a phone's sheet comes half up as every such dialog. */
+/* On a wide screen as high as what it says; on a phone all up at once (`Sheet::Full`; owner,
+   2026-11-18: „Der modal soll sich gleich maximal öffnen"). */
 @media (min-width: 901px) {
   .st-dialog.m.pf-connect-dlg { width: min(520px, calc(100vw - 48px)); height: fit-content; }
 }
@@ -8207,6 +8208,63 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-pair-actions, .pf-sync-code > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .pf-pair-actions .mini, .pf-sync-code .mini { display: inline-flex; align-items: center; gap: 6px; }
 .pf-pair-actions .icon, .pf-sync-code .icon { width: 14px; height: 14px; }
+/* The link for the next device as folia_widgets::syncpair shows it (`.pf-link`; owner, 2026-11-18:
+   „Bitte ordne das und mach visuelle Hierarchie"): the code first and largest, how long it still
+   opens under it as a chip (amber from „Noch 1 Minute"); what to do, then smaller that it opens once;
+   the link on one line, all of it in the page; „Teilen" and „Link kopieren" under it. In a card (the
+   setup's last step) the code beside the text, „Link kopieren" first; in the dialog „Gerät
+   verbinden" one column in the middle with no box of its own, on a phone the buttons bars across
+   the sheet's foot, „Teilen" over „Link kopieren" (owner, the same day: „link kopieren unten als
+   breiten balken und der teilen button mit dem betula üblichen icon darüber"). */
+.pf-link { gap: 16px 20px; }
+.pf-link-code { flex: none; display: grid; justify-items: center; gap: 10px; }
+.pf-link .pf-qr { box-shadow: 0 0 0 1px var(--line-strong), 0 10px 26px -14px rgba(0, 0, 0, .45); }
+.pf-link-left { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 4px 11px 4px 8px; border-radius: 999px; background: var(--panel-3); color: var(--text-2); font-size: 12.5px; font-weight: 580; line-height: 1.3; font-variant-numeric: tabular-nums; transition: background .2s, color .2s; }
+.pf-link-left .icon { flex: none; width: 14px; height: 14px; }
+.pf-link-left[data-low] { background: var(--warn-soft); color: var(--warn); }
+.pf-link .pf-pair-text { gap: 10px; align-content: start; }
+.pf-link .pf-pair-text p { margin: 0; }
+.pf-link-how { color: var(--text); font-size: 14.5px; font-weight: 560; line-height: 1.45; text-wrap: pretty; }
+.pf-link-once, .pf-link-hint { color: var(--text-2); font-size: 13px; line-height: 1.45; text-wrap: pretty; }
+.pf-link-once .icon { display: inline-block; width: 13px; height: 13px; margin-right: 6px; vertical-align: -2px; color: var(--text-3); }
+.pf-link .pf-pair-link { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 42px; margin-top: 2px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); }
+.pf-link .pf-pair-link .icon { flex: none; width: 15px; height: 15px; }
+.pf-link .pf-pair-link code { flex: 1 1 auto; min-width: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: all; }
+.pf-link .pf-pair-actions { gap: 8px; margin-top: 4px; }
+.pf-link .pf-pair-actions .icon { width: 17px; height: 17px; }
+.pf-link .pf-link-copy { order: -1; }
+/* Gone (owner, 2026-11-18: „wenn das Ding dann abgelaufen ist möchte ich noch einen retry knopf"):
+   the old code faded on its tile, the round sign to renew it on top, which a tap renews as
+   „Neuer Link" does. While a link is made a blank tile stands in the code's place. */
+.pf-link-veil { position: relative; display: block; padding: 0; border: 0; border-radius: 16px; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.pf-link-veil .pf-qr path { opacity: .14; }
+.pf-link-renew { position: absolute; left: 50%; top: 50%; display: grid; place-items: center; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .6); transition: transform .15s var(--ease), filter .15s; }
+.pf-link-renew .icon { width: 26px; height: 26px; stroke-width: 2.2; }
+.pf-link-veil:hover .pf-link-renew { filter: brightness(1.08); transform: scale(1.05); }
+.pf-link-veil:active .pf-link-renew { transform: scale(.94); }
+.pf-link .pf-qr.pf-link-blank { background: var(--sk); box-shadow: none; }
+.pf-link[aria-busy="true"] .pf-link-how { color: var(--text-2); font-weight: 500; }
+.pf-connect-body .pf-link { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 20px; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+.pf-connect-body .pf-link-code { padding-top: 6px; }
+.pf-connect-body .pf-link .pf-qr { width: 216px; height: 216px; border-radius: 16px; }
+.pf-connect-body .pf-link .pf-pair-text { flex: none; justify-items: center; text-align: center; }
+.pf-connect-body :is(.pf-link-how, .pf-link-once) { max-width: 40ch; text-wrap: balance; }
+.pf-connect-body .pf-link-how { font-size: 15px; }
+.pf-connect-body .pf-link .pf-pair-link { justify-self: stretch; text-align: left; }
+.pf-connect-body .pf-link .pf-pair-actions { justify-content: center; margin-top: 8px; }
+.pf-connect-body .pf-link .pf-link-copy { order: 0; }
+@media (max-width: 900px) {
+  .pf-connect-body:has(> .pf-link) { display: flex; flex-direction: column; padding-bottom: 0; }
+  .pf-connect-body > .pf-link { flex: 1 0 auto; gap: 18px; }
+  .pf-connect-body .pf-link .pf-pair-text { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; }
+  .pf-connect-body .pf-link .pf-pair-link { align-self: stretch; }
+  .pf-connect-body .pf-link .pf-qr { width: min(248px, 66vw, 40dvh); height: min(248px, 66vw, 40dvh); }
+  /* The bars stay at the foot where a small screen scrolls what is above them, which fades out
+     under them. */
+  .pf-connect-body .pf-link .pf-pair-actions { position: sticky; bottom: 0; z-index: 1; align-self: stretch; flex-direction: column; flex-wrap: nowrap; gap: 10px; margin-top: auto; padding: 12px 0 max(24px, calc(14px + env(safe-area-inset-bottom))); background: var(--panel); }
+  .pf-connect-body .pf-link .pf-pair-actions::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 18px; background: linear-gradient(to top, var(--panel), transparent); pointer-events: none; }
+  .pf-connect-body .pf-link .pf-pair-actions > :is(.btn, .mini) { width: 100%; min-height: 50px; font-size: 15.5px; }
+}
 .pf-sync-code { margin: 12px 0 0; line-height: 1.5; }
 .pf-code code { display: inline-block; padding: 6px 10px; border-radius: var(--r-s); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-size: 15px; font-weight: 600; letter-spacing: .06em; overflow-wrap: anywhere; user-select: all; }
 .pf-sync-conflicts, .pf-sync-other { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }

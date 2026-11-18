@@ -1356,7 +1356,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       half up the buttons at the screen's foot hid), „Studiengang wechseln" (a form with a search
       too: half up its Fachsemester stood behind its buttons, and what it holds changes as it is
       filled in, which a sheet that fits would follow up and down), a dialog of the size „l" (a
-      list to choose from).
+      list to choose from), „Gerät verbinden" (its QR code large, „Link kopieren" at the screen's
+      foot; owner, 2026-11-18: „Der modal soll sich gleich maximal öffnen").
     - **`auto`**, for what changes (owner, the same day: „Ja und jetzt mach mal noch ein Auto
       Modus, der zwischen fit und Half entschiedet für dynamischen content"): as tall as what it
       holds, up to the whole height; it fits while that is at most 70 % of the screen and stands as
@@ -6224,10 +6225,18 @@ switched on; R20 has the exception.
   random ids; never what is in them; deleted after 13 months untouched or with „Sync beenden“) and
   that a recovery code is offered afterwards, not asked for (without it the copy on the server is
   gone when every device is), then „Einschalten und Code zeigen“ or „Abbrechen“; then, as a synced
-  profile shows at once, the QR code on a light tile of its own, readable by a camera in either
-  theme (`folia_profile::qr` with `qrcodegen`), the link with „Link kopieren“ and „Teilen“ where the
-  system can (`navigator.share`), how many minutes it still opens (ten in all, once; gone, „Neuer
-  Link“), and once another device has come while it is open, that it has. **The other way**
+  profile shows at once, the link for the next device in order of weight (owner, 2026-11-18:
+  „Bitte ordne das und mach visuelle Hierarchie“): the QR code large in the middle on a light tile
+  of its own, readable by a camera in either theme (`folia_profile::qr` with `qrcodegen`), under it
+  how many minutes it still opens as a chip (ten in all, amber from „Noch 1 Minute“), what to do,
+  smaller that it opens once, the link on one line, „Teilen“ where the system can
+  (`navigator.share`) and „Link kopieren“; and once another device has come while it is open, that
+  it has. Gone, it stays in its place (owner, 2026-11-18: „wenn das Ding dann abgelaufen ist möchte
+  ich noch einen retry knopf“): the old code faded under a round sign to renew it, which a tap
+  renews, „Der Link ist abgelaufen.“, and „Neuer Link“ where „Link kopieren“ stood. While a link is
+  made (switched on a moment ago, or a new one) a blank tile stands where its code comes. On a phone the dialog is all up at once (`Sheet::Full`; owner, the same day: „Der modal
+  soll sich gleich maximal öffnen“), „Link kopieren“ a bar across the sheet's foot with „Teilen“
+  over it (`folia_widgets::syncpair`). **The other way**
   (folia/design/profil/konzepte.html, the second step; owner, 2026-11-08: „Ok dann mach step 2 mit
   dem scanner“): the dialog's head chooses between „„Lena“ aufs Handy“ and „Profil vom Handy holen“
   (`Direction`, above what it changes). „Profil vom Handy holen“ (`GetPart`) shows a code the phone

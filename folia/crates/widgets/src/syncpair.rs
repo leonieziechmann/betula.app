@@ -88,9 +88,17 @@ fn minutes_left(until: u64, now: u64) -> Option<u64> {
     (until > now).then(|| (until - now) / 60_000)
 }
 
-/// The link for the next device: its QR code, the link to copy, „Teilen" where the system can, how
-/// long it still opens; gone, „Neuer Link" (`again`). `close`, where there is one, puts it away
-/// („Schließen").
+/// The link for the next device: its QR code, how long it still opens under it, what to do and
+/// that it opens once, the link on one line, „Teilen" where the system can and „Link kopieren";
+/// gone, the code faded under the sign to renew it and „Neuer Link" (`again`). `close`, where there
+/// is one, puts it away („Schließen").
+///
+/// In order of weight (owner, 2026-11-18: „Bitte ordne das und mach visuelle Hierarchie"): the code
+/// first and largest, then what to do, the rest smaller. In the dialog „Gerät verbinden" the code
+/// stands in the middle without a box of its own, and on a phone „Link kopieren" is a bar across the
+/// sheet's foot with „Teilen" over it (owner, the same day: „link kopieren unten als breiten balken
+/// und der teilen button mit dem betula üblichen icon darüber"; app.css, „The link for the next
+/// device"). The link keeps all of itself in the page, shown on one line.
 #[component]
 pub fn PairLink(pairing: Pairing, again: Callback<()>, #[prop(optional)] close: Option<Callback<()>>) -> impl IntoView {
     let s = &i18n::t().syncpair;
@@ -115,12 +123,34 @@ pub fn PairLink(pairing: Pairing, again: Callback<()>, #[prop(optional)] close: 
     let close_button = move || close.map(|close| view! { <button class="mini hit" type="button" on:click=move |_| close.run(())>{s.close}</button> });
     move || {
         if left.get().is_none() {
+            // Gone, in the same place (owner, 2026-11-18: „wenn das Ding dann abgelaufen ist möchte
+            // ich noch einen retry knopf"): the old code faded under the sign to renew it, which a
+            // tap renews as the button does; that it is gone; „Neuer Link" where „Link kopieren"
+            // stood. The faded code is the pointer's alone: the keys reach the button.
+            let faded = code.clone().map(|(path, width)| view! {
+                <svg class="pf-qr" viewBox=format!("0 0 {width} {width}") aria-hidden="true" shape-rendering="crispEdges">
+                    <path d=path/>
+                </svg>
+            });
             return view! {
-                <p class="action note-action pf-refused" role="status">
-                    <Icon name="clock-3"/><span>{s.pair_gone}</span>
-                    <button class="mini primary hit" type="button" on:click=move |_| again.run(())>{s.pair_new}</button>
-                    {close_button()}
-                </p>
+                <div class="pf-pair pf-link" data-gone="">
+                    <div class="pf-link-code">
+                        <button class="pf-link-veil" type="button" tabindex="-1" aria-hidden="true" on:click=move |_| again.run(())>
+                            {faded}
+                            <span class="pf-link-renew"><Icon name="refresh-cw"/></span>
+                        </button>
+                    </div>
+                    <div class="pf-pair-text">
+                        <p class="pf-link-how" role="status">{s.pair_gone}</p>
+                        <p class="pf-link-hint">{s.pair_gone_hint}</p>
+                        <div class="pf-pair-actions">
+                            <button class="btn primary pf-link-new" type="button" on:click=move |_| again.run(())>
+                                <Icon name="refresh-cw"/><span>{s.pair_new}</span>
+                            </button>
+                            {close_button()}
+                        </div>
+                    </div>
+                </div>
             }
             .into_any();
         }
@@ -131,31 +161,48 @@ pub fn PairLink(pairing: Pairing, again: Callback<()>, #[prop(optional)] close: 
             </svg>
         });
         view! {
-            <div class="pf-pair">
-                {qr}
+            <div class="pf-pair pf-link">
+                <div class="pf-link-code">
+                    {qr}
+                    <p class="pf-link-left" role="status" data-low=move || left.get().is_some_and(|minutes| minutes < 2).then_some("")>
+                        <Icon name="clock-3"/><span>{move || left.get().map(s.pair_left)}</span>
+                    </p>
+                </div>
                 <div class="pf-pair-text">
-                    <p>{s.pair_how}</p>
-                    <p class="pf-pair-link"><code>{shown.clone()}</code></p>
-                    <p class="pf-pair-left" role="status">{move || left.get().map(s.pair_left)}</p>
+                    <p class="pf-link-how">{s.pair_how}</p>
+                    <p class="pf-link-once"><Icon name="lock"/><span>{s.pair_once}</span></p>
+                    <p class="pf-pair-link"><Icon name="link"/><code translate="no">{shown.clone()}</code></p>
                     <div class="pf-pair-actions">
-                        <button class="mini primary hit" type="button" on:click=copy_it>
-                            <Icon name=if copied.get() { "check" } else { "copy" }/>
-                            <span>{move || if copied.get() { s.copied } else { s.copy_link }}</span>
-                        </button>
                         {sharing.then(|| {
                             let shared = shared.clone();
                             view! {
-                                <button class="mini hit" type="button" on:click=move |_| share(&shared, s.share_title)>
+                                <button class="btn secondary pf-link-share" type="button" on:click=move |_| share(&shared, s.share_title)>
                                     <Icon name="share-2"/><span>{s.share}</span>
                                 </button>
                             }
                         })}
+                        <button class="btn primary pf-link-copy" type="button" on:click=copy_it>
+                            <Icon name=if copied.get() { "check" } else { "copy" }/>
+                            <span>{move || if copied.get() { s.copied } else { s.copy_link }}</span>
+                        </button>
                         {close_button()}
                     </div>
                 </div>
             </div>
         }
         .into_any()
+    }
+}
+
+/// While a link is made (`said`: what happens): the link's frame with a blank where its code comes,
+/// so that the code, a new one after „Neuer Link" too, comes in its place and nothing jumps.
+#[component]
+pub fn PairWait(said: &'static str) -> impl IntoView {
+    view! {
+        <div class="pf-pair pf-link" aria-busy="true">
+            <div class="pf-link-code"><span class="pf-qr pf-link-blank sk-sweep" aria-hidden="true"></span></div>
+            <div class="pf-pair-text"><p class="pf-link-how" role="status">{said}</p></div>
+        </div>
     }
 }
 
