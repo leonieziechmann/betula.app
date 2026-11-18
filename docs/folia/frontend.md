@@ -1151,7 +1151,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   `data-list`); before the app runs none does, and the server's page keeps the browser's menu (R9).
   `node folia/e2e/held.mjs` checks every tab (§4).
 - **The tab of the area one is in, tapped again, opens the area as it starts, at its top**
-  (Folia 1.103.0; owner, 2026-11-18: „wenn man schon auf einen tab ist und dann nochmal darauf
+  (Folia 1.104.0; owner, 2026-11-18: „wenn man schon auf einen tab ist und dann nochmal darauf
   klickt, dass sich dann die standard Ansicht davon öffnet. Also bei mein Studium zum Beispiel die
   mein Studium page. Beim Modulkatalog für Standard Filter von Studiengang, bei der landing Page
   etc. Und ganz noch oben gescrollt"; `chrome::tab_home`, `NavItems`, `tabs::TabAgain`). Where the
@@ -4467,7 +4467,7 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   Folia 1.100.1) —; what is
   left over ahead is no way Forward (`nav::on_popstate` steps back out of it). The tab tapped again
   makes its stack the page where its area starts, Start under it (`nav::again`, since Folia
-  1.103.0; until then it led back to its first page as it was left). A module's own page opened out of a tab that shows its modules in place stays in that tab
+  1.104.0; until then it led back to its first page as it was left). A module's own page opened out of a tab that shows its modules in place stays in that tab
   (`nav::tab_of_page`), and so does the profile page, a page of a while (`nav::passing`; „Profiles“
   below): a step on top of the tab, which its tab tapped leaves for the page under it, and which a
   tab left from it does not keep in its stack.
@@ -8022,7 +8022,7 @@ page once it runs; where the app does not start (its bundle fails) a swipe loads
 cd e2e && node again.mjs
 ```
 
-drives the tab of the area one is in, tapped again (§ „Look and interaction", Folia 1.103.0), with
+drives the tab of the area one is in, tapped again (§ „Look and interaction", Folia 1.104.0), with
 „Mein Studiengang" Informatik B.Sc. On a wide screen: the catalog filtered and far down, „Module"
 leads to the catalog of „Mein Studiengang" at its top, its link says so, and from another area it
 still leads where the catalog was left; there far down (`page=`), „Module" glides it to the top
