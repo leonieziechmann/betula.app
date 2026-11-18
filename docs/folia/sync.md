@@ -190,7 +190,7 @@ of „Alle") or one collection (its menu's „Teilen …"):
 | following | „Als Liste folgen": a line `f` of the collections' store (`collections::Followed`, records `C\|f\|<id>`), a list of its own under „Geteilt mit dir" beside the collections, under a number of theirs (`?collection=<n>`), named as the sharer names it until it is renamed; the page lists its modules with the sharer's collections and notes, the rows' marks are the visitor's, „Alle übernehmen" takes everything (`Shelf::adopt`). Watched and fetched as a calendar's part; a part that is gone leaves the list with its last state, „Behalten" and „Löschen" |
 
 Both dialogs answer the keyboard as the rest of Betula does (owner, 2026-11-18: „das Verhalten mit
-einer Tastatur richtig buggy"; Folia 1.105.1): in an option group („Wie", „Wer den Link öffnen
+einer Tastatur richtig buggy"; Folia 1.105.2): in an option group („Wie", „Wer den Link öffnen
 kann", the Stundenplan's „Mit Personen" and „In Kalender-App") ← and → choose, Pos1 and Ende the
 first and the last, and the option chosen is the group's one stop of Tab (`folia_design::nav::
 radio_key`, as enhance.js's `radioKey` in a mode); Enter in „Für wen" makes the link as the
