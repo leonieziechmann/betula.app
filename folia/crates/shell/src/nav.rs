@@ -42,7 +42,7 @@
 //! - **A page lent to the calendar** (`data-lend`, `lend`; owner, 2026-11-18: „wenn man vom Kalender
 //!   auf Module planan in geht, dann kommt man mit back nicht wieder zum Kalender zurück. Mach das
 //!   so, dass man so lange man da nichts weiteres in die back history macht, dass dann der
-//!   Terminkalender das back ist."; Folia 1.105.4): the one exception to a link to a page of another
+//!   Terminkalender das back ist."; Folia 1.105.5): the one exception to a link to a page of another
 //!   tab. „Module planen in „Mein Studium““ of the Stundenplan is a step on top of the calendar's
 //!   stack, as a page of a while is, but the page is the tab „Studium"'s, whose tab the bar shows
 //!   as current. Back and the arrow lead to the calendar as it was left — on Android the first Back

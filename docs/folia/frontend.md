@@ -1197,7 +1197,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the catalog as it starts, and the tab of the stack leads back to its first page. „Mein
     Studium" come to by the calendar's way (`/study?plan=1`, lent to the calendar's stack, § „Back")
     is the tab „Studium"'s: tapped again it opens at `/study` with Start under it, which ends the
-    loan, and the row goes to the overview as the address leaves `plan=1` (since Folia 1.105.4;
+    loan, and the row goes to the overview as the address leaves `plan=1` (since Folia 1.105.5;
     before, the tab tapped again left that address and the row's semester as they were).
   `node folia/e2e/again.mjs` checks it (§4).
 - **The program an area has chosen is that area's, and only for the session** (owner, 2026-10-15:
@@ -4590,7 +4590,7 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   `/study?plan=1`, marked `data-lend`) lends the page to the calendar's stack (owner, 2026-11-18:
   „wenn man vom Kalender auf Module planan in geht, dann kommt man mit back nicht wieder zum
   Kalender zurück. Mach das so, dass man so lange man da nichts weiteres in die back history macht,
-  dass dann der Terminkalender das back ist."; Folia 1.105.4). The page is a step on top of the
+  dass dann der Terminkalender das back ist."; Folia 1.105.5). The page is a step on top of the
   calendar's stack, as a page of a while is, but it is the tab „Studium"'s, which the bar shows as
   current. Back and the arrow lead to the calendar as it was left (its address with `edit=1` and
   the week, its stage scrolled as it was) — on Android the first Back too: the semester the link
@@ -8282,7 +8282,7 @@ tab, a change of tabs writing the history in place, Forward not leading into wha
 the tab left coming back as it was, Back up through the tab to Start, the tab tapped again leading
 to „Mein Studium" right above Start, a module's program changing the tab with „Mein Studium" and „Alle Studiengänge"
 under it, Start's tab leading to Start after the profile lay above it. The calendar's „Module
-planen in „Mein Studium““, a page lent (Folia 1.105.4): on top of the calendar's stack with
+planen in „Mein Studium““, a page lent (Folia 1.105.5): on top of the calendar's stack with
 „Studium" current; one Back and the arrow lead to the calendar as it was left (`edit=1`), past the
 semester the link opened, and Forward brings the page again; the semester's menu, a semester
 turned to by › and the workbench's sheet ended by a tap beside it come first, then the calendar;
