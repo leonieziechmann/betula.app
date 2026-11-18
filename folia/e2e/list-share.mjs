@@ -101,7 +101,7 @@ check((await max.page.locator(".sh-dialog[open] h2").first().textContent()).incl
 const opts = max.page.locator(".sh-dialog[open] .sh-opt");
 check(await max.page.locator(".sh-dialog[open] .sh-opt[aria-checked=true]", { hasText: "Fester Stand" }).count() === 1, "Max: a private profile does not open with „Fester Stand“");
 check(await max.page.locator(".sh-dialog[open] .sh-up").count() >= 1, "Max: no offer of Betula Sync under the fixed copy");
-// The options by the keyboard (Folia 1.102.4): ← chooses the one before, which takes the focus, and
+// The options by the keyboard (Folia 1.103.1): ← chooses the one before, which takes the focus, and
 // the option chosen is its group's one stop of Tab.
 const chosen = (text) => max.page.evaluate((text) => document.activeElement?.matches(".sh-dialog[open] .sh-opt[aria-checked=true]") && document.activeElement.textContent.includes(text), text);
 await opts.filter({ hasText: "Fester Stand" }).focus();

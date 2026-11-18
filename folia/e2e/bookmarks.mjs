@@ -284,7 +284,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // A list travels in the fragment of a link, which no browser sends anywhere: the fixed copy for
   // everybody of „Teilen …“ (with Betula Sync on the site too the choice a private profile opens
   // with). The other browser asks before it adds anything, and the answer takes the ids out of the
-  // address. The menu has no „Link für ein anderes Gerät“ any more (Folia 1.102.4: Betula Sync
+  // address. The menu has no „Link für ein anderes Gerät“ any more (Folia 1.103.1: Betula Sync
   // brings the list to one's own devices).
   const carried = await stored(page);
   await listMenu();
