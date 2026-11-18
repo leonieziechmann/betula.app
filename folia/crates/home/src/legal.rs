@@ -12,31 +12,52 @@
 //! The German text is the one that counts: every other language says at the top that it is a
 //! translation, with a link to the German page (`BINDING`).
 //!
-//! The privacy notice says what the software does, so it changes with it. Where each part of it
-//! comes from:
-//! - „Zugriffsprotokoll": the edge's access log (`deploy/stacks/edge.yml`, „privacy"), 7 days in
-//!   Loki (`deploy/config/monitoring/loki.yml`) and 7 days in the host journal, where Traefik logs
-//!   through the journald driver (`logging` in `edge.yml`, `deploy/vps/files/journald-betula.conf`);
-//!   the rate limit per address (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log
-//!   without addresses, 30 days (`access_log` in `folia/crates/server/src/main.rs`);
-//! - „Speicher im Browser": R20 (docs/folia/frontend.md) and the stores (`bookmarks`, `studyplan`,
-//!   `myprogram`, `profiles` and the profile page's backup file, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
-//!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `folia/crates/server/src/semantic.rs`);
+//! The privacy notice says what the software does, so it changes with it. Since 2026-11-18 it is
+//! built around what Betula is (owner: „so dass klar wird dass betula den Datenschutz respektiert
+//! und nur so viel daten erhebt wie unbedingt notwendig. Also wir reden nicht von konten, weil die
+//! gibt es ja nicht sondern von profilen und lokalen Daten"; until then it was the text from
+//! before Betula Sync, with Sync added to each part it touched): a profile is kept on the device,
+//! it leaves the device only where the student says so, and the server keeps what running the site
+//! takes. The parts in that order, and where each comes from:
+//! - „Profile und lokale Daten": R20 (docs/folia/frontend.md) and the stores (`bookmarks`,
+//!   `studyplan`, `myprogram`, `profiles` and the profile page's backup file, `tabs`, what the
+//!   finder compares in `pages/catalog`, `assets/enhance.js`, `assets/boot.js`, `assets/sw.js`; the
+//!   semantic search's model, `folia/crates/server/src/semantic.rs`); the shares and follows a
+//!   profile keeps (`folia_plans::shares`, `collections::ListShare`, `Followed`) and the browser's
+//!   key and state of Betula Sync (`folia_stores::sync`);
+//! - „Betula Sync": what Phloem keeps of a space (its sealed entries and snapshot, sizes and times,
+//!   the random ids of the space and its devices with their slots, the hash of the token, a parcel
+//!   for ten minutes; docs/phloem/protocol.md, `phloem/internal/store/migrations`), that it holds
+//!   no address beyond a connection and its hourly counts per address (`Limits` in
+//!   `phloem/internal/server/server.go`), the 395 days and „Sync beenden"; how a link carries the
+//!   key behind `#` (`folia/crates/profile/src/connect.rs`); where Sync is switched on (the profile
+//!   page, the setup, the dialogs „Teilen", a code answered: each says so first);
+//! - „Stundenplan und Merkliste teilen": the three ways of the dialog „Teilen"
+//!   (docs/folia/sync.md section 4) — what the code of a fixed link carries (`folia_calendar::share`,
+//!   the page's tags and its picture, `pages/studyplan/mod.rs`, `folia/crates/server/src/api.rs`;
+//!   the Merkliste's behind `#`, `bookmarks::share_fragment`), the parts and parcels at Phloem
+//!   (`LivePart`, `ListPart`; the 395 and the 30 days of what became of them), Folia's log without
+//!   the code (`access_log` in `folia/crates/server/src/main.rs`);
 //! - „Kalender-Abo": `folia_calendar::subscription` (what a code carries), `folia/crates/server/src/api.rs`,
-//!   the ways to subscribe in `pages/studyplan/export.rs`, what the file holds beyond the feed (the
-//!   notes at Termine, `folia_timetable::export`);
-//! - „Stundenplan teilen": `folia_calendar::share` (what a code carries), the page's tags and
-//!   its picture (`pages/studyplan/mod.rs`, `folia/crates/server/src/api.rs`), the link and the offer
-//!   (`pages/studyplan/share.rs`), Folia's log without the code (`access_log` in `folia/crates/server/src/main.rs`);
-//! - „Abgleich zwischen deinen Geräten (Betula Sync)": what Phloem keeps of a space (its sealed
-//!   entries and snapshot, sizes and times, the random ids of the space and its devices with their
-//!   slots, the hash of the token, a parcel for ten minutes; docs/phloem/protocol.md), that it holds
-//!   no address beyond a connection and its hourly count of spaces per address, the 395 days and
-//!   „Sync beenden"; the browser's key and state of it (`folia_stores::sync`), and how a link carries
-//!   the key behind `#` (`folia/crates/profile/src/connect.rs`);
+//!   the address that stays current (`folia/crates/server/src/parts.rs`, no line of the access log:
+//!   deploy/README.md section 15), what the file holds beyond the feed (the notes at Termine,
+//!   `folia_timetable::export`);
+//! - „Wo Betula läuft", „Zugriffsprotokoll": the edge's access log (`deploy/stacks/edge.yml`,
+//!   „privacy"), 7 days in Loki (`deploy/config/monitoring/loki.yml`) and 7 days in the host
+//!   journal, where Traefik logs through the journald driver (`logging` in `edge.yml`,
+//!   `deploy/vps/files/journald-betula.conf`); the rate limit per address
+//!   (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log without addresses, 30 days
+//!   (`access_log` in `folia/crates/server/src/main.rs`);
 //! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`), the only one;
 //! - „Namen von Lehrenden": `v_module_lecturer` (docs/radix/schema-v2.md), and how long Radix keeps what
 //!   it read (`--event-retention`, `--archive-grace`, docs/radix/operations.md).
+//!
+//! The notice speaks of profiles and local data, never of accounts, there being none (the test
+//! below holds it to that), and what it quotes of the app (a button, a dialog's choice) is what
+//! the app says there (`folia_app::quotes`).
+//!
+//! The parts' anchors are US English like every address (CLAUDE.md, „Addresses"); the German ones
+//! they had until 2026-11-18 (`Part::was`) still lead to them.
 
 use folia_routes::url;
 use leptos::prelude::*;
@@ -64,7 +85,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (9, 11, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (18, 11, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).
@@ -126,35 +147,38 @@ impl Legal {
     }
 }
 
-/// A section of a page: its anchor (the same in every language), its heading (also its entry
-/// under „Auf dieser Seite") and its text, both in the language of the texts handed in.
+/// A section of a page: its anchor (the same in every language, US English), the anchors it had
+/// before (`was`: each still leads to it), its heading (also its entry under „Auf dieser Seite")
+/// and its text, both in the language of the texts handed in.
 pub struct Part {
     pub id: &'static str,
+    pub was: &'static [&'static str],
     pub heading: fn(&Texts) -> &'static str,
     body: fn(&'static Texts) -> AnyView,
 }
 
 static IMPRINT: [Part; 3] = [
-    Part { id: "anschrift", heading: |t| t.operator.heading, body: imprint_address },
-    Part { id: "kontakt", heading: |t| t.contact.heading, body: imprint_contact },
-    Part { id: "hinweis", heading: |t| t.not_btu.heading, body: imprint_note },
+    Part { id: "address", was: &["anschrift"], heading: |t| t.operator.heading, body: imprint_address },
+    Part { id: "contact", was: &["kontakt"], heading: |t| t.contact.heading, body: imprint_contact },
+    Part { id: "notice", was: &["hinweis"], heading: |t| t.not_btu.heading, body: imprint_note },
 ];
 
-/// The parts of the privacy notice, in the order of the page.
+/// The parts of the privacy notice, in the order of the page: what stays on the device, what
+/// leaves it where the student says so, what the server keeps to run, and the rest.
 pub static PRIVACY: [Part; 13] = [
-    Part { id: "kurz", heading: |t| t.summary.heading, body: privacy_summary },
-    Part { id: "verantwortlich", heading: |t| t.controller.heading, body: privacy_controller },
-    Part { id: "server", heading: |t| t.hosting.heading, body: privacy_hosting },
-    Part { id: "protokoll", heading: |t| t.access_log.heading, body: privacy_access_log },
-    Part { id: "browser", heading: |t| t.browser.heading, body: privacy_browser },
-    Part { id: "kalender", heading: |t| t.calendar.heading, body: privacy_calendar },
-    Part { id: "teilen", heading: |t| t.share.heading, body: privacy_share },
-    Part { id: "abgleich", heading: |t| t.sync.heading, body: privacy_sync },
-    Part { id: "cookies", heading: |t| t.cookies.heading, body: privacy_cookies },
-    Part { id: "e-mail", heading: |t| t.email.heading, body: privacy_email },
-    Part { id: "lehrende", heading: |t| t.lecturers.heading, body: privacy_lecturers },
-    Part { id: "weitergabe", heading: |t| t.recipients.heading, body: privacy_recipients },
-    Part { id: "rechte", heading: |t| t.rights.heading, body: privacy_rights },
+    Part { id: "summary", was: &["kurz"], heading: |t| t.summary.heading, body: privacy_summary },
+    Part { id: "controller", was: &["verantwortlich"], heading: |t| t.controller.heading, body: privacy_controller },
+    Part { id: "local-data", was: &["browser"], heading: |t| t.local.heading, body: privacy_local },
+    Part { id: "sync", was: &["abgleich"], heading: |t| t.sync.heading, body: privacy_sync },
+    Part { id: "sharing", was: &["teilen"], heading: |t| t.share.heading, body: privacy_share },
+    Part { id: "calendar", was: &["kalender"], heading: |t| t.calendar.heading, body: privacy_calendar },
+    Part { id: "hosting", was: &["server"], heading: |t| t.hosting.heading, body: privacy_hosting },
+    Part { id: "access-log", was: &["protokoll"], heading: |t| t.access_log.heading, body: privacy_access_log },
+    Part { id: "cookies", was: &[], heading: |t| t.cookies.heading, body: privacy_cookies },
+    Part { id: "email", was: &["e-mail"], heading: |t| t.email.heading, body: privacy_email },
+    Part { id: "lecturers", was: &["lehrende"], heading: |t| t.lecturers.heading, body: privacy_lecturers },
+    Part { id: "disclosure", was: &["weitergabe"], heading: |t| t.recipients.heading, body: privacy_recipients },
+    Part { id: "rights", was: &["rechte"], heading: |t| t.rights.heading, body: privacy_rights },
 ];
 
 #[component]
@@ -219,8 +243,12 @@ fn article(page: Legal, t: &'static Texts) -> impl IntoView {
                 {translated}
             </header>
             {page.parts().iter().map(|part| view! {
-                <section class="legal-part" id=part.id aria-labelledby=format!("{}-titel", part.id)>
-                    <h2 id=format!("{}-titel", part.id)>{(part.heading)(t)}</h2>
+                <section class="legal-part" id=part.id aria-labelledby=format!("{}-title", part.id)>
+                    // The anchors the part had before: a link to one still stops at its heading.
+                    <h2 id=format!("{}-title", part.id)>
+                        {part.was.iter().map(|old| view! { <span class="legal-was" id=*old></span> }).collect_view()}
+                        {(part.heading)(t)}
+                    </h2>
                     {(part.body)(t)}
                 </section>
             }).collect_view()}
@@ -261,6 +289,16 @@ fn fact(label: &'static str, text: &'static str) -> impl IntoView {
     }
 }
 
+/// A fact that says it in several paragraphs.
+fn fact_of(label: &'static str, texts: &'static [&'static str]) -> impl IntoView {
+    view! {
+        <div>
+            <dt>{label}</dt>
+            <dd>{texts.iter().map(|text| view! { <p>{*text}</p> }).collect_view()}</dd>
+        </div>
+    }
+}
+
 // ---------------------------------------------------------------- Impressum
 
 fn imprint_address(t: &'static Texts) -> AnyView {
@@ -286,7 +324,12 @@ fn imprint_note(t: &'static Texts) -> AnyView {
 // ---------------------------------------------------------------- Datenschutz
 
 fn privacy_summary(t: &'static Texts) -> AnyView {
-    points(t.summary.texts).into_any()
+    let summary = &t.summary;
+    view! {
+        <p>{summary.intro}</p>
+        {points(summary.points)}
+    }
+    .into_any()
 }
 
 fn privacy_controller(t: &'static Texts) -> AnyView {
@@ -294,6 +337,75 @@ fn privacy_controller(t: &'static Texts) -> AnyView {
         <p>{t.controller.text}</p>
         {address()}
         <p>{t.email_label}{mail_link()}</p>
+    }
+    .into_any()
+}
+
+fn privacy_local(t: &'static Texts) -> AnyView {
+    let local = &t.local;
+    view! {
+        <p>{local.intro}</p>
+        {points(local.profile)}
+        <p>{local.beside_intro}</p>
+        {points(local.beside)}
+        {paragraphs(local.texts)}
+    }
+    .into_any()
+}
+
+fn privacy_sync(t: &'static Texts) -> AnyView {
+    let (facts, sync) = (&t.facts, &t.sync);
+    view! {
+        <p>{sync.intro}</p>
+        <dl class="legal-facts">
+            <div>
+                <dt>{facts.data}</dt>
+                <dd>
+                    {points(sync.data)}
+                    <p>{sync.not_read}</p>
+                </dd>
+            </div>
+            {fact(facts.pairing, sync.pairing)}
+            {fact(facts.course, sync.course)}
+            {fact(facts.logs, sync.logs)}
+            {fact(facts.legal_basis, sync.legal_basis)}
+            {fact(facts.retention, sync.retention)}
+            {fact(facts.ending, sync.ending)}
+        </dl>
+    }
+    .into_any()
+}
+
+fn privacy_share(t: &'static Texts) -> AnyView {
+    let (facts, share) = (&t.facts, &t.share);
+    view! {
+        <p>{share.intro}</p>
+        <dl class="legal-facts">
+            {fact_of(facts.fixed, share.fixed)}
+            {fact_of(facts.live, share.live)}
+            {fact(facts.once, share.once)}
+            {fact(facts.logs, share.logs)}
+            {fact(facts.legal_basis, share.legal_basis)}
+            {fact(facts.disclosure, share.disclosure)}
+            {fact(facts.ending, share.ending)}
+        </dl>
+    }
+    .into_any()
+}
+
+fn privacy_calendar(t: &'static Texts) -> AnyView {
+    let (facts, calendar) = (&t.facts, &t.calendar);
+    view! {
+        <p>{calendar.intro}</p>
+        <dl class="legal-facts">
+            {fact(facts.fixed, calendar.fixed)}
+            {fact(facts.live, calendar.live)}
+            {fact(facts.logs, calendar.logs)}
+            {fact(facts.legal_basis, calendar.legal_basis)}
+            {fact(facts.disclosure, calendar.disclosure)}
+            {fact(facts.ending, calendar.ending)}
+        </dl>
+        <p>{calendar.download}</p>
     }
     .into_any()
 }
@@ -319,69 +431,6 @@ fn privacy_access_log(t: &'static Texts) -> AnyView {
             {fact(facts.retention, log.retention)}
         </dl>
         <p>{log.app_log}</p>
-    }
-    .into_any()
-}
-
-fn privacy_browser(t: &'static Texts) -> AnyView {
-    let browser = &t.browser;
-    view! {
-        <p>{browser.intro}</p>
-        {points(browser.kept)}
-        {paragraphs(browser.texts)}
-    }
-    .into_any()
-}
-
-fn privacy_calendar(t: &'static Texts) -> AnyView {
-    let (facts, calendar) = (&t.facts, &t.calendar);
-    view! {
-        <p>{calendar.intro}</p>
-        <dl class="legal-facts">
-            {fact(facts.course, calendar.course)}
-            {fact(facts.logs, calendar.logs)}
-            {fact(facts.legal_basis, calendar.legal_basis)}
-            {fact(facts.disclosure, calendar.disclosure)}
-            {fact(facts.ending, calendar.ending)}
-        </dl>
-        <p>{calendar.download}</p>
-    }
-    .into_any()
-}
-
-fn privacy_share(t: &'static Texts) -> AnyView {
-    let (facts, share) = (&t.facts, &t.share);
-    view! {
-        <p>{share.intro}</p>
-        <dl class="legal-facts">
-            {fact(facts.course, share.course)}
-            {fact(facts.logs, share.logs)}
-            {fact(facts.legal_basis, share.legal_basis)}
-            {fact(facts.disclosure, share.disclosure)}
-            {fact(facts.ending, share.ending)}
-        </dl>
-    }
-    .into_any()
-}
-
-fn privacy_sync(t: &'static Texts) -> AnyView {
-    let (facts, sync) = (&t.facts, &t.sync);
-    view! {
-        <p>{sync.intro}</p>
-        <dl class="legal-facts">
-            <div>
-                <dt>{facts.data}</dt>
-                <dd>
-                    {points(sync.data)}
-                    <p>{sync.not_read}</p>
-                </dd>
-            </div>
-            {fact(facts.course, sync.course)}
-            {fact(facts.logs, sync.logs)}
-            {fact(facts.legal_basis, sync.legal_basis)}
-            {fact(facts.retention, sync.retention)}
-            {fact(facts.ending, sync.ending)}
-        </dl>
     }
     .into_any()
 }
@@ -427,7 +476,7 @@ fn privacy_rights(t: &'static Texts) -> AnyView {
     let rights = &t.rights;
     view! {
         <p>{rights.before}{mail_link()}{rights.after}</p>
-        <p>{rights.access_log}</p>
+        <p>{rights.finding}</p>
         <p>{rights.complaint}</p>
         <address class="legal-address">
             {AUTHORITY.iter().map(|line| view! { <span>{*line}</span> }).collect_view()}
@@ -455,6 +504,10 @@ mod tests {
                 }
                 for part in page.parts() {
                     assert!(html.contains(&format!("id=\"{}\"", part.id)) && html.contains((part.heading)(texts)), "{locale:?}: {}", part.id);
+                    // The anchor it had before still leads to it.
+                    for old in part.was {
+                        assert!(html.contains(&format!("id=\"{old}\"")), "{locale:?}: {old}");
+                    }
                 }
                 let original = format!("href=\"{}\" hreflang=\"de\" lang=\"de\" rel=\"alternate external\"", page.path());
                 assert_eq!(html.contains(&original), locale != BINDING, "{locale:?} {}: {html}", page.path());
@@ -462,13 +515,31 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 9. November 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 9 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 18. November 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 18 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        // What Betula is built to do with data comes first: as little as possible, in a profile
+        // on the device.
+        assert!(de.contains("Betula erhebt so wenig Daten wie möglich") && de.contains("Dein Profil liegt auf deinem Gerät."), "{de}");
+        assert!(en.contains("Betula collects as little data as possible") && en.contains("Your profile is kept on your device."), "{en}");
         // Betula Sync: what its service keeps of a profile, and that it can open none of it.
-        assert!(de.contains("id=\"abgleich\"") && de.contains("öffnen kann er sie nicht") && de.contains("13 Monate"), "{de}");
-        assert!(en.contains("Syncing between your devices (Betula Sync)") && en.contains("it cannot open them"), "{en}");
+        assert!(de.contains("id=\"sync\"") && de.contains("öffnen kann er sie nicht") && de.contains("13 Monate"), "{de}");
+        assert!(en.contains("id=\"sync\"") && en.contains("it cannot open them"), "{en}");
         // What the codes of a subscription and of a shared link carry, as they carry it.
         assert!(de.contains("deine Änderungen an Terminen aus QIS: Tag, Zeit und den Raum, den du eingibst") && de.contains("deine Notizen und deine eigenen Termine enthält er nicht"), "{de}");
         assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");
+    }
+
+    /// The notice speaks of profiles and local data, never of accounts: there are none (owner,
+    /// 2026-11-18). Both pages, every language.
+    #[test]
+    fn the_legal_pages_speak_of_no_account() {
+        for page in [Legal::Imprint, Legal::Privacy] {
+            for locale in Locale::ALL.iter().copied() {
+                let html = article(page, &i18n::texts(locale).legal).to_html().to_lowercase();
+                for word in ["konto", "konten", "account"] {
+                    assert!(!html.contains(word), "{locale:?} {}: {word}", page.path());
+                }
+            }
+        }
     }
 }
