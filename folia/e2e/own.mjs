@@ -61,7 +61,7 @@
 // write is said without quotes („PBS angelegt"). 2026-11-18: a span drawn by a drag (owner: „drag
 // placement um gleich eine Zeitspanne zu machen"); a finger held draws it before the form opens; the
 // checks' finger stood still to the pixel and lifted without moving, and a real one, which trembles,
-// drifts and shifts as it lifts, lost or changed the span (Folia 1.106.2).
+// drifts and shifts as it lifts, lost or changed the span (Folia 1.107.1).
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
