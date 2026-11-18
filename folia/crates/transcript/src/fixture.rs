@@ -1,12 +1,12 @@
 //! A Notenübersicht as the BTU writes it, made up (Erika Mustermann, Informatik B.Sc.): for the
-//! tests and the browser checks, which never see a real one (a real one names a student, her
-//! grades, her address). It is written the way the BTU's are, as far as reading them depends on
+//! tests and the browser checks, which never see a real one (a real one names the student, their
+//! grades, their address). It is written the way the BTU's are, as far as reading them depends on
 //! it: the table's heads, its rows with every cell's lower edge drawn, headings in bold, the other
 //! language in italic, the values centred in their columns; four composite fonts of `Identity-H`
 //! with `ToUnicode` maps; the pages and fonts packed into an object stream, the streams compressed
 //! and encrypted with RC4 of 128 bits for the empty user password; a page's coordinates flipped as
-//! the BTU's are. `cargo run -p folia-transcript --features fixture --example fixture` writes it
-//! (folia/e2e/fixtures/notenuebersicht.pdf is that file).
+//! the BTU's are. `cargo run -p folia-transcript --features fixture --example fixture` writes it,
+//! which is how folia/e2e/transcript.mjs gets it: no PDF of it is in the repository.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;

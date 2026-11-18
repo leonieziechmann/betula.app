@@ -1,6 +1,6 @@
 //! Writes the made-up Notenübersicht of the checks (`folia_transcript::fixture::example`) to
-//! stdout: `cargo run -p folia-transcript --features fixture --example fixture >
-//! folia/e2e/fixtures/notenuebersicht.pdf`.
+//! stdout: `cargo run -p folia-transcript --features fixture --example fixture > notenuebersicht.pdf`
+//! (folia/e2e/transcript.mjs reads it so).
 
 use std::io::Write;
 
