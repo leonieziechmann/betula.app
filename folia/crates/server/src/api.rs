@@ -156,6 +156,53 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
     }
 }
 
+/// `GET /api/announcements`: what Betula announces by itself (`crate::announcements`), for Xylem
+/// to read. Made once per snapshot and day, off the threads that answer requests (a handful of
+/// queries over a semester's dates); always asked anew, with an ETag of its content, so that a
+/// reader learns of a change at its next turn and of nothing else.
+pub async fn announcements(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let Some(snapshot) = state.store.current() else {
+        return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
+    };
+    let today = crate::announcements::today();
+    let made = snapshot.announcements.lock().ok().and_then(|made| made.clone()).filter(|(day, ..)| *day == today);
+    let (etag, body) = match made {
+        Some((_, etag, body)) => (etag, body),
+        None => {
+            let from = snapshot.clone();
+            let read = tokio::task::spawn_blocking(move || {
+                let mut out = Err(folia_model::DbError::Unavailable("not run".to_string()));
+                let ran = from.with_db(&mut |db| out = folia_pages::announce::announcements(db, today));
+                ran.and(out)
+            })
+            .await;
+            let notices = match read {
+                Ok(Ok(notices)) => notices,
+                Ok(Err(error)) => {
+                    tracing::error!(component = "http", event = "announcements.failed", error = %error, "the announcements could not be read from the snapshot");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+                Err(error) => {
+                    tracing::error!(component = "http", event = "announcements.failed", error = %error, "the announcements task failed");
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+                }
+            };
+            let json = crate::announcements::feed(&notices);
+            let etag = crate::snapshot::content_etag("announcements", json.as_bytes());
+            let body = Arc::new(Kept::new(Bytes::from(json)));
+            if let Ok(mut made) = snapshot.announcements.lock() {
+                *made = Some((today, etag.clone(), body.clone()));
+            }
+            (etag, body)
+        }
+    };
+    if if_none_match(&headers, &etag) {
+        return not_modified(&etag, REVALIDATE);
+    }
+    let (bytes, coding) = body.get(Coding::of(&headers)).await;
+    respond(bytes, coding, "application/json", REVALIDATE, &etag)
+}
+
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
 /// and every current program with its views. Filters of the lists are not pages (`folia_shell::seo`).
 /// Each page with the time it last changed where the warm-up has seen it (`lastmod`); the sitemap

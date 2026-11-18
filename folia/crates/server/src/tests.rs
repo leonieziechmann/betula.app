@@ -2106,3 +2106,67 @@ async fn every_page_runs_only_what_its_policy_names() {
         assert!(status == StatusCode::OK && !headers.contains_key(header::CONTENT_SECURITY_POLICY), "{path}: {status}");
     }
 }
+
+/// What Betula announces by itself is a feed for Xylem: every notice with a key, a topic and its
+/// words in every language; the same until the snapshot or the day changes; open in closed
+/// testing as well, since Xylem sends no cookie and it says nothing but what the catalog says.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_announcements_are_a_feed() {
+    let store = store_with("announcements", &snapshot_file());
+    let router = crate::router(state(store.clone()));
+    let (status, headers, body) = request(&router, crate::announcements::PATH, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
+    let named = |name: &str| headers.get(name).and_then(|value| value.to_str().ok()).unwrap_or_default().to_string();
+    assert_eq!(named("content-type"), "application/json");
+    assert_eq!(named("cache-control"), "public, no-cache");
+    let etag = named("etag");
+    assert!(etag.starts_with("\"announcements-"), "{etag}");
+    let feed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let entries = feed["announcements"].as_array().expect("the member Xylem reads");
+
+    // What the feed names is what the catalog says of today.
+    let snapshot = store.current().unwrap();
+    let today = crate::announcements::today();
+    let mut expected = Err(folia_model::DbError::Unavailable("not run".to_string()));
+    snapshot.with_db(&mut |db| expected = folia_pages::announce::announcements(db, today)).unwrap();
+    let expected = expected.unwrap();
+    assert_eq!(String::from_utf8(body.clone()).unwrap(), crate::announcements::feed(&expected));
+    assert_eq!(entries.len(), expected.len());
+    for (entry, notice) in entries.iter().zip(&expected) {
+        assert_eq!(entry["key"], notice.key());
+        assert_eq!(entry["topic"], notice.topic());
+        assert_eq!(entry.get("at").is_some(), notice.at.is_some(), "{entry}");
+        assert!(entry["link"].as_str().is_some_and(|link| link.starts_with('/') && !link.starts_with("//")), "{entry}");
+        for locale in folia_locale::Locale::ALL.iter().copied() {
+            let text = &entry["texts"][locale.code()];
+            assert!(text["title"].as_str().is_some_and(|title| !title.is_empty()) && text["body"].as_str().is_some_and(|body| !body.is_empty()), "{entry}");
+        }
+    }
+
+    // Asked again, with what it gave: nothing new.
+    let (status, headers, body) = request(&router, crate::announcements::PATH, &[("if-none-match", etag.as_str())]).await;
+    assert_eq!((status, body.len()), (StatusCode::NOT_MODIFIED, 0));
+    assert_eq!(headers.get("etag").and_then(|value| value.to_str().ok()), Some(etag.as_str()));
+    assert_eq!(request(&router, crate::announcements::PATH, &[("if-none-match", "\"announcements-0\"")]).await.0, StatusCode::OK);
+    // Not a page of a language, and nothing else under it.
+    assert_eq!(request(&router, "/en/api/announcements", &[]).await.0, StatusCode::NOT_FOUND);
+
+    // Behind the gate: open, and not marked as anybody's own.
+    let mut closed = state(store);
+    closed.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    let closed = crate::router(closed);
+    let (status, headers, gated) = request(&closed, crate::announcements::PATH, &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(gated, {
+        let (_, _, open) = request(&router, crate::announcements::PATH, &[]).await;
+        open
+    });
+    assert_eq!(headers.get("cache-control").and_then(|value| value.to_str().ok()), Some("public, no-cache"));
+    assert_eq!(request(&closed, "/api/status", &[]).await.0, StatusCode::UNAUTHORIZED, "the rest of /api stays behind the gate");
+
+    // Without a snapshot it says so, which is not „nothing to announce".
+    let empty = crate::router(state(SnapshotStore::new(temp_dir("announcements-none")).unwrap()));
+    let (status, headers, _) = request(&empty, crate::announcements::PATH, &[]).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(headers.contains_key("retry-after"));
+}

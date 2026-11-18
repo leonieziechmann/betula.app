@@ -11,6 +11,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 mod access;
+mod announcements;
 mod api;
 mod assets;
 mod birch;
@@ -349,6 +350,7 @@ pub fn router(state: AppState) -> Router {
         .route(pass::PATH, post(pass::enter))
         .route("/api/status", get(api::status))
         .route("/api/map.json", get(api::program_map))
+        .route(announcements::PATH, get(api::announcements))
         .route("/healthz", get(api::health))
         .route(api::LIVENESS, get(api::alive))
         .merge(files())
