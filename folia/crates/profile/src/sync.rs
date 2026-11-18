@@ -28,7 +28,7 @@
 
 use leptos::prelude::*;
 
-use folia_design::modal::{Modal, ModalHead, ModalSize};
+use folia_design::modal::{Modal, ModalHead, ModalSize, Sheet};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_pages::ask::StudyplanModulesAsk;
@@ -542,7 +542,9 @@ pub(crate) fn Connect(sync: Sync, id: Memo<u16>, state: Memo<State>, dialog: RwS
         _ => None,
     };
     view! {
-        <Modal open=Signal::derive(move || direction.get().is_some()) on_close=close size=ModalSize::M class="pf-connect-dlg" labelled_by=DIALOG_TITLE_ID>
+        // On a phone all up at once, the code large and „Link kopieren" at the screen's foot (owner,
+        // 2026-11-18: „Der modal soll sich gleich maximal öffnen").
+        <Modal open=Signal::derive(move || direction.get().is_some()) on_close=close size=ModalSize::M sheet=Sheet::Full class="pf-connect-dlg" labelled_by=DIALOG_TITLE_ID>
             <ModalHead id=DIALOG_TITLE_ID title=s.pair on_close=close/>
             <div class="st-dlg-body pf-connect-body">{ways}{body}</div>
             {foot}
