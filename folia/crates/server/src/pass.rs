@@ -186,15 +186,7 @@ impl Passes {
 /// of `X-Forwarded-For`; Traefik drops what a client sent itself) cut to its /24 or /64; `direct`
 /// without one (the server asked without Traefik, while working on the site).
 pub fn network_of(headers: &HeaderMap) -> String {
-    let address = headers
-        .get_all("x-forwarded-for")
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(','))
-        .last()
-        .and_then(|last| last.trim().parse::<IpAddr>().ok())
-        .map(|address| address.to_canonical());
-    match address {
+    match address_of(headers) {
         Some(IpAddr::V4(address)) => {
             let [a, b, c, _] = address.octets();
             format!("{a}.{b}.{c}.0/24")
@@ -205,6 +197,20 @@ pub fn network_of(headers: &HeaderMap) -> String {
         }
         None => "direct".to_string(),
     }
+}
+
+/// The address a request comes from: the one Traefik saw, the last of `X-Forwarded-For` (Traefik
+/// drops what a client sent itself); `None` without one (the server asked without Traefik: its
+/// own probe, the warm-up, working on the site).
+pub fn address_of(headers: &HeaderMap) -> Option<IpAddr> {
+    headers
+        .get_all("x-forwarded-for")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .last()
+        .and_then(|last| last.trim().parse::<IpAddr>().ok())
+        .map(|address| address.to_canonical())
 }
 
 #[derive(Deserialize)]

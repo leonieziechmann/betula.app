@@ -103,6 +103,37 @@ groups:
             | keep result, host
             [1h])))
 
+      # The traps (folia/crates/server/src/trap.rs, since Folia 1.109.0): what Folia itself answered
+      # 429 in the last hour (OriginStatus; Traefik's own rate limit answers 429 without asking
+      # Folia, and is not counted). A request for a trap, by its kind (the bait Betula lays under
+      # /api/trap/, or what a scanner looks for: the patterns of security.yml), or a request for
+      # anything else from an address that is paused.
+      - record: betula:trap:1h
+        expr: |
+          sum by (result) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"OriginStatus":429`
+            | regexp `"RequestPath":"[^"]*?(?P<probe>/\.env|/\.git|/\.aws|/\.ssh|/\.vscode|\.DS_Store|/backup|\.sql|\.bak|/wp-|wordpress|/xmlrpc|\.php|phpmyadmin|/vendor/|\.\./|%2e%2e|/etc/passwd|/cgi-bin|/actuator|/server-status|/solr|/jenkins|/druid|/swagger|/HNAP1|/boaform)`
+            | json path="RequestPath"
+            | label_format result=`{{ if hasPrefix "/api/trap/" .path }}trap sprung: laid bait{{ else if .probe }}trap sprung: scanner probe{{ else }}turned away while paused{{ end }}`
+            | keep result
+            [1h]))
+
+      # Pauses ended by the button of the page a paused address gets (POST /api/trap/release).
+      - record: betula:trap_released:1h
+        expr: |
+          sum(count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"RequestPath":"/api/trap/release"` |= `"RequestMethod":"POST"` |= `"OriginStatus":303`
+            [1h]))
+
+      # Addresses Folia turned away in the last hour: those that sprang a trap or were paused.
+      - record: betula:trap_addresses:1h
+        expr: |
+          count(sum by (host) (count_over_time(
+            {service="edge_traefik"} |= `"RequestHost":"betula.app"` |= `"OriginStatus":429`
+            | json host="ClientHost"
+            | keep host
+            [1h])))
+
   - name: visitors-1h
     interval: 1h
     rules:

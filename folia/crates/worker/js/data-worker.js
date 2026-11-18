@@ -92,6 +92,13 @@ async function serverSnapshot() {
   return null;
 }
 
+// A trap, no part of the app (folia/crates/server/src/trap.rs, `folia_routes::url::TRAP_IN_SCRIPT`):
+// nothing ever calls this, so nothing of Betula ever asks for its address. A program that collects
+// addresses from scripts does, and the server turns its address away for a while.
+function neverAsked() {
+  return fetch("/api/trap/catalog.db");
+}
+
 // The catalog asks for a pass (folia/crates/server/src/pass.rs): without one the server answers
 // 401 with a challenge, which this worker solves and hands in (`earnPass`); the browser keeps the
 // pass as a cookie for a week, and the download is asked again. A pass of another network (a phone

@@ -188,7 +188,8 @@ Why this order, and what can go wrong:
   is no history from before. Its row „The pass in front of the catalog" (since Folia 1.107.0) counts
   what `/api/db` and `/api/pass` answered, by request and by address: catalogs refused without a
   pass, passes earned, catalogs downloaded (docs/folia/frontend.md §3, „The pass in front of the
-  catalog").
+  catalog"). The row „The traps" (since Folia 1.109.0) counts traps sprung by kind, requests turned
+  away while an address is paused, and pauses ended by the page's button („The traps" there).
 - The dashboard "Security" (`betula-security.json`, since 2026-10-21): who gets in (sshd's logins
   with user, key fingerprint and source, refused attempts, networks that logged in for the first time
   in 30 days), what changes on the host (sudo commands, watched files, packages, boots and power

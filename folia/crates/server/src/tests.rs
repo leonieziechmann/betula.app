@@ -219,6 +219,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         semantic: None,
         gate: None,
         passes: None,
+        traps: None,
         renders: Arc::new(crate::busy::Places::new("render", 2, std::time::Duration::from_secs(3))),
         render_wait: std::time::Duration::from_secs(3),
         feeds: Arc::new(crate::busy::Places::new("calendar", 2, std::time::Duration::from_secs(10))),
@@ -1864,6 +1865,121 @@ async fn the_catalog_asks_for_a_pass_that_a_little_work_earns() {
     assert_eq!(request(&open, "/api/db", &home).await.0, StatusCode::OK);
     let (status, headers, _) = post(&open, "/api/pass", &home, "challenge=x&nonce=1").await;
     assert_eq!((status, headers.get(header::SET_COOKIE)), (StatusCode::NO_CONTENT, None));
+}
+
+/// The traps (`trap`): the link nobody sees stands on every page and the address nobody asks for
+/// in the data worker's script; whoever asks for one, or for what a scanner looks for, is paused,
+/// hears so with every request and how long, and goes on by the page's button or once the pause
+/// has ended. Nobody is paused from a private network, without an address, or by another site.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_trap_pauses_the_address_that_springs_it() {
+    use folia_routes::url::{TRAP_IN_SCRIPT, TRAP_LINK, TRAP_RELEASE};
+    let trapped = |name: &str| {
+        let mut state = state(store_with(name, &snapshot_file()));
+        state.traps = Some(Arc::new(crate::trap::Traps::with_key([9; 32], std::time::Duration::from_secs(3600))));
+        crate::router(state)
+    };
+    let router = trapped("trap");
+    let page = ("accept", "text/html,application/xhtml+xml,*/*;q=0.8");
+    let from = |address: &'static str| [("x-forwarded-for", address), page];
+    let paused = |router: &Router| {
+        let router = router.clone();
+        async move { serde_json::from_slice::<serde_json::Value>(&request(&router, "/api/status", &[]).await.2).unwrap()["paused_addresses"].as_u64().unwrap() }
+    };
+
+    // The bait: on every page of the server, where nobody sees or reaches it, in the page's
+    // language; in the data worker's script; and kept from every crawler by robots.txt.
+    for (address, words) in [("/", "Nicht folgen: eine Falle für Bots"), ("/en/catalog", "Do not follow: a trap for bots"), ("/no-such-page", "Nicht folgen")] {
+        let html = markup(request(&router, address, &from("203.0.113.1")).await.2);
+        let link = format!("<a href=\"{TRAP_LINK}\" rel=\"nofollow\" tabindex=\"-1\" aria-hidden=\"true\" hidden>{words}");
+        assert!(html.contains(&link), "{address}: {}", html.rsplit("</main>").next().unwrap_or_default());
+    }
+    assert!(include_str!("../../worker/js/data-worker.js").contains(&format!("fetch(\"{TRAP_IN_SCRIPT}\")")), "the data worker's script names the address nobody asks for");
+    let robots = String::from_utf8(request(&router, "/robots.txt", &[]).await.2).unwrap();
+    for group in robots.split("\n\n").filter(|group| group.starts_with("User-agent")) {
+        assert!(group.lines().any(|line| line == "Disallow: /api/" || line == "Disallow: /"), "a crawler that keeps to robots.txt never meets a trap: {group}");
+    }
+
+    // Sprung: the answer says why, how long and how a person goes on, and nobody keeps it.
+    let (status, headers, body) = request(&router, TRAP_LINK, &from("203.0.113.7")).await;
+    let html = String::from_utf8(body).unwrap();
+    assert_eq!((status, headers[header::RETRY_AFTER].to_str().unwrap(), headers[header::CACHE_CONTROL].to_str().unwrap(), headers["x-robots-tag"].to_str().unwrap()), (StatusCode::TOO_MANY_REQUESTS, "3600", "no-store", "noindex, nofollow"));
+    assert!(html.starts_with("<!DOCTYPE html>") && html.contains("Kurze Pause") && html.contains("noch etwa 60 Minuten") && html.contains("WLAN der Uni"), "{html}");
+    assert!(html.contains(&format!("<form method=\"post\" action=\"{TRAP_RELEASE}\">")) && html.contains("name=\"next\" value=\"/\"") && html.contains("Weiter zu Betula"), "the way back from a trap is the start page: {html}");
+    assert!(headers.contains_key("content-security-policy"), "the page keeps to the policy as every page does");
+    assert_eq!(paused(&router).await, 1);
+
+    // From then on every request of that address hears the same, a page in the language it asked
+    // in and with its way back, a line of text where no page was asked for. Its neighbour, and
+    // what the page itself needs, are answered as always.
+    let (status, _, body) = request(&router, "/en/catalog?turnus=winter", &from("203.0.113.7")).await;
+    let html = String::from_utf8(body).unwrap();
+    assert!(status == StatusCode::TOO_MANY_REQUESTS && html.contains("<html lang=\"en\"") && html.contains("A short pause") && html.contains("value=\"/en/catalog?turnus=winter\"") && html.contains("Go on to Betula"), "{html}");
+    for path in ["/api/status", "/api/db", "/pkg/folia_client.js", "/assets/boot.js", "/sitemap.xml", "/calendar/abc.ics"] {
+        let (status, headers, body) = request(&router, path, &[("x-forwarded-for", "203.0.113.7")]).await;
+        assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::TOO_MANY_REQUESTS, "text/plain; charset=utf-8"), "{path}");
+        assert!(String::from_utf8(body).unwrap().starts_with("Betula does not answer requests from this address for about 60 more minute(s)"), "{path}");
+    }
+    for path in [folia_app::STYLESHEET, "/assets/app.css?v=test", folia_app::FONT, folia_app::FAVICON, "/robots.txt", crate::api::LIVENESS] {
+        assert_eq!(request(&router, path, &[("x-forwarded-for", "203.0.113.7")]).await.0, StatusCode::OK, "{path}: open while paused");
+    }
+    assert_eq!(request(&router, "/catalog", &from("203.0.113.8")).await.0, StatusCode::OK, "the address beside it");
+    assert_eq!(request(&router, "/catalog", &[page]).await.0, StatusCode::OK, "the server asked directly");
+
+    // The button: the pause ends for the address, and the visitor is led where they wanted to go,
+    // on this site and never into a trap. A neighbour pressing it changes nothing.
+    let (status, ..) = post(&router, TRAP_RELEASE, &[("x-forwarded-for", "203.0.113.8")], "next=%2Fcatalog").await;
+    assert_eq!((status, paused(&router).await), (StatusCode::SEE_OTHER, 1));
+    let (status, headers, _) = post(&router, TRAP_RELEASE, &[("x-forwarded-for", "203.0.113.7")], "next=%2Fen%2Fcatalog%3Fturnus%3Dwinter").await;
+    assert_eq!((status, headers[header::LOCATION].to_str().unwrap(), headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::SEE_OTHER, "/en/catalog?turnus=winter", "no-store"));
+    assert_eq!((request(&router, "/catalog", &from("203.0.113.7")).await.0, paused(&router).await), (StatusCode::OK, 0));
+    for (next, leads) in [("next=%2F%2Fevil.example%2F", "/"), ("next=%2Fapi%2Ftrap%2Fmodules", "/"), ("next=%2Fwp-login.php%3Fa%3D1", "/"), ("", "/")] {
+        assert_eq!(post(&router, TRAP_RELEASE, &[("x-forwarded-for", "203.0.113.7")], next).await.1[header::LOCATION], leads, "{next}");
+    }
+
+    // The other baits: the address in the script, what a scanner looks for, and the button's
+    // address asked for instead of pressed.
+    for (address, path) in [("198.51.100.1", TRAP_IN_SCRIPT), ("198.51.100.2", "/wp-login.php"), ("198.51.100.3", "/.env"), ("198.51.100.4", "/x/.git/config"), ("198.51.100.5", TRAP_RELEASE), ("2001:db8:7:7::1", "/index.php?s=1")] {
+        assert_eq!(request(&router, path, &[("x-forwarded-for", address)]).await.0, StatusCode::TOO_MANY_REQUESTS, "{path}");
+        assert_eq!(request(&router, "/", &[("x-forwarded-for", address), page]).await.0, StatusCode::TOO_MANY_REQUESTS, "{address} after {path}");
+    }
+    assert_eq!(request(&router, "/", &[("x-forwarded-for", "2001:db8:7:7:ffff::2"), page]).await.0, StatusCode::TOO_MANY_REQUESTS, "IPv6 by its /64");
+    assert_eq!(request(&router, "/", &[("x-forwarded-for", "2001:db8:7:8::1"), page]).await.0, StatusCode::OK);
+    assert_eq!(paused(&router).await, 6);
+
+    // Never paused: a private network (every IPv6 visitor while the bridge has no IPv6), the
+    // server asked directly, and a request another site made a browser send. A trap is still
+    // nothing this site has.
+    for headers in [vec![("x-forwarded-for", "172.18.0.1")], vec![("x-forwarded-for", "10.0.3.4")], vec![("x-forwarded-for", "fd00::7")], vec![], vec![("x-forwarded-for", "192.0.2.1"), ("sec-fetch-site", "cross-site")]] {
+        for path in [TRAP_LINK, "/wp-login.php"] {
+            let (status, answer, _) = request(&router, path, &headers).await;
+            assert_eq!((status, answer[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::NOT_FOUND, "no-store"), "{path} {headers:?}");
+        }
+        let mut asks = headers.clone();
+        asks.push(page);
+        assert_eq!(request(&router, "/catalog", &asks).await.0, StatusCode::OK, "{headers:?}");
+    }
+    assert_eq!(request(&router, TRAP_LINK, &[("x-forwarded-for", "192.0.2.1"), ("sec-fetch-site", "same-origin")]).await.0, StatusCode::TOO_MANY_REQUESTS, "followed from a page of the site itself");
+    assert_eq!(paused(&router).await, 7);
+
+    // Behind the gate of closed testing a trap is one too, and the button needs no password.
+    let mut closed = state(SnapshotStore::new(temp_dir("trap-gate")).unwrap());
+    closed.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));
+    closed.traps = Some(Arc::new(crate::trap::Traps::with_key([9; 32], std::time::Duration::from_secs(600))));
+    let closed = crate::router(closed);
+    assert_eq!(request(&closed, "/.env", &from("203.0.113.7")).await.0, StatusCode::TOO_MANY_REQUESTS);
+    let (status, _, body) = request(&closed, "/access", &from("203.0.113.7")).await;
+    assert!(status == StatusCode::OK && String::from_utf8(body).unwrap().contains("type=\"password\""), "the login page stays open, as the gate has it");
+    let (status, _, body) = request(&closed, "/catalog", &from("203.0.113.7")).await;
+    assert!(status == StatusCode::TOO_MANY_REQUESTS && String::from_utf8(body).unwrap().contains("noch etwa 10 Minuten"));
+    assert_eq!(post(&closed, TRAP_RELEASE, &[("x-forwarded-for", "203.0.113.7")], "next=%2Fcatalog").await.1[header::LOCATION], "/catalog");
+    assert_eq!(request(&closed, "/catalog", &from("203.0.113.7")).await.0, StatusCode::FOUND, "then the gate asks, as of everybody");
+
+    // Without traps nothing is one: the site answers that it has no such page, and pauses nobody.
+    let open = crate::router(state_open("trap-off"));
+    assert_eq!(request(&open, TRAP_LINK, &from("203.0.113.7")).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(request(&open, "/catalog", &from("203.0.113.7")).await.0, StatusCode::OK);
+    assert_eq!(serde_json::from_slice::<serde_json::Value>(&request(&open, "/api/status", &[]).await.2).unwrap()["paused_addresses"], serde_json::Value::Null);
 }
 
 fn state_open(name: &str) -> AppState {
