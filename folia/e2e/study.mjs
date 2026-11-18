@@ -116,7 +116,11 @@
 //   credits leads to the areas,
 //   a page of their own — each area with its bar and its marks as the Wahlpflicht's choices, an
 //   area a page behind it, its module the sheet over that page and gone again with the page as it
-//   was, the way back at the head a level up —, the program's card
+//   was, the way back at the head a level up —, the Regelstudienplan (owner, 2026-11-18,
+//   folia/design/regelstudienplan, concept A) a panel per Fachsemester, its head with its bar and
+//   words staying under the bar while its rows scroll, a tap on it the Fachsemester as a sheet to
+//   jump to, every row a mark, a name and credits and no button, a module's row its sheet, a
+//   choice's its page in the Wahlpflicht whose way back comes back, the program's card
 //   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
@@ -1976,13 +1980,51 @@ if (current !== "2026W") {
   // The views on a phone: pages of their own behind the overview, the way back at the head.
   const go = (href) => page.evaluate((href) => { const a = document.createElement("a"); a.href = href; document.body.append(a); a.click(); a.remove(); }, href);
   await step("the overview", () => go("/study"), () => location.search === "" && document.querySelector(".st-pager"));
-  await step("the Regelstudienplan on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=plan"]'), () => location.search === "?view=plan" && document.querySelectorAll(".st-rsp-phone .st-fs-sec").length >= 5 && document.querySelector(".top-back.on") && document.querySelector(".topbar .top-profile").inert);
+  // The Regelstudienplan (owner, 2026-11-18, folia/design/regelstudienplan, concept A): a panel per
+  // Fachsemester, its head the Fachsemester, „jetzt" over the current one, a bar and what it holds;
+  // every row a mark, a name and credits, a module's leading to its sheet, a choice's to the
+  // Wahlpflicht, none with a button; the marks under the title.
+  await step("the Regelstudienplan on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=plan"]'), () => location.search === "?view=plan" && document.querySelectorAll(".st-rsp-phone .st-rsp-sec").length === 5 && document.querySelector(".top-back.on") && document.querySelector(".topbar .top-profile").inert);
   const sections = await page.evaluate(() => ({
-    strip: [...document.querySelectorAll(".st-fsidx a")].map((a) => a.textContent.trim()),
-    cards: document.querySelectorAll(".st-pcard").length,
+    heads: [...document.querySelectorAll(".st-rsp-head")].map((head) => [head.querySelector(".st-rsp-h1 b")?.textContent, head.querySelector(".st-now") ? "jetzt" : "", head.querySelector(".st-rsp-h2 small")?.textContent.replace(/\u00a0/g, " ").replace(/^[\d,]+ /, ""), head.querySelectorAll(".st-rsp-bar").length].join("|")),
+    rows: document.querySelectorAll(".st-rsp-phone .st-rsp-row").length,
+    marks: document.querySelectorAll(".st-rsp-phone .st-rsp-row > .st-glyph").length,
+    modules: [...document.querySelectorAll(".st-rsp-phone a.st-rsp-row")].filter((a) => /^\/study\?view=plan&open=\d+$/.test(a.getAttribute("href"))).length,
+    choices: [...document.querySelectorAll(".st-rsp-phone a.st-rsp-row.is-choice")].filter((a) => /^\/study\?view=areas&choice=\d+$/.test(a.getAttribute("href"))).length,
+    buttons: document.querySelectorAll(".st-rsp-rows button, .st-rsp-rows .st-addb").length,
+    short: [...document.querySelectorAll(".st-rsp-phone .st-rsp-t b")].map((b) => b.textContent).filter((name) => /^(Wahlpflicht|Praktische Mathematik|Modul aus|Komplex )/.test(name)),
+    sum: document.querySelector("#st-fs-5 .st-rsp-grp")?.textContent.replace(/\u00a0/g, " "),
+    legend: [...document.querySelectorAll(".st-rsp-legend li")].map((li) => li.textContent.trim()).join(","),
     wide: document.documentElement.scrollWidth <= innerWidth + 1,
   }));
-  check(sections.strip[2] === "3. FS · jetzt" && sections.cards === 23 && sections.wide, `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`);
+  check(
+    JSON.stringify(sections.heads) === JSON.stringify(["1. Fachsemester||von 32 LP bestanden|1", "2. Fachsemester||von 28 LP bestanden|1", "3. Fachsemester|jetzt|von 30 LP eingeplant|1", "4. Fachsemester||von 30 LP eingeplant|1", "5. und 6. Fachsemester||von 60 LP eingeplant|1"])
+      && sections.rows === 23 && sections.marks === 23 && sections.modules === 13 && sections.choices === 10 && sections.buttons === 0
+      && sections.short.join() === "Praktische Mathematik,Wahlpflicht" && sections.sum === "Komplexe des Fachstudiums · zusammen 44 LP"
+      && sections.legend === "bestanden,läuft,geplant,offen,wiederholt" && sections.wide,
+    `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`,
+  );
+  // The head of the Fachsemester in view stays under the bar at the top while its rows scroll
+  // under it; a tap on it lists the Fachsemester, the one it came from set off, and one of them
+  // glides there, its head under the bar.
+  const under = await page.evaluate(async () => {
+    const sec = document.getElementById("st-fs-4");
+    scrollTo(0, scrollY + sec.getBoundingClientRect().top + 140);
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bar"));
+    const head = sec.querySelector(".st-rsp-head").getBoundingClientRect();
+    return { bar, head: Math.round(head.top), over: document.elementFromPoint(innerWidth / 2, head.top + head.height / 2)?.closest(".st-rsp-sec")?.id ?? null };
+  });
+  check(Math.abs(under.head - (under.bar - 2)) <= 1 && under.over === "st-fs-4", `the 4th Fachsemester's head does not stay under the bar: ${JSON.stringify(under)}`);
+  await step("the Fachsemester to jump to", () => page.tap("#st-fs-4 .st-rsp-head"), () => document.querySelectorAll(".st-rsp-jumps[open] .st-rsp-jump a").length === 5 && document.querySelector(".st-rsp-jumps[open] .st-rsp-jump a.here")?.getAttribute("href") === "#st-fs-4");
+  await step("a jump to the 2nd Fachsemester", () => page.tap('.st-rsp-jumps[open] .st-rsp-jump a[href="#st-fs-2"]'), () => !document.querySelector(".st-rsp-jumps[open]") && Math.abs(document.querySelector("#st-fs-2 .st-rsp-head").getBoundingClientRect().top - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--bar")) - 2)) <= 1);
+  check(await page.evaluate(() => location.search === "?view=plan" && history.length > 0), "the jump changed the address");
+  // A module's row: its sheet over the plan, and gone again by Back.
+  await step("a module of the plan", () => page.tap('.st-rsp-phone a.st-rsp-row[href="/study?view=plan&open=12204"]'), () => location.search === "?view=plan&open=12204" && document.querySelector(".detail.is-module h2"));
+  await step("its sheet closed", () => page.goBack(), () => location.search === "?view=plan" && !document.querySelector(".detail.is-module") && document.querySelector(".st-rsp-phone"));
+  // A choice's row: its page in the Wahlpflicht, whose way back comes back to the plan.
+  await step("a choice of the plan", () => page.tap('#st-fs-3 a.st-rsp-row.is-choice:has-text("Anwendungsfach")'), () => /^\?view=areas&choice=\d+$/.test(location.search) && document.querySelector(".st-wp-phone .st-wph h1")?.textContent === "Anwendungsfach" && document.querySelector(".top-back.on"));
+  await step("back to the plan", () => page.tap(".top-back.on"), () => location.search === "?view=plan" && document.querySelector(".st-rsp-phone .st-rsp-sec"));
   // No page of the app has a ground (owner, 2026-11-03).
   check(!(await grounded()), "the Regelstudienplan on a phone has a ground");
   // While the way back is at the head, the way to the profile page gives way to it (owner,
