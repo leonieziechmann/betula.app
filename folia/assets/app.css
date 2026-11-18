@@ -3515,7 +3515,7 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .profile-menu { width: 272px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; transform-origin: 100% 0; }
 .profile-menu.at-rail { transform-origin: 0 100%; }
 .pm-list { display: grid; gap: 2px; }
-.pm-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border-radius: 9px; text-align: left; color: var(--text); -webkit-tap-highlight-color: transparent; }
+.pm-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--profile-row); padding: 6px 10px; border-radius: 9px; text-align: left; color: var(--text); -webkit-tap-highlight-color: transparent; }
 .pm-item-text { flex: 1 1 auto; min-width: 0; display: grid; }
 .pm-item-text b { font-size: 14px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pm-item-text small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -8380,7 +8380,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-seg .icon { width: 15px; height: 15px; margin-right: 6px; }
 /* The sidebar: the profiles, a row each, the active one marked as a saved plan is. */
 .pf-list { display: grid; gap: 2px; margin-bottom: 6px; }
-.pf-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border-radius: var(--r-row); text-align: left; color: var(--text); }
+.pf-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--profile-row); padding: 6px 10px; border-radius: var(--r-row); text-align: left; color: var(--text); }
 .pf-item:hover { background: var(--panel-3); }
 .pf-item[aria-checked="true"] { background: var(--panel-3); box-shadow: inset 2.5px 0 0 var(--accent); }
 .pf-item-text { flex: 1 1 auto; min-width: 0; display: grid; }
@@ -8389,6 +8389,18 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-item > .icon:last-child { width: 16px; height: 16px; color: var(--accent-ink); visibility: hidden; }
 .pf-item[aria-checked="true"] > .icon:last-child { visibility: visible; }
 .pf-new { padding: 4px 0 2px; }
+/* Five profiles at once at most (owner, 2026-11-18: „wenn man viele Profile hat soll es so sein,
+   dass man da scrollen muss, ich finde 5 sind eine gute Anzahl, die man gleichzeitig maximal sehen
+   kann"): from the sixth on, the list of the profiles scrolls, in the menu of the profiles
+   (`.pm-list`) as in the profile page's sidebar (`.pf-list`). Every row is as high as the others
+   (`--profile-row`, a name with „Mein Studiengang" under it fits), so the list ends below the
+   fifth. The active profile is in sight when the list comes (chrome.rs `ProfileSwitcher`,
+   profile.rs `ProfileList`), and the edge where more of them lies runs out as a module's programs
+   do (`.linklist.runout`): `data-more` says which (folia_design::nav::mark_more). */
+.pm-list, .pf-list { --profile-row: 50px; position: relative; max-height: calc(5 * var(--profile-row) + 4 * 2px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.pm-list[data-more="below"], .pf-list[data-more="below"] { -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); mask-image: linear-gradient(#000 calc(100% - 22px), transparent); }
+.pm-list[data-more="above"], .pf-list[data-more="above"] { -webkit-mask-image: linear-gradient(transparent, #000 22px); mask-image: linear-gradient(transparent, #000 22px); }
+.pm-list[data-more="both"], .pf-list[data-more="both"] { -webkit-mask-image: linear-gradient(transparent, #000 22px, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(transparent, #000 22px, #000 calc(100% - 22px), transparent); }
 /* The lines under „Als Datei sichern“ and „Aus Datei laden“ end in „…“ where the sidebar is too
    narrow for them, instead of running out of it. */
 .actions.pf-backup { grid-template-columns: minmax(0, 1fr); }
@@ -8420,7 +8432,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .sidebar:has(.pf-side) > .panel-head { display: none; }
   .pf-pick { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 2px 12px 6px; }
   .pf-pick::-webkit-scrollbar { display: none; }
-  .pf-pick .pf-list { display: flex; flex: none; gap: 8px; }
+  .pf-pick .pf-list { display: flex; flex: none; gap: 8px; max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
   .pf-pick .pf-item { flex: none; width: auto; min-height: 44px; padding: 0 14px 0 6px; border-radius: 22px; background: var(--panel); box-shadow: 0 0 0 1px var(--line-strong); }
   .pf-pick .pf-item[aria-checked="true"] { background: var(--panel); box-shadow: 0 0 0 2px var(--accent); }
   .pf-pick .pf-item-text small, .pf-pick .pf-item > .icon:last-child { display: none; }
