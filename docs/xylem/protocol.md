@@ -24,14 +24,16 @@ The topics of today:
 | `semester` | the semester's turn: the next semester's dates are there, it begins, re-registration |
 | `breaks` | when the lectures pause and resume (Christmas, the weeks without lectures) |
 
+What the site announces by itself under them: section 7.
+
 ## 2. What Xylem holds, and what it never does
 
 - Of a browser: its endpoint, its two keys, its language, its topics, and when it came. Not the
   address it came from, no profile, no account, no cookie, not when it was last there.
 - It writes to an endpoint only where it is a known push service's (xylem.md, „The push
   services"), and only what was announced: there is no message to one browser alone.
-- Announcements are made on Xylem's own machine alone (section 6). Nothing a browser sends makes
-  Xylem send anything.
+- Announcements are made on Xylem's own machine (section 6) and read from the site's own feed
+  (section 7). Nothing a browser sends makes Xylem send anything.
 - Who knows an endpoint may replace or delete its subscription: an endpoint is a secret between
   the browser, its push service and Xylem, and is never logged or shown.
 - A push service sees that Betula's key wrote to a subscription, when and how much; never what
@@ -135,7 +137,7 @@ The message is a declarative push message (the Push API, „Declarative push mes
 | `body` | left out where the announcement has none |
 | `navigate` | what a tap opens: the site's origin and the announcement's link for this language, always an address of the site |
 | `lang` | the language of this text: the subscription's, or the nearest the announcement has (`en` for `en-gb`, else the default) |
-| `tag` | the announcement's key, else `xylem-<id>`: one announcement is one notification, and one that arrives twice (section 7) takes its own place where the browser knows tags |
+| `tag` | the announcement's key, else `xylem-<id>`: one announcement is one notification, and one that arrives twice (section 8) takes its own place where the browser knows tags |
 | `timestamp` | when the announcement was told (milliseconds), not when it arrived |
 | `data.topic` | the topic it was told for |
 
@@ -193,7 +195,7 @@ browser's push service (Google, Mozilla, Apple or Microsoft, whichever the brows
 
 ## 6. The commands' side
 
-For `xylem announce`, `announcements`, `cancel` and `status` (xylem.md, „Commands"): plain HTTP
+For `xylem announce`, `announcements`, `cancel`, `feed` and `status` (xylem.md, „Commands"): plain HTTP
 on the same listener, answered only for a loopback peer without `X-Real-Ip`, `X-Forwarded-For` or
 `Origin` (so not through Traefik, and not for a page open on the machine); anybody else gets 404.
 It is no part of the contract with browsers and changes with Xylem's commands.
@@ -202,10 +204,49 @@ It is no part of the contract with browsers and changes with Xylem's commands.
 |---|---|
 | `GET /status` | version, site, default language, the public key, subscriptions in all, by topic and by language, announcements not finished by state, attempts that wait, when the next one is due, hosts refused |
 | `POST /announcements` | `{"topic", "texts": {"de": {"title", "body", "link"}}, "at", "for", "urgency", "link", "key", "dry"}` → 201 `{"announcement", "made": true, "reach": {"de": 412}}`; 200 with `"made": false` for a key that was taken (the one that has it) and for a dry run; 400 `{"error": "invalid", "detail": "…"}` |
-| `GET /announcements?limit=` | `{"lang", "announcements": […]}`, the newest first |
+| `GET /announcements?limit=` | `{"lang", "announcements": […]}`, the newest first, each with who made it (`source`: `command` or `feed`) |
 | `DELETE /announcements/<id>` | 200; 404 `not_found`; 409 `finished` |
+| `POST /feed` | reads the feed now: `{"entries", "baseline", "unchanged", "changes": [{"key", "what", "at", "detail"}]}`; 409 `no_feed`, 502 `feed` |
 
-## 7. What may happen
+## 7. The feed
+
+What Betula announces by itself: an address of the site that Xylem reads (`XYLEM_FEED`, every
+ten minutes, with `If-None-Match`). Folia's is `GET /api/announcements`; the contract is between
+Folia's server and Xylem, and no browser is part of it.
+
+```json
+{
+  "announcements": [
+    {
+      "key": "exams-2026w-1",
+      "topic": "exams",
+      "at": "2027-02-08T07:00:00+01:00",
+      "for": "12h",
+      "link": "/",
+      "texts": {
+        "de": {"title": "Die Prüfungsphase beginnt", "body": "Bis 20.02. liegen die meisten Prüfungen des WiSe 2026/27. Viel Erfolg!"},
+        "en": {"title": "The exam period begins", "body": "Most exams of Winter 2026/27 are held until 20 Feb. Good luck!", "link": "/en"}
+      }
+    }
+  ]
+}
+```
+
+An entry is what `POST /announcements` takes (section 6), with these differences:
+
+| | |
+|---|---|
+| `key` | needed: it is what the entry is known by from one read to the next. The same key with another time or text is the same announcement, changed; a key no longer named is an announcement withdrawn |
+| `at` | left out for what is so from now on and has no hour of its own (the next semester's dates being there): Xylem tells it when it first reads it, between 08:00 and 20:00, and never on a feed's first read |
+| the document | 200 and a member `announcements`, an array (empty: nothing to announce). Anything else (another status, no such member) says nothing, and Xylem changes nothing: a site without a snapshot answers 503, not an empty feed |
+| an `ETag` | Xylem sends it back as `If-None-Match`; 304 is „what it was" |
+
+The feed names what is to be told from a few days back on and everything ahead; what Xylem did
+with an entry it keeps itself, so an entry that is told need not be named any longer. What Xylem
+does with the feed, and its bounds (four within a day, the hours of the day, a person's word
+above the feed's): xylem.md, „The feed".
+
+## 8. What may happen
 
 - **A message twice.** Xylem records a step of 100 subscriptions after it wrote to them; killed
   in between, it writes that step again. With the same `tag`, the second takes the first one's
@@ -219,9 +260,10 @@ It is no part of the contract with browsers and changes with Xylem's commands.
 - **Xylem's database lost.** Every subscription and the key with it. Browsers come back by
   themselves at their next start (section 5); what was announced meanwhile, they missed.
 
-## 8. Versions
+## 9. Versions
 
 `/push/v1/` is this contract. What breaks a browser of an older build is a MAJOR change of Xylem
 (CLAUDE.md, „Versions"): a member of section 3 or 4 that goes away or means something else,
 another shape of the message. New members a browser ignores, new topics and new hosts of push
-services are not.
+services are not. The feed (section 7) is read by the Xylem that runs beside its Folia: a member
+of it that goes away breaks that pair, and is changed in both at once.

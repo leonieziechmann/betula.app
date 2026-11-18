@@ -20,8 +20,8 @@ An unofficial catalog of the modules, study programs and study plans of BTU Cott
   Betula's notifications. A browser that asked for them leaves its push subscription and the
   topics it listens to; what is announced for a topic (the exam period begins, the next
   semester's dates are there, the lectures pause) goes to every one of them, sealed for each,
-  through the browser's own push service. It knows no profile and no plan
-  (`docs/xylem/xylem.md`).
+  through the browser's own push service. What is announced, it reads from the site: Folia
+  names a semester's dates as a feed. It knows no profile and no plan (`docs/xylem/xylem.md`).
 
 ```
 QIS (module descriptions, tree, events), b-tu.de/modul, the BTU's Grundsatzordnungen, Studienorganisation and FÜS catalogs ──Cortex──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
@@ -40,7 +40,7 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 | [docs/folia/sync.md](docs/folia/sync.md) | Betula Sync in Folia: the records and their merge, the browser's part, the actions, the checks |
 | [docs/phloem/phloem.md](docs/phloem/phloem.md) | Phloem: development, commands, settings, limits, the firewall, numbers and logs, deploy |
 | [docs/xylem/xylem.md](docs/xylem/xylem.md) | Xylem: development, commands, announcements, settings, the push services, the sender, limits, storage, numbers and logs, checks |
-| [docs/xylem/protocol.md](docs/xylem/protocol.md) | the notifications' protocol: what Xylem holds, the browser's requests, the push message, what Folia's part does |
+| [docs/xylem/protocol.md](docs/xylem/protocol.md) | the notifications' protocol: what Xylem holds, the browser's requests, the push message, what Folia's part does, the feed of what Betula announces by itself |
 | [docs/phloem/protocol.md](docs/phloem/protocol.md) | Betula Sync's protocol: names, what may reach what, HTTP, the WebSocket, what the browser seals |
 
 ## Repository

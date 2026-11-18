@@ -36,7 +36,7 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrFull: as many subscriptions as Xylem may hold.
 	ErrFull = errors.New("full")
-	// ErrFinished: an announcement that is done, cancelled or expired cannot be cancelled.
+	// ErrFinished: an announcement that is done, cancelled, expired or skipped cannot be cancelled.
 	ErrFinished = errors.New("finished")
 	// ErrClosed is returned after Close.
 	ErrClosed = errors.New("store closed")
@@ -48,8 +48,16 @@ const (
 	Sending   = "sending"   // it walks the subscriptions
 	Retrying  = "retrying"  // walked; some subscriptions wait for another attempt
 	Done      = "done"      //
-	Cancelled = "cancelled" //
+	Cancelled = "cancelled" // by a person: it stays so, whatever the feed names
 	Expired   = "expired"   // Xylem did not run while it was due: nobody got it
+	Withdrawn = "withdrawn" // it waited, and the feed no longer names it; named again, it waits again
+	Skipped   = "skipped"   // it was there when Xylem first read the feed, with no time of its own: old news
+)
+
+// Who made an announcement.
+const (
+	ByCommand = "command" // a person, `xylem announce`
+	ByFeed    = "feed"    // Betula itself: the feed of the site
 )
 
 // readers is the size of the pool of read connections.
@@ -106,6 +114,10 @@ type Announcement struct {
 	Link    string
 	Texts   map[string]Text
 	Created time.Time
+	Source  string // ByCommand or ByFeed; "" when it is made: ByCommand
+	// Timed: its maker named its time. False for one of the feed's that is so from now on, whose
+	// time Xylem chose when it first read it.
+	Timed bool
 
 	State    string
 	Cursor   int64
@@ -378,7 +390,7 @@ func (s *Store) Reach(ctx context.Context, topic string) (map[string]int64, erro
 	return out, rows.Err()
 }
 
-const announcementColumns = "id, COALESCE(key, ''), topic, send_at, until, urgency, link, texts, created, state, cursor, sent, gone, failed, COALESCE(finished, 0)"
+const announcementColumns = "id, COALESCE(key, ''), topic, send_at, until, urgency, link, texts, created, state, cursor, sent, gone, failed, COALESCE(finished, 0), source, timed"
 
 type scanner interface{ Scan(dest ...any) error }
 
@@ -386,7 +398,7 @@ func scanAnnouncement(row scanner) (Announcement, error) {
 	var a Announcement
 	var sendAt, until, created, finished int64
 	var texts string
-	if err := row.Scan(&a.ID, &a.Key, &a.Topic, &sendAt, &until, &a.Urgency, &a.Link, &texts, &created, &a.State, &a.Cursor, &a.Sent, &a.Gone, &a.Failed, &finished); err != nil {
+	if err := row.Scan(&a.ID, &a.Key, &a.Topic, &sendAt, &until, &a.Urgency, &a.Link, &texts, &created, &a.State, &a.Cursor, &a.Sent, &a.Gone, &a.Failed, &finished, &a.Source, &a.Timed); err != nil {
 		return a, err
 	}
 	a.SendAt, a.Until, a.Created = time.UnixMilli(sendAt), time.UnixMilli(until), time.UnixMilli(created)
@@ -399,8 +411,8 @@ func scanAnnouncement(row scanner) (Announcement, error) {
 	return a, nil
 }
 
-// Announce keeps an announcement, waiting for its time. One with a key that is taken already is
-// not kept again: the one that has it comes back, made false.
+// Announce keeps an announcement a person made, waiting for its time. One with a key that is
+// taken already is not kept again: the one that has it comes back, made false.
 func (s *Store) Announce(ctx context.Context, a Announcement, now time.Time) (kept Announcement, made bool, err error) {
 	texts, err := json.Marshal(a.Texts)
 	if err != nil {
@@ -468,7 +480,8 @@ func (s *Store) announcements(ctx context.Context, query string, args ...any) ([
 	return out, rows.Err()
 }
 
-// Cancel ends an announcement that is not finished: nobody else gets it. ErrNotFound,
+// Cancel ends an announcement that is not finished: nobody else gets it. One the feed withdrew
+// can be cancelled too, so that it stays away if the feed names it again. ErrNotFound,
 // ErrFinished.
 func (s *Store) Cancel(ctx context.Context, id int64, now time.Time) (Announcement, error) {
 	var a Announcement
@@ -481,7 +494,7 @@ func (s *Store) Cancel(ctx context.Context, id int64, now time.Time) (Announceme
 		if err != nil {
 			return 0, err
 		}
-		if state != Waiting && state != Sending && state != Retrying {
+		if state != Waiting && state != Sending && state != Retrying && state != Withdrawn {
 			return 0, ErrFinished
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM retries WHERE announcement = ?", id); err != nil {

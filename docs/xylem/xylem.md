@@ -10,13 +10,17 @@ Apple's, Microsoft's). It says the same to everybody who listens: it knows no pr
 plan, and nothing in it says whose browser a subscription is. In the tree, the xylem carries one
 way, from the root up to the leaves; Phloem carries both ways.
 
+What is announced, Betula mostly knows by itself (owner, 2026-11-18: „Mach das mal auch so, dass
+das automatisch funktioniert mit den notifications"): the site names the dates of a semester as
+a feed, and Xylem reads it („The feed" below). A person announces what no data says.
+
 What it says on the wire, and what Folia's part has to do, is the contract in
 [`protocol.md`](protocol.md). This file is how to build, run and watch it.
 
 | | |
 |---|---|
 | code | `xylem/`, a Go module of its own (`cmd/xylem`, `internal/{server,store,webpush,metrics,oplog,dotenv,version}`), the standard library and SQLite (`modernc.org/sqlite`) alone |
-| version | `xylem/internal/version/version.go` (0.1.0); `xylem version`, `xylem status` and `xylem_build_info` show it with the build (the start of the executable's SHA-256) |
+| version | `xylem/internal/version/version.go` (0.2.0); `xylem version`, `xylem status` and `xylem_build_info` show it with the build (the start of the executable's SHA-256) |
 | builds | `nix build .#xylem` (the binary, its tests run in the build) |
 | not yet | an image, a stack and its place on the server („Not yet" below); Folia's part (the permission, the settings, the service worker's `push`) |
 
@@ -39,6 +43,8 @@ XYLEM_SITE=https://betula.app XYLEM_ORIGINS=http://127.0.0.1:8080 XYLEM_DATA=xyl
 - It listens on `127.0.0.1:8300` (`XYLEM_ADDR`): the API at http://127.0.0.1:8300/push/v1/.
 - `XYLEM_SITE` is the origin a notification opens (its `navigate`): always https, so on a
   development machine a notification opens the real site, or canary's.
+- `XYLEM_FEED=http://127.0.0.1:8080/api/announcements` lets it read what the dev server's
+  catalog announces („The feed"); without it only `xylem announce` announces.
 - `XYLEM_ORIGINS` lists the origins it answers CORS for (preflights included: `Content-Type`;
   GET, PUT, DELETE). Another origin gets 403 `origin`; a request without one (curl, a test) is
   taken.
@@ -57,13 +63,14 @@ XYLEM_SITE=https://betula.app XYLEM_ORIGINS=http://127.0.0.1:8080 XYLEM_DATA=xyl
 | `serve` | the service (the default command): the HTTP API and the sender, until SIGTERM; then no new connections, the requests in flight end (5 s), the sender ends the batch it is in (a request to a push service ends within 15 s), and the stats file says `xylem_up 0` |
 | `announce` | tell everybody who listens to a topic something, now or at a time (below) |
 | `announcements` | the newest announcements with how far each has come (`--limit`, `--json`) |
-| `cancel <id>` | end an announcement that is not finished: nobody else gets it |
+| `cancel <id>` | end an announcement that is not finished: nobody else gets it; one of the feed's stays cancelled whatever the feed names |
+| `feed` | read the feed now instead of at its next turn, and say what the read changed (`--json`) |
 | `status` | the local instance's numbers as one JSON object (`GET /status`): subscriptions in all, by topic and by language, the announcements that are not finished, the hosts of endpoints it refused |
 | `key` | the public half of the VAPID key |
 | `healthcheck` | exit 0 when the local instance answers `/healthz` |
 | `version`, `help` | |
 
-`announce`, `announcements`, `cancel` and `status` ask the instance of the same machine over
+`announce`, `announcements`, `cancel`, `feed` and `status` ask the instance of the same machine over
 loopback (`--instance`, else from `XYLEM_ADDR`), where it answers them and nobody else: a request
 that came through a proxy, from another address or from a page (it names an `Origin`) gets 404.
 In a container that is `docker exec <container> /bin/xylem announce …`. There is no way to make
@@ -95,16 +102,75 @@ most"). An announcement whose time is over when it is made is not taken; one who
 and is not over is told now. `xylem announcements` shows them:
 
 ```
-id    state      topic          at                       sent   gone failed  title
-2     waiting    breaks         2026-12-21 07:00 CET        0      0      0  Weihnachtspause
-1     done       exams          2026-11-23 08:00 CET      412      3      0  Die Prüfungsphase beginnt
+id    state      by       topic        at                       sent   gone failed  title
+3     waiting    feed     exams        2027-02-08 07:00 CET        0      0      0  Die Prüfungsphase beginnt
+2     waiting    feed     breaks       2026-12-18 15:00 CET        0      0      0  Weihnachtspause
+1     done       command  semester     2026-11-23 08:00 CET      412      3      0  Neu in Betula: Benachrichtigungen
 ```
 
 `waiting` (its time has not come), `sending`, `retrying` (through; some subscriptions wait for
-another attempt), `done`, `cancelled`, `expired` (Xylem did not run while it was due: nobody
-hears stale news, and the log says so at WARN). `sent` are the subscriptions a push service took
-it for, `gone` the ones a push service called gone (Xylem forgot them), `failed` the ones given
-up on.
+another attempt), `done`, `cancelled` (by a person), `expired` (Xylem did not run while it was
+due: nobody hears stale news, and the log says so at WARN), and the feed's two: `withdrawn` and
+`skipped` („The feed"). `by` is who made it: a person's `command`, or the `feed`. `sent` are the
+subscriptions a push service took it for, `gone` the ones a push service called gone (Xylem
+forgot them), `failed` the ones given up on.
+
+## The feed
+
+`XYLEM_FEED` is an address of the site: Folia's `GET /api/announcements`
+(`folia/crates/pages/src/announce.rs`, docs/folia/frontend.md), which names what the catalog says
+of a semester as announcements, each with a key, a topic, its words in every language, and the
+day and hour it is worth telling:
+
+| key | topic | told | from |
+|---|---|---|---|
+| `lectures-2026w-begin` | `semester` | the morning of the first lecture day, 07:00 | the lecture period, which Folia reads from the weekly rows' dates |
+| `breaks-2026w-1` | `breaks` | the Friday before a week without lectures, 15:00, until Monday („Weihnachtspause" where it holds Christmas) | the weeks of the period with next to no single dates |
+| `exams-2026w-1`, `-2` | `exams` | the Monday morning an exam period begins | the weeks the semester's exam dates gather in |
+| `dates-2027s` | `semester` | when Xylem first reads it, in the hours of the day | the catalog moved on to a semester that has not begun: its schedule is published |
+
+Xylem reads the feed at its start and every ten minutes (`XYLEM_FEED_INTERVAL`), with the
+feed's ETag, and keeps what it names as announcements of its own (`internal/server/feed.go`,
+`store.SyncFeed`, one step per read):
+
+- **New**: it waits for its time, like one a person made (`made`).
+- **Named otherwise while it waits** (the catalog learned more: the exams begin a week later):
+  it is changed (`revised`). Once it is being told or was told, nothing changes it.
+- **No longer named while it waits**: `withdrawn`, and nobody is told. Named again, it waits
+  again (`revived`).
+- **Its time is over** when Xylem reads it: not taken (`late`).
+- **Not readable** (no key, a key twice, a text too long, a link off the site): left out, the
+  rest is read, and one that waited under its key stays as it was (`invalid`, and `feed.invalid`
+  at WARN once).
+- **A person's word stands above the feed's.** What `xylem cancel` cancelled stays cancelled, one
+  the feed withdrew can be cancelled so that it stays away, and an announcement a person made
+  under a key is theirs whatever the feed names under it.
+
+Three rules keep a feed that went wrong from every phone:
+
+- **The first read tells no old news.** Something without an hour of its own (`dates-…`) is so,
+  and nobody knows since when: on the first read of a feed (a new database, another feed's
+  address) it is kept as `skipped` and never told. Only what becomes so later is news.
+- **By day.** What has no hour of its own is told at once between 08:00 and 20:00 in the
+  machine's time zone, else at the next 08:00: the catalog is built at night.
+- **Four within a day.** The feed makes at most four announcements whose times lie within a day
+  of each other; a fifth is not taken (`capped`, `feed.flood` at ERROR once an hour) and is read
+  again at the next turn. Everything else of an announcement holds as for a person's: a link is
+  a path of the site, the texts have their lengths.
+
+A feed that cannot be read (the site is down, has no snapshot yet, answers what is no feed)
+changes nothing: what waits is told at its time, nothing is withdrawn, `feed.failed` at WARN
+until it reads again, and `xylem status` says why. `{"announcements": []}` is a feed that names
+nothing; a document without that member is no feed.
+
+`xylem feed` reads it now:
+
+```
+The feed names 3 announcements.
+  made       breaks-2026w-1  (2026-12-18 15:00 CET)
+  made       exams-2026w-1  (2027-02-08 07:00 CET)
+  made       exams-2026w-2  (2027-03-08 07:00 CET)
+```
 
 ## Settings
 
@@ -118,6 +184,8 @@ Every flag of `serve` has an environment variable.
 | `XYLEM_CONTACT` | the site | a `mailto:` or `https:` address, sent to a push service with every message (the token's `sub`): where its operators reach Xylem's |
 | `XYLEM_LANG` | `de` | the language every announcement is written in |
 | `XYLEM_ORIGINS` | the request's own host | comma-separated `scheme://host[:port]` |
+| `XYLEM_FEED` | none | the address of the site's feed of announcements, `http://` or `https://`; none: only a person announces |
+| `XYLEM_FEED_INTERVAL` | `10m` | how often it is read; a minute at least |
 | `XYLEM_PUSH_HOSTS` | none | hosts taken as push services beside the four below, comma-separated; `.name`: every host under it |
 | `XYLEM_MAX_SUBSCRIPTIONS` | 200 000 | at it no new subscription (507) |
 | `XYLEM_STATS_DIR` | none | where `xylem.prom` is written |
@@ -194,6 +262,8 @@ Every limit is Xylem's own and holds whatever a client does (`internal/server/se
 | subscriptions in all | 200 000 (`XYLEM_MAX_SUBSCRIPTIONS`); at it 507 `full`, and `subscriptions.full` at WARN once |
 | an announcement | a title of 120 and a body of 600 characters, a link of 512 bytes, 8 languages, told for a minute to 28 days; its notification at most 3993 bytes, what one push message carries |
 
+| the feed | 256 KiB, 64 announcements, read within 20 s; four of its announcements within a day of each other; without an hour of its own told between 08:00 and 20:00 |
+
 The limits per address live in memory: a restart starts them anew.
 
 ## Storage
@@ -202,10 +272,10 @@ The limits per address live in memory: a restart starts them anew.
 
 | table | |
 |---|---|
-| `meta` | `vapid`: the private half of the VAPID key, made on the first start |
+| `meta` | `vapid`: the private half of the VAPID key, made on the first start; `feed`: the address of the feed last read (another one's first read is a first read) |
 | `subscriptions` | `nr` (the order they came, never given out again), `id` (SHA-256 of the endpoint), `endpoint`, `p256dh`, `auth`, `lang`, `created` |
 | `topics` | a subscription's topics |
-| `announcements` | topic, time, texts, state, how far it has come (`cursor`), `sent`, `gone`, `failed` |
+| `announcements` | topic, time, texts, state, how far it has come (`cursor`), `sent`, `gone`, `failed`; who made it (`source`: `command` or `feed`) and whether its maker named its time (`timed`) |
 | `retries` | the subscriptions an announcement could not be written to yet, with how often it tried and when it tries again |
 
 Nothing else of a browser is kept: no address, no profile, no account, nothing of Betula Sync,
@@ -236,6 +306,10 @@ The stats file `xylem.prom` (Prometheus text, every 15 s, written by a rename) h
 - `xylem_announcements_total{event}`: `made`, `again` (made under a key that was taken),
   `started`, `done`, `expired`, `cancelled`; `xylem_announcements_pending{state}` (`waiting`,
   `sending`, `retrying`), `xylem_retries_waiting`;
+- `xylem_feed_reads_total{result}` (`read`, `unchanged`: 304, `failed`),
+  `xylem_feed_changes_total{event}` (`made`, `revised`, `revived`, `withdrawn`, `skipped`,
+  `late`, `invalid`, `capped`), `xylem_feed_read_time_seconds` (the last read that came through;
+  0: never);
 - `xylem_rejections_total{reason}`: what browsers were refused: `origin`, `invalid`, `too_big`,
   `endpoint`, `keys`, `lang`, `topics`, `slow_down`, `full`.
 
@@ -247,7 +321,9 @@ or push: `service.started`, `service.stopped`, `service.fatal`, `service.root`, 
 `db.migrated`, `store.failed`, `sweep.done`, `stats.failed`, `stats.recovered`,
 `subscriptions.full`, `announcement.made`, `announcement.started`, `announcement.done` (with
 `sent`, `gone`, `failed`), `announcement.expired` (WARN), `announcement.cancelled`,
-`push.unauthorized` (ERROR). Nothing of a subscription is logged, ever: an endpoint is a
+`push.unauthorized` (ERROR), `feed.read` (a read that changed something, with what),
+`feed.failed` (WARN, once until it reads again), `feed.recovered`, `feed.invalid` (WARN, once
+per entry and reason), `feed.flood` (ERROR, once an hour). Nothing of a subscription is logged, ever: an endpoint is a
 browser's address, and who knows it may delete the subscription.
 
 ## Checks
@@ -265,7 +341,16 @@ browser's address, and who knows it may delete the subscription.
   subscriptions, the waits, giving up, cancelling, announcements late and expired; what a
   subscription and an announcement are checked for; the origins, the commands' side being
   local, the limits per address, the stats file, the addresses the dialer refuses.
-- `cmd/xylem`: `serve` with every command against it.
+- `internal/server/feed_test.go`: against a feed of the test's own: the first read's old news,
+  what is told by day, an announcement that follows the feed while it waits and not after, what
+  is withdrawn and named again, a person's word above the feed's, entries that are not readable,
+  the four within a day, a feed that cannot be read, another feed.
+- `cmd/xylem`: `serve` with every command against it, a feed among them.
+
+Folia's own checks cover what the feed names (docs/folia/frontend.md). Both together, on
+2026-11-18: Folia's server on canary's catalog and Xylem with its feed made, by themselves,
+`breaks-2026w-1` for Friday 18.12.2026 15:00 („Weihnachtspause"), `exams-2026w-1` for Monday
+08.02.2027 and `exams-2026w-2` for 08.03.2027.
 
 The live check goes through a real push service, Mozilla's, and runs only when asked (it needs
 the internet, and Playwright's Chromium as the browser's side):
@@ -287,7 +372,8 @@ checked with Folia's part, on a phone.
 ## Not yet
 
 - **Its place on the server.** An image, a stack (`deploy/stacks/xylem.yml`) with one instance
-  per site as Phloem has, Traefik's router for `https://<host>/push/v1/` above Folia's, the
+  per site as Phloem has, each with `XYLEM_FEED` at its site's `/api/announcements` (open on
+  canary too, where the rest is behind the gate), Traefik's router for `https://<host>/push/v1/` above Folia's, the
   stats file for Alloy, a dashboard and alerts (`xylem_up`, `push.unauthorized`, announcements
   expired, the pushes that fail), `deploy/ship-xylem.sh`. Unlike Phloem, Xylem needs a way out:
   HTTPS to the push services, and DNS for their names. That is a network of its own that leads
@@ -297,12 +383,9 @@ checked with Folia's part, on a phone.
 - **Folia's part**: asking for the permission, the topics as settings, the service worker's
   `push` and `notificationclick`, the privacy notice (protocol.md section 5). Until then nothing
   subscribes.
-- **Announcements by themselves.** Today a person makes them (`xylem announce`). Some of what
-  they say Betula could know by itself: Radix sees when a semester's dates arrive, and Folia
-  works out a lecture period and its pauses from the dates of the events
-  (`folia_timetable::facts`); the exam period is in no data yet. Whoever makes them then gives
-  each a key of its own (`semester-2027s-dates`), which is what the key is for: made twice, told
-  once.
+- **More that Betula could announce by itself.** The feed names what the catalog's dates say.
+  What they do not say stays a person's to announce (`xylem announce`): when registration for
+  the exams opens, re-registration, anything about Betula itself.
 - **A person's own day** (the timetable as a notification): another kind of message, since no
   server knows a plan. Xylem's messages are declarative ones without `mutable`; a message a
   service worker fills in from what the browser keeps would be a second kind beside them.

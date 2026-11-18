@@ -73,7 +73,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "/push/v1/key", path == "/push/v1/subscription", path == "/healthz":
 		h.Set("Allow", allowed(path))
 		writeError(w, http.StatusMethodNotAllowed, "method")
-	case path == "/status" || path == "/announcements" || strings.HasPrefix(path, "/announcements/"):
+	case path == "/status" || path == "/feed" || path == "/announcements" || strings.HasPrefix(path, "/announcements/"):
 		// The commands' side: not there at all for anyone who is not this machine.
 		if !fromHere(r) {
 			writeError(w, http.StatusNotFound, "not_found")

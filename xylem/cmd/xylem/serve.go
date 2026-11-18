@@ -25,10 +25,10 @@ const defaultAddr = "127.0.0.1:8300"
 
 // serveOptions are the flags of serve.
 type serveOptions struct {
-	addr, data, site, contact, lang, origins, hosts, statsDir, stack *string
-	statsInterval                                                    *time.Duration
-	max                                                              *int64
-	logs                                                             *logFlags
+	addr, data, site, contact, lang, origins, hosts, feed, statsDir, stack *string
+	statsInterval, feedInterval                                            *time.Duration
+	max                                                                    *int64
+	logs                                                                   *logFlags
 }
 
 func newServeFlags() (*flag.FlagSet, *serveOptions) {
@@ -48,6 +48,10 @@ func newServeFlags() (*flag.FlagSet, *serveOptions) {
 			"Browser origins answered for CORS, comma-separated (scheme://host[:port]); empty: the site's own, the origin of the request's host (env XYLEM_ORIGINS)"),
 		hosts: fs.String("push-hosts", envOr("XYLEM_PUSH_HOSTS", ""),
 			"Hosts taken as push services beside Google's, Mozilla's, Apple's and Microsoft's, comma-separated; .name: every host under it (env XYLEM_PUSH_HOSTS)"),
+		feed: fs.String("feed", envOr("XYLEM_FEED", ""),
+			"The address of the site's feed of announcements, read every --feed-interval: what Betula announces by itself; empty: only a person announces (env XYLEM_FEED)"),
+		feedInterval: fs.Duration("feed-interval", envDuration("XYLEM_FEED_INTERVAL", server.DefaultLimits.FeedEvery),
+			"How often the feed is read (env XYLEM_FEED_INTERVAL)"),
 		max: fs.Int64("max-subscriptions", envInt64("XYLEM_MAX_SUBSCRIPTIONS", server.DefaultMaxSubscriptions),
 			"How many subscriptions Xylem holds; at it no new one (env XYLEM_MAX_SUBSCRIPTIONS)"),
 		statsDir: fs.String("stats-dir", envOr("XYLEM_STATS_DIR", ""),
@@ -133,6 +137,9 @@ func runServe(ctx context.Context, args []string) int {
 	if *o.statsInterval <= 0 || *o.max <= 0 {
 		return fatal(2, "invalid configuration", errors.New("stats-interval and max-subscriptions must be positive"))
 	}
+	if *o.feedInterval < time.Minute {
+		return fatal(2, "invalid configuration", errors.New("feed-interval: a minute at least"))
+	}
 	if strings.TrimSpace(*o.site) == "" {
 		return fatal(2, "invalid configuration", errors.New("--site (XYLEM_SITE) is not set: the origin a notification's link opens at, https://host"))
 	}
@@ -172,6 +179,7 @@ func runServe(ctx context.Context, args []string) int {
 		Store: st, Key: key, Site: *o.site, Contact: *o.contact, Lang: *o.lang, Origins: list(*o.origins), Hosts: list(*o.hosts),
 		MaxSubscriptions: *o.max, StatsDir: *o.statsDir, StatsInterval: *o.statsInterval, Stack: *o.stack,
 		Version: version.Version, Build: version.Build(), Registry: metrics.Default,
+		Feed: *o.feed, Limits: server.Limits{FeedEvery: *o.feedInterval},
 	})
 	if err != nil {
 		_ = ln.Close()
@@ -190,7 +198,7 @@ func runServe(ctx context.Context, args []string) int {
 	go func() { served <- hs.Serve(ln) }()
 	oplog.For("http").Info("listening", "event", "http.listening", "addr", ln.Addr().String())
 	log.Info("started", "event", "service.started", "addr", *o.addr, "data", *o.data, "site", *o.site, "lang", *o.lang,
-		"stats_dir", *o.statsDir, "origins", *o.origins, "push_hosts", *o.hosts, "max_subscriptions", *o.max, "stack", *o.stack,
+		"feed", *o.feed, "stats_dir", *o.statsDir, "origins", *o.origins, "push_hosts", *o.hosts, "max_subscriptions", *o.max, "stack", *o.stack,
 		"subscriptions", st.Subscriptions(), "version", version.Version, "build", version.Build(), "uid", os.Geteuid())
 
 	var serveErr error

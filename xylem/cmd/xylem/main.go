@@ -46,6 +46,7 @@ func init() {
 		{"announce", "Tell everybody who listens to a topic something, now or at a time", runAnnounce},
 		{"announcements", "List the newest announcements and how far each has come", runAnnouncements},
 		{"cancel", "End an announcement that is not finished: nobody else gets it", runCancel},
+		{"feed", "Read the feed of Betula's own announcements now and say what changed", runFeed},
 		{"status", "Print the status of the local instance as one JSON object (GET /status)", runStatus},
 		{"key", "Print the public half of the VAPID key, which a browser subscribes with", runKey},
 		{"healthcheck", "Exit 0 if the local instance is live (for container health checks)", runHealthcheck},

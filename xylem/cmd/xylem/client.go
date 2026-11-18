@@ -337,9 +337,9 @@ func runAnnouncements(ctx context.Context, args []string) int {
 		fmt.Fprintln(stdout, "No announcements.")
 		return 0
 	}
-	fmt.Fprintf(stdout, "%-5s %-10s %-14s %-22s %6s %6s %6s  %s\n", "id", "state", "topic", "at", "sent", "gone", "failed", "title")
+	fmt.Fprintf(stdout, "%-5s %-10s %-8s %-12s %-22s %6s %6s %6s  %s\n", "id", "state", "by", "topic", "at", "sent", "gone", "failed", "title")
 	for _, a := range out.Announcements {
-		fmt.Fprintf(stdout, "%-5d %-10s %-14s %-22s %6d %6d %6d  %s\n", a.ID, a.State, a.Topic, local(a.At), a.Sent, a.Gone, a.Failed, a.Texts[out.Lang].Title)
+		fmt.Fprintf(stdout, "%-5d %-10s %-8s %-12s %-22s %6d %6d %6d  %s\n", a.ID, a.State, a.Source, a.Topic, local(a.At), a.Sent, a.Gone, a.Failed, a.Texts[out.Lang].Title)
 	}
 	return 0
 }
@@ -373,5 +373,51 @@ func runCancel(ctx context.Context, args []string) int {
 	}
 	a := out.Announcement
 	fmt.Fprintf(stdout, "Announcement %d (%s) is cancelled; %d subscriptions had it already.\n", a.ID, a.Topic, a.Sent)
+	return 0
+}
+
+// runFeed reads the feed now instead of at its next turn, and says what the read changed.
+func runFeed(ctx context.Context, args []string) int {
+	fs := flag.NewFlagSet("feed", flag.ContinueOnError)
+	base := instance(fs)
+	asJSON := fs.Bool("json", false, "Print the answer as JSON")
+	if code, ok := parse(fs, args, 0, 0); !ok {
+		return code
+	}
+	var raw json.RawMessage
+	if code, ok := ask(ctx, http.MethodPost, *base+"/feed", struct{}{}, &raw, http.StatusOK); !ok {
+		return code
+	}
+	if *asJSON {
+		fmt.Fprintln(stdout, strings.TrimSpace(string(raw)))
+		return 0
+	}
+	var report server.FeedReport
+	if err := json.Unmarshal(raw, &report); err != nil {
+		fmt.Fprintln(stderr, "Error:", err)
+		return 1
+	}
+	switch {
+	case report.Unchanged:
+		fmt.Fprintln(stdout, "The feed is what it was at the last read.")
+		return 0
+	case report.Baseline:
+		fmt.Fprintf(stdout, "The feed names %d announcements. This was its first read: what has no time of its own is old news and is skipped.\n", report.Entries)
+	default:
+		fmt.Fprintf(stdout, "The feed names %d announcements.\n", report.Entries)
+	}
+	if len(report.Changes) == 0 {
+		fmt.Fprintln(stdout, "Nothing changed.")
+	}
+	for _, c := range report.Changes {
+		line := fmt.Sprintf("  %-10s %s", c.What, c.Key)
+		if c.At != nil {
+			line += "  (" + local(*c.At) + ")"
+		}
+		if c.Detail != "" {
+			line += "  " + c.Detail
+		}
+		fmt.Fprintln(stdout, line)
+	}
 	return 0
 }
