@@ -4250,6 +4250,8 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
   .sp-editdock .btn { flex: none; height: 46px; min-height: 46px; padding: 0 14px; border-radius: 12px; font-size: 14px; }
   .sp-editdock .btn .icon { width: 16px; height: 16px; }
   :root[data-keyboard] .sp-editdock { display: none; }
+  /* A saved plan's question („Ersetzen") comes into sight above the dock (`betula:sheet-show`). */
+  .sp-plans .note-action.ask { scroll-margin-bottom: calc(84px + env(safe-area-inset-bottom)); }
   a.sp-open-line.way { display: grid; grid-template-columns: 32px minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 50px; padding: 6px 12px 6px 8px; color: var(--text); text-decoration: none; }
   a.sp-open-line.way .t { min-width: 0; }
   a.sp-open-line.way b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }

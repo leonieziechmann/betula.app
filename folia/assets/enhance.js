@@ -1886,6 +1886,9 @@
   // little as brings it in, measured as it will stand. In sight already, nothing moves.
   document.addEventListener("betula:sheet-show", (e) => {
     const el = e.target, sheet = phone() ? sheetAround(el) : null;
+    // In a phone's page instead (the Stundenplan's saved plans while it is edited): the page brings
+    // it in, clear of the dock over its foot (its `scroll-margin-bottom`).
+    if (!sheet && phone()) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     if (!sheet || el === sheet) return;
     const g = glides.get(sheet), at = g ? g.to : sheet.classList.contains("is-full") ? "full" : "half";
     const { half } = stopsOf(sheet), foot = footOf(sheet)?.offsetHeight ?? 0, gap = 12;
