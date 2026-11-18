@@ -5131,6 +5131,55 @@ paper or take-home exam is due. The first idea, shifting by twelve hours, would 
   `when::is_placeholder` (Sunday only) and deadline test (end ≥ 24:00); on a merge one of the two
   should call the other.
 
+### What Betula announces by itself (`folia/crates/pages/src/announce.rs`, 2026-11-18)
+
+Owner, 2026-11-18, of the notifications („prüfungsphase beginnt, Termine für das nächste Semester
+verfügbar, weihnachtspause etc."): „Mach das mal auch so, dass das automatisch funktioniert mit
+den notifications." None of these dates is written anywhere a program could read it, and all of
+them follow from the dates the catalog holds, as the start page's „Weihnachtspause bis …" does.
+`announce::notices` turns a semester's facts into moments, each with the day and hour it is worth
+telling; the server hands them out as a feed (`GET /api/announcements`,
+`folia/crates/server/src/announcements.rs`), and Xylem, the service of the notifications, reads
+the feed and tells the browsers that listen (docs/xylem/xylem.md, „The feed"; the feed's shape:
+docs/xylem/protocol.md section 7).
+
+| notice | key, topic | told | from |
+|---|---|---|---|
+| the lectures begin | `lectures-2026w-begin`, `semester` | 07:00 on the first day of the lecture period that is a working day of the half-year (2026S begins on a Wednesday; a first Monday may be Easter Monday), for 12 h | `SemesterFacts::lecture` |
+| a week without lectures | `breaks-2026w-1`, `breaks` | 15:00 on the Friday before, for 60 h (until Monday 03:00); „Weihnachtspause" where it holds 24.12. or 01.01., else „Vorlesungsfreie Woche(n)", with the day the lectures resume | `SemesterFacts::breaks` |
+| an exam period begins | `exams-2026w-1`, `-2`, `exams` | 07:00 on its Monday, for 12 h, with the Saturday of its last week | `facts::exam_periods` |
+| the next semester's dates are there | `dates-2027s`, `semester` | no hour of its own: Xylem tells it when it first reads it, by day; for 72 h; it opens the Stundenplan | `meta.current_semester` names a semester that has not begun: Radix moves it on once the next schedule is published (docs/radix/data-sources.md, „The catalog follows the published semester") |
+
+- **The exam periods** are read like the lecture period, from the dates
+  (`timetable::facts::exam_periods`, `queries::semester_exam_counts`): the weeks the sittings
+  gather in, a week counting with at least a third of the fullest week's exams
+  (`EXAM_DIVISOR`). Only sittings count (06:00 to 22:00, or a date without a time): QIS's
+  placeholder of 2015 and the days papers are due are none („Exam dates the BTU cannot mean"),
+  and a date outside the half-year is none of this semester's. In canary's catalog of 2026-11-18
+  the weeks from 08.02. and 15.02.2027 hold 199 and 141, the ones from 08.03. and 15.03. 134 and
+  95, and no other more than 35: two periods. With fewer than 60 dated exams, or no week of 30,
+  it says nothing (`EXAM_MIN_DATES`, `EXAM_MIN_WEEK`): early in a semester the dates are not set.
+- **Nothing is guessed** (R12): a semester whose rows give no lecture period has no notice of
+  its lectures and breaks, one without enough exam dates none of its exams. As the catalog
+  learns more, a notice appears, or moves: it is known by its key, and Xylem changes what still
+  waits.
+- **The feed** names the notices from three days back on (`KEEP_DAYS`) and everything ahead, in
+  the order they are told, each with a title and a body in every language of the site
+  (`server/src/texts.rs`: a semester as its label, a day as „04.01.") and for a language whose
+  page has another address its own link (`/en`). It depends on the snapshot and on the day in
+  Berlin, is made once for both and answers `304` to its own ETag; without a snapshot it answers
+  503, which is not „nothing to announce". The same for everybody (R9), and open in closed testing
+  („Closed testing"). No page uses it and no browser asks for it.
+- **Checked**: `timetable::facts::tests::the_exam_periods_are_the_weeks_the_exams_gather_in` (the
+  winter's numbers, what is none of a semester's, the thresholds); `pages::announce::tests` (a
+  winter in November, the three days, the first lecture day, the next semester's dates until it
+  begins, breaks that are not Christmas, and the catalog at hand: every sitting counted once,
+  every notice in its shape); `server::announcements::tests` (the day in Berlin, the words and
+  the moments with the offset of their day); `server::tests::the_announcements_are_a_feed` (the
+  endpoint, its ETag, the gate, no snapshot). With canary's catalog of 2026-11-18 it names
+  `breaks-2026w-1` for 18.12.2026 15:00, `exams-2026w-1` for 08.02.2027 and `exams-2026w-2` for
+  08.03.2027, which Xylem took as three waiting announcements.
+
 ### The area picker and the plan's rows on the real data (2026-09-21)
 
 The area picker and `areas_for_row` had been built against the synthetic snapshot only. Checked
@@ -7331,7 +7380,8 @@ lists what ships („What ships"); like every command it takes the server's flag
 (`folia --site-root site assets`).
 
 Endpoints besides the pages: `GET /api/db` (with a pass, „The pass in front of the catalog" below), `POST /api/pass`, `GET /api/status`, `GET /api/map.json` (the map of the
-programs, with the snapshot's ETag), `GET /healthz` (200 while a snapshot is served and Radix was
+programs, with the snapshot's ETag), `GET /api/announcements` (what Betula announces by itself, for
+Xylem: „What Betula announces by itself" in §1), `GET /healthz` (200 while a snapshot is served and Radix was
 heard from; for an uptime monitor), `GET /livez` (200 while the process answers; for the container's
 healthcheck, which must not restart a server that still serves its last snapshot),
 `/assets/app.css`, `/assets/icons.svg` (the sprite every icon points at), `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
@@ -7359,6 +7409,7 @@ the bundle 2.8 → 1.7 MB, the snapshot 7.6 → 4.4 MB, the start page 118 → 9
 | `/api/db` | `public, no-cache`, Radix's ETag → `304` (without a pass); without a pass otherwise `401` and a challenge, `no-store` | brotli 11 (4 MiB window), made in the background after a new snapshot (a minute and a half of one processor, about 120 MB of memory for the while) and kept beside it; gzip until then |
 | `/api/map.json`, `/sitemap.xml` | `public, max-age=300, stale-while-revalidate=86400` | brotli 11, the sitemap at 9, made on first request |
 | calendar feeds | `private, max-age=900`, ETag of the content | brotli 5 as made |
+| `/api/announcements` | `public, no-cache`, ETag of the content → `304` | made on the first request of a snapshot and a day |
 
 A `304` says how to keep what it confirms (`Cache-Control`, `Vary`), as its `200` did. After a
 start the files every page asks for are compressed in the background (`warm::files`, 8 s of one
@@ -7527,6 +7578,11 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
   `a_studyplan_is_a_calendar_feed` (the gated feed with a snapshot), `broken_calendar_codes_are_404`,
   `the_log_keeps_no_calendar_code`, `calendar_services_may_fetch_feeds`; the shapes in
   `folia/crates/calendar/src/subscription.rs`.
+- **And what Betula announces by itself** (2026-11-18): `/api/announcements` answers without the
+  password, because Xylem reads it from its own place and sends no cookie. It is the same for
+  everybody and says nothing but what the catalog says of a semester (when its lectures begin and
+  pause, when its exams gather), which every page behind the gate shows; the rest of `/api/` stays
+  behind it (`the_announcements_are_a_feed`).
 - **Behind the gate** the site is what it was, the page cache included (the gate lies around it);
   only `Cache-Control: public` becomes `private`, so no cache between server and browser keeps a
   page for somebody else. Link previews of messengers show nothing while the gate is on: their
@@ -7836,6 +7892,7 @@ below the rate limit and watch Grafana: the whole site is one small VPS.
 | ERROR | `http.request` with `status >= 500`, `render.failed`, `snapshot.unreadable` | a request failed |
 | ERROR | `cache.warm_page_failed` | a page of the sitemap panicked while it was rendered for the warm-up (`path`, `generation`, `error` with the panic's message); it is left out and the warm-up goes on (R22) |
 | ERROR | `card.failed` | a card's text could not be read or the card could not be drawn; the preview got the standard picture |
+| ERROR | `announcements.failed` | the announcements could not be read from the snapshot (or the task failed); Xylem got a 500, changes nothing and asks again at its next turn |
 | ERROR | `calendar.failed` | a calendar feed could not be read from the snapshot (or its task failed); the calendar service got a 500 and asks again later |
 | ERROR | `server.start_failed`, `server.failed` | the server cannot run |
 

@@ -38,6 +38,22 @@ pub struct Texts {
     pub gate_closed: &'static str,
     /// A calendar address that names no plan.
     pub no_calendar: &'static str,
+    /// What Betula announces by itself (`announcements`): the title and the body of a
+    /// notification. A semester is written as its label („WiSe 2026/27"), a day as „04.01.".
+    pub lectures_begin: &'static str,
+    pub lectures_begin_text: fn(&str) -> String,
+    pub christmas_break: &'static str,
+    pub break_week: &'static str,
+    pub break_weeks: &'static str,
+    /// The day the lectures resume.
+    pub break_text: fn(&str) -> String,
+    pub exams_begin: &'static str,
+    pub exams_begin_second: &'static str,
+    pub exams_begin_further: &'static str,
+    /// The day of the period's last exams, and the semester.
+    pub exams_text: fn(&str, &str) -> String,
+    pub dates_title: fn(&str) -> String,
+    pub dates_text: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -67,6 +83,18 @@ pub const DE: Texts = Texts {
     gate_wrong: "Das Passwort stimmt nicht.",
     gate_closed: "Zu viele falsche Versuche. Bitte versuche es in einer Minute noch einmal.",
     no_calendar: "Kein Kalender unter dieser Adresse.\n",
+    lectures_begin: "Die Vorlesungszeit beginnt",
+    lectures_begin_text: |semester| format!("Heute starten die Vorlesungen im {semester}."),
+    christmas_break: "Weihnachtspause",
+    break_week: "Vorlesungsfreie Woche",
+    break_weeks: "Vorlesungsfreie Wochen",
+    break_text: |resume| format!("Ab Montag ist vorlesungsfrei. Weiter geht es am {resume}"),
+    exams_begin: "Die Prüfungsphase beginnt",
+    exams_begin_second: "Die zweite Prüfungsphase beginnt",
+    exams_begin_further: "Eine weitere Prüfungsphase beginnt",
+    exams_text: |last, semester| format!("Bis {last} liegen die meisten Prüfungen des {semester}. Viel Erfolg!"),
+    dates_title: |semester| format!("Die Termine fürs {semester} sind da"),
+    dates_text: |semester| format!("Der Stundenplan für das {semester} ist veröffentlicht. Du kannst jetzt planen."),
 };
 
 pub const EN: Texts = Texts {
@@ -96,6 +124,18 @@ pub const EN: Texts = Texts {
     gate_wrong: "The password is not right.",
     gate_closed: "Too many wrong attempts. Please try again in a minute.",
     no_calendar: "No calendar at this address.\n",
+    lectures_begin: "Lectures begin",
+    lectures_begin_text: |semester| format!("The lectures of {semester} start today."),
+    christmas_break: "Christmas break",
+    break_week: "A week without lectures",
+    break_weeks: "Weeks without lectures",
+    break_text: |resume| format!("No lectures from Monday. They resume on {resume}."),
+    exams_begin: "The exam period begins",
+    exams_begin_second: "The second exam period begins",
+    exams_begin_further: "Another exam period begins",
+    exams_text: |last, semester| format!("Most exams of {semester} are held until {last}. Good luck!"),
+    dates_title: |semester| format!("The dates for {semester} are in"),
+    dates_text: |semester| format!("The timetable for {semester} is published. You can plan it now."),
 };
 
 /// The server's texts in a language.

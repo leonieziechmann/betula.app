@@ -410,6 +410,58 @@ func TestKeysCancelAndSweep(t *testing.T) {
 	}
 }
 
+// A database of Xylem 0.1.0, which knew no feed: what it holds was made by a person, at a time
+// they named.
+func TestDatabaseOfTheFirstXylemIsMigrated(t *testing.T) {
+	dir := t.TempDir()
+	first, err := migrationFS.ReadFile("migrations/0001_xylem.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(dir, "xylem.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		string(first),
+		"PRAGMA user_version = 1",
+		`INSERT INTO announcements (key, topic, send_at, until, urgency, link, texts, created) VALUES ('exams-2026w', 'exams', 1800000000000, 1800086400000, 'normal', '/', '{"de":{"title":"Prüfungen"}}', 1790000000000)`,
+		`INSERT INTO announcements (topic, send_at, until, urgency, link, texts, created, state, sent, finished) VALUES ('breaks', 1790000000000, 1790086400000, 'normal', '/', '{"de":{"title":"Pause"}}', 1790000000000, 'done', 7, 1790000001000)`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = db.Close()
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	list, err := s.Announcements(context.Background(), 10)
+	if err != nil || len(list) != 2 {
+		t.Fatal(list, err)
+	}
+	for _, a := range list {
+		if a.Source != ByCommand || !a.Timed {
+			t.Errorf("announcement %d: made by %q, timed %v", a.ID, a.Source, a.Timed)
+		}
+	}
+	if list[1].Key != "exams-2026w" || list[1].State != Waiting || list[0].State != Done || list[0].Sent != 7 {
+		t.Fatalf("after the migration: %+v", list)
+	}
+	// And the feed leaves a person's announcement alone, whatever it names under its key.
+	item := FeedItem{Announcement: Announcement{Key: "exams-2026w", Topic: "exams", SendAt: time.UnixMilli(1800000000000), Until: time.UnixMilli(1800000360000),
+		Urgency: "normal", Link: "/", Texts: map[string]Text{"de": {Title: "Vom Feed"}}, Timed: true}, Life: time.Hour}
+	changes, baseline, err := s.SyncFeed(context.Background(), "https://betula.app/api/announcements", []FeedItem{item}, nil, time.UnixMilli(1790000002000), 4)
+	if err != nil || !baseline || len(changes) != 0 {
+		t.Fatalf("the feed over a person's key: %+v, baseline %v, %v", changes, baseline, err)
+	}
+	if a, _ := s.Announcement(context.Background(), 1); a.Texts["de"].Title != "Prüfungen" || a.Source != ByCommand {
+		t.Fatalf("changed by the feed: %+v", a)
+	}
+}
+
 func TestNewerDatabaseIsRefused(t *testing.T) {
 	dir := t.TempDir()
 	s, err := Open(dir)

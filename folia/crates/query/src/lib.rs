@@ -997,6 +997,23 @@ pub fn semester_exams(db: &dyn Database, semester_key: &str) -> Result<Vec<DateR
     )
 }
 
+/// The dated exam rows of a semester, counted by date range: the evidence for its exam periods
+/// (`timetable::facts::exam_periods`). Only rows at an hour an exam is held at
+/// (`timetable::exam_reading::DAY`): QIS's placeholder for a date not yet fixed (01:00–02:30, on a
+/// date years before) and the day a paper is due (23:45–24:00) are no sittings. A row without a
+/// time counts.
+pub fn semester_exam_counts(db: &dyn Database, semester_key: &str) -> Result<Vec<DateCount>, DbError> {
+    fetch(
+        db,
+        "semester_exam_counts",
+        "SELECT NULL AS rhythm, first_date, last_date, COUNT(DISTINCT event_id || '/' || COALESCE(ord, 0)) AS dates \
+         FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL \
+         AND (start_time IS NULL OR (start_time >= '06:00' AND start_time < '22:00')) \
+         GROUP BY first_date, last_date ORDER BY first_date, last_date",
+        &[Value::from(semester_key)],
+    )
+}
+
 /// The dated teaching rows of a semester, counted by rhythm and date range: the evidence for its
 /// lecture period, breaks and A/B weeks (`timetable::facts`).
 pub fn semester_date_counts(db: &dyn Database, semester_key: &str) -> Result<Vec<DateCount>, DbError> {

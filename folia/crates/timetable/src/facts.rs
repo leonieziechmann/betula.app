@@ -12,6 +12,9 @@
 //! - the A weeks are the weeks the A rows begin in, counted from the period's first week, so the
 //!   53-week year 2026 cannot flip them.
 //!
+//! The exam periods are read the same way from the exam dates (`exam_periods`): the weeks the
+//! exams gather in.
+//!
 //! Each rule needs enough rows and a clear majority, else it says nothing (`None`, no break), and
 //! the page names what is unknown instead of guessing (R12). Holidays are Brandenburg's law
 //! (`day::holidays`), not a reading of the data.
@@ -39,6 +42,13 @@ pub const BREAK_MIN_MEDIAN: i64 = 20;
 pub const AB_SHARE: f64 = 0.8;
 /// The fewest A and B rows with a date that anchor the A weeks.
 pub const AB_MIN_ROWS: i64 = 10;
+
+/// The fewest dated exams inside a semester's half-year for its exam periods to be read from them.
+pub const EXAM_MIN_DATES: i64 = 60;
+/// The fewest exams of the fullest week.
+pub const EXAM_MIN_WEEK: i64 = 30;
+/// A week belongs to an exam period when it has at least a third of the fullest week's exams.
+pub const EXAM_DIVISOR: i64 = 3;
 
 /// The longest half-year `v_semester` may state before its own bounds are not believed: a
 /// semester is half a year, and every loop over its weeks and years stays short.
@@ -150,6 +160,44 @@ fn lecture_period(counts: &[DateCount]) -> Option<(Day, Day)> {
     let (last, last_rows) = heaviest(ends.iter().rev())?;
     let clear = |rows: i64| rows as f64 >= LECTURE_MODE_SHARE * total as f64;
     (total >= LECTURE_MIN_ROWS && clear(first_rows) && clear(last_rows) && first < last).then(|| (first, last.plus(6)))
+}
+
+/// A semester's exam periods: the weeks its exams gather in, Monday ..= Sunday, consecutive weeks
+/// merged, in date order. No source states them either; the exam dates do
+/// (`queries::semester_exam_counts`, the sittings alone). In the 2026W of 2026-11-18 the weeks from
+/// 08.02. and 15.02. hold 199 and 141 exams, the ones from 08.03. and 15.03. 134 and 95, and no
+/// other week more than 35: two periods, 08.02.–21.02. and 08.03.–21.03.
+///
+/// A week counts when it holds at least a third of the fullest week's exams; a date outside the
+/// half-year is none of this semester's (a repeat exam in September, a placeholder of 2015). With
+/// too few dated exams, or none of the weeks full enough, it says nothing (`Vec::new()`): early in
+/// a semester the dates are not set yet.
+pub fn exam_periods(bounds: (Day, Day), counts: &[DateCount]) -> Vec<(Day, Day)> {
+    let mut weeks: BTreeMap<Day, i64> = BTreeMap::new();
+    let mut total = 0i64;
+    for count in counts {
+        let Some(day) = Day::parse(&count.first_date).filter(|day| bounds.0 <= *day && *day <= bounds.1) else {
+            continue;
+        };
+        let slot = weeks.entry(day.monday()).or_default();
+        *slot = slot.saturating_add(weight(count));
+        total = total.saturating_add(weight(count));
+    }
+    let fullest = weeks.values().copied().max().unwrap_or(0);
+    if total < EXAM_MIN_DATES || fullest < EXAM_MIN_WEEK {
+        return Vec::new();
+    }
+    let mut found: Vec<(Day, Day)> = Vec::new();
+    for (monday, exams) in weeks {
+        if exams.saturating_mul(EXAM_DIVISOR) < fullest {
+            continue;
+        }
+        match found.last_mut() {
+            Some(open) if open.1.plus(1) == monday => open.1 = monday.plus(6),
+            _ => found.push((monday, monday.plus(6))),
+        }
+    }
+    found
 }
 
 /// The weeks of the period with next to no single dates. Singles are what a lecturer adds to a
@@ -287,6 +335,54 @@ mod tests {
             monday = monday.plus(7);
         }
         counts
+    }
+
+    /// An exam date as `queries::semester_exam_counts` counts it: no rhythm, one day.
+    fn exams(day: &str, dates: i64) -> DateCount {
+        DateCount { rhythm: None, first_date: day.to_string(), last_date: Some(day.to_string()), dates }
+    }
+
+    #[test]
+    fn the_exam_periods_are_the_weeks_the_exams_gather_in() {
+        let bounds = winter().bounds();
+        // The 2026W of 2026-11-18, week by week (each week's exams on its Tuesday and Thursday).
+        let weeks = [
+            ("2026-12-08", 3),
+            ("2027-01-19", 2),
+            ("2027-01-26", 10),
+            ("2027-02-02", 35),
+            ("2027-02-09", 199),
+            ("2027-02-16", 141),
+            ("2027-02-23", 4),
+            ("2027-03-02", 18),
+            ("2027-03-09", 134),
+            ("2027-03-16", 95),
+            ("2027-03-23", 9),
+        ];
+        let mut counts = Vec::new();
+        for (tuesday, n) in weeks {
+            counts.push(exams(tuesday, n / 2));
+            counts.push(exams(&d(tuesday).plus(2).iso(), n - n / 2));
+        }
+        // What is none of this semester's: QIS's placeholder date, a repeat exam in September.
+        counts.push(exams("2015-12-27", 205));
+        counts.push(exams("2027-09-14", 80));
+        counts.push(exams("not a date", 500));
+        let periods = exam_periods(bounds, &counts);
+        assert_eq!(periods, vec![(d("2027-02-08"), d("2027-02-21")), (d("2027-03-08"), d("2027-03-21"))]);
+        assert!(periods.iter().all(|(first, last)| (first.weekday(), last.weekday()) == (1, 7)));
+
+        // A week with a third of the fullest counts, one just under it does not.
+        let third = [exams("2027-02-09", 90), exams("2027-02-16", 30), exams("2027-02-23", 29)];
+        assert_eq!(exam_periods(bounds, &third), vec![(d("2027-02-08"), d("2027-02-21"))]);
+        // Early in a semester: too few dates in all, or no week full enough.
+        assert!(exam_periods(bounds, &[exams("2027-02-09", 59)]).is_empty());
+        let thin: Vec<DateCount> = (0..8).map(|week| exams(&d("2027-01-05").plus(week * 7).iso(), 29)).collect();
+        assert!(exam_periods(bounds, &thin).is_empty());
+        assert!(exam_periods(bounds, &[]).is_empty());
+        // A count below nothing is nothing.
+        assert!(exam_periods(bounds, &[exams("2027-02-09", -400), exams("2027-02-16", 61)])
+            == vec![(d("2027-02-15"), d("2027-02-21"))]);
     }
 
     #[test]

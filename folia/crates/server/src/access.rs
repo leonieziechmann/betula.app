@@ -15,7 +15,8 @@
 //! manifest (browsers fetch it without cookies), `/healthz` and `/livez`, and a `/robots.txt`
 //! that turns every crawler away; and a Studienplan's calendar subscription
 //! (`/calendar/<code>.ics`, only with a code that decodes): calendar services fetch it from their
-//! own servers and send no cookie.
+//! own servers and send no cookie; and what Betula announces by itself (`/api/announcements`):
+//! Xylem reads it without a cookie, and it says nothing but what the catalog says of a semester.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -54,6 +55,7 @@ const OPEN: &[&str] = &[
     "/healthz",
     crate::api::LIVENESS,
     "/robots.txt",
+    crate::announcements::PATH,
     folia_app::STYLESHEET,
     folia_app::FONT,
     folia_app::FAVICON,
