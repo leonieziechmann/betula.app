@@ -2503,7 +2503,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 let text = data.with_untracked(|data| as_text(data.as_ref(), |id| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(id)), t));
                 // „Teilen …": the dialog of the whole list (`share.rs`). The list's own devices have
                 // it through Betula Sync; „Link für ein anderes Gerät", which copied it with every
-                // collection and note, is gone since Folia 1.103.1 (owner, 2026-11-18: „Das wird ja
+                // collection and note, is gone since Folia 1.105.1 (owner, 2026-11-18: „Das wird ja
                 // jetzt per sync erledigt und verwirrt nur leute"): the dialog's fixed copy for
                 // everybody is the same link, the notes along where its switch says so.
                 let mut entries = vec![Entry {

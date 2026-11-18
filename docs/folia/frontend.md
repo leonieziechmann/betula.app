@@ -836,7 +836,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     did, and one of modules alone is the same code as before (`bookmarks::share_fragment`,
     `Brought`; `folia_pack`'s rule for lasting codes). The link of the whole list takes every
     collection with its marked modules along, and the notes where the dialog's switch takes them.
-    Until Folia 1.103.1 the menu of the whole list had „Link für ein anderes Gerät" besides, the
+    Until Folia 1.105.1 the menu of the whole list had „Link für ein anderes Gerät" besides, the
     same link with every note, for one's own other device: Betula Sync brings the list there now,
     and the entry only confused (owner, 2026-11-18: „Das wird ja jetzt per sync erledigt und
     verwirrt nur leute"). „Teilen" in a collection's menu and in the bar of the rows
@@ -1854,7 +1854,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   below (an out-of-flow mark, `--kb-pad`; padding pushed the dialog's foot out) a moment after the
   keyboard has gone (`data-keyboard-leaving`), so that it scrolls back rather than jumping to its
   new end. That room is counted from the foot of the box that scrolls, not from the end of what it
-  holds: since 1.103.1 it is as large as what was scrolled up needs (`State::room`), at least the
+  holds: since 1.105.1 it is as large as what was scrolled up needs (`State::room`), at least the
   part shown, so that a field low in a long dialog comes up to the top as well (the dialog
   „Teilen"'s „Für wen" stopped at the keyboard's edge, and a phone's browser moved the part shown
   after it). An open picker's button draws out to its list's width and back, the list unrolls from
