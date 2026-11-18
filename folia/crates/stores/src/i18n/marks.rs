@@ -53,7 +53,7 @@ pub struct Texts {
     pub n_removed: fn(usize) -> String,
     /// The Merkliste emptied.
     pub cleared: &'static str,
-    /// Copied: a link for another device, the list as text.
+    /// Copied: a link of modules, the list as text.
     pub copied_link: &'static str,
     pub copied_text: &'static str,
     pub copied_what: fn(usize) -> String,

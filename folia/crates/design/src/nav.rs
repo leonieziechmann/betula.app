@@ -565,6 +565,45 @@ pub fn step_focus(selector: &str, by: i32) {
     }
 }
 
+/// The keys of an option group in a dialog (`role="radiogroup"`, its options `role="radio"`): ← and →
+/// choose the option before or after, Pos1 and Ende the first and the last, and the focus goes with
+/// the choice, as enhance.js's `radioKey` has it in a mode (owner, 2026-10-20: „links rechts option
+/// auswählen und hoch und runter für prev/next element"); enhance.js leaves the keys of a dialog to
+/// the dialog. The option chosen is the group's one stop of Tab (its `tabindex`, the owner's).
+/// Whether the key was the group's.
+#[allow(unused_variables)]
+pub fn radio_key(ev: &leptos::ev::KeyboardEvent) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.shift_key() {
+            return false;
+        }
+        let Some(radio) = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|element| element.closest("[role=\"radio\"]").ok().flatten()) else { return false };
+        let Some(group) = radio.closest("[role=\"radiogroup\"]").ok().flatten() else { return false };
+        let Ok(list) = group.query_selector_all("[role=\"radio\"]") else { return false };
+        let radios: Vec<web_sys::HtmlElement> = (0..list.length()).filter_map(|i| list.item(i)).filter_map(|node| node.dyn_into::<web_sys::HtmlElement>().ok()).filter(|option| !option.has_attribute("disabled")).collect();
+        let node: &web_sys::Node = radio.as_ref();
+        let Some(at) = radios.iter().position(|option| option.is_same_node(Some(node))) else { return false };
+        let last = radios.len().saturating_sub(1);
+        let to = match ev.key().as_str() {
+            "ArrowRight" => (at + 1).min(last),
+            "ArrowLeft" => at.saturating_sub(1),
+            "Home" => 0,
+            "End" => last,
+            _ => return false,
+        };
+        ev.prevent_default();
+        if let Some(next) = radios.get(to).filter(|next| !next.is_same_node(Some(node))) {
+            let _ = next.focus();
+            next.click();
+        }
+        true
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
 /// Clicks what `selector` finds on the page in front (an entry of a menu whose key was pressed).
 /// `false` without it, and on the server.
 #[allow(unused_variables)]

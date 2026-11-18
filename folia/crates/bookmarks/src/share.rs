@@ -135,6 +135,12 @@ fn path_of(share: &ListShare) -> Option<String> {
     share.link().map(|link| list_live_path(&link))
 }
 
+/// The letter a share's avatar shows for its name, in the list „Geteilt" and in the field „Für wen":
+/// the first, as a capital. None for a name of nothing but spaces.
+fn initial(name: &str) -> Option<String> {
+    name.trim().chars().next().map(|first| first.to_uppercase().collect())
+}
+
 /// The dialog „Teilen" of the Merkliste (`open`: 0) or of one of its collections, while `open`
 /// names one.
 #[component]
@@ -211,12 +217,21 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
     };
 
     // ---- making it
+    // The link made, the focus goes to „Link kopieren": where it was, the button that made it, the
+    // dialog's foot says „Fertig" now, and a second Enter closed the dialog before the link was
+    // copied.
+    let to_copy = || request_animation_frame(|| {
+        nav::focus_selector(".sh-dialog[open] #sh-copy");
+    });
     let create = move || {
         let c = choice.get_untracked();
         problem.set(None);
         if !c.needs_sync() {
             match fixed_link(c.notes) {
-                Some(url) => made.set(Some(Made { url, choice: c, until: None, left_out: 0, id: None })),
+                Some(url) => {
+                    made.set(Some(Made { url, choice: c, until: None, left_out: 0, id: None }));
+                    to_copy();
+                }
                 None => problem.set(Some(d.note_nothing)),
             }
             return;
@@ -228,7 +243,9 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
             let _ = working.try_set(false);
             match result {
                 Ok(done) => {
-                    let _ = made.try_set(Some(Made { url: absolute(&t.path(&done.path)), choice: c, until: done.until, left_out: done.left_out, id: Some(done.share.id) }));
+                    if made.try_set(Some(Made { url: absolute(&t.path(&done.path)), choice: c, until: done.until, left_out: done.left_out, id: Some(done.share.id) })).is_none() {
+                        to_copy();
+                    }
                 }
                 Err(why) => {
                     let _ = problem.try_set(Some(problem_text(why, t)));
@@ -254,7 +271,8 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
             }
         });
     };
-    let primary = move |_| {
+    // „Link erstellen" („Profil speichern und Link erstellen"): its button, or Enter in „Für wen".
+    let primary = move || {
         if working.get_untracked() || saving.get_untracked() {
             return;
         }
@@ -301,8 +319,8 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
                 } else {
                     d.row_everyone.to_string()
                 };
-                let avatar = match share.name.chars().next() {
-                    Some(first) => first.to_uppercase().collect(),
+                let avatar = match initial(&share.name) {
+                    Some(first) => first,
                     None if share.once => "1×".to_string(),
                     None => "↗".to_string(),
                 };
@@ -346,9 +364,10 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
         }
         .into_any()
     };
+    // An option of a group: the one chosen is the group's stop of Tab, ← → choose (`nav::radio_key`).
     let option = move |title: &'static str, text: &'static str, on: Signal<bool>, sync_mark: bool, pick: Callback<()>| {
         view! {
-            <button type="button" class="sh-opt" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| pick.run(())>
+            <button type="button" class="sh-opt" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } tabindex=move || if on.get() { "0" } else { "-1" } on:click=move |_| pick.run(())>
                 <b>{title}{move || (sync_mark && offered && !synced.get()).then(|| view! { <i class="sh-tag">{d.with_sync}</i> })}</b>
                 <span>{text}</span>
             </button>
@@ -366,15 +385,15 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
         let how = offered.then(|| {
             view! {
                 <section class="sh-grp">
-                    <h3 class="sh-label">{d.how}</h3>
-                    <div class="sh-opts" role="radiogroup">
+                    <h3 class="sh-label" id="sh-how">{d.how}</h3>
+                    <div class="sh-opts" role="radiogroup" aria-labelledby="sh-how" on:keydown=move |ev| { nav::radio_key(&ev); }>
                         {option(d.stays, d.stays_hint, live, true, Callback::new(move |()| choice.update(|c| c.live = true)))}
                         {option(d.copy, d.copy_hint, copy, false, Callback::new(move |()| choice.update(|c| c.live = false)))}
                     </div>
                 </section>
                 <section class="sh-grp">
-                    <h3 class="sh-label">{d.who_opens}</h3>
-                    <div class="sh-opts" role="radiogroup">
+                    <h3 class="sh-label" id="sh-who-opens">{d.who_opens}</h3>
+                    <div class="sh-opts" role="radiogroup" aria-labelledby="sh-who-opens" on:keydown=move |ev| { nav::radio_key(&ev); }>
                         {option(d.one, d.one_hint, once, true, Callback::new(move |()| choice.update(|c| c.once = true)))}
                         {option(d.everyone, d.everyone_hint, all, false, Callback::new(move |()| choice.update(|c| c.once = false)))}
                     </div>
@@ -417,11 +436,31 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
                 </button>
             </section>
         };
+        // „Für wen": a field of Betula's, the avatar of the row it names in „Geteilt" at its start;
+        // Enter makes the link, as „Link erstellen" does (the phone's keyboard says „Los").
         let for_whom = c.needs_sync().then(|| {
             view! {
-                <section class="sh-grp">
+                <section class="sh-grp sh-name" class:named=move || who.with(|who| initial(who).is_some())>
                     <label class="sh-label" for="sh-who">{d.for_whom}</label>
-                    <input id="sh-who" class="sh-input" type="text" autocomplete="off" maxlength=folia_stores::collections::MAX_SHARE_NAME placeholder=d.for_whom_placeholder prop:value=move || who.get() on:input=move |ev| who.set(event_target_value(&ev))/>
+                    <input
+                        id="sh-who"
+                        type="text"
+                        autocomplete="off"
+                        autocapitalize="words"
+                        spellcheck="false"
+                        enterkeyhint="go"
+                        maxlength=folia_stores::collections::MAX_SHARE_NAME
+                        placeholder=d.for_whom_placeholder
+                        prop:value=move || who.get()
+                        on:input=move |ev| who.set(event_target_value(&ev))
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "Enter" && !ev.is_composing() {
+                                ev.prevent_default();
+                                primary();
+                            }
+                        }
+                    />
+                    <span class="sh-av" aria-hidden="true">{move || who.with(|who| initial(who)).map_or_else(|| view! { <Icon name="user-round"/> }.into_any(), IntoAny::into_any)}</span>
                     <small class="sh-hint">{d.for_whom_hint}</small>
                 </section>
             }
@@ -457,7 +496,7 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
                         <p class="sh-meta">{meta}</p>
                         {(made.left_out > 0).then(|| view! { <p class="sh-meta warn">{(d.left_out)(made.left_out)}</p> })}
                         <div class="sh-acts">
-                            <button class="mini primary" type="button" data-action="copy-text" data-text=url.clone()><Icon name="copy"/><span>{d.copy_link}</span></button>
+                            <button class="mini primary" type="button" id="sh-copy" data-action="copy-text" data-text=url.clone()><Icon name="copy"/><span>{d.copy_link}</span></button>
                             <button class="mini" type="button" data-action="share-link" data-text=url.clone()><Icon name="share-2"/><span>{d.share_more}</span></button>
                         </div>
                     </div>
@@ -504,7 +543,7 @@ pub(crate) fn ListShareDialog(open: RwSignal<Option<u32>>) -> impl IntoView {
                 } else {
                     view! {
                         <button class="mini" type="button" on:click=move |_| close.run(())>{d.cancel}</button>
-                        <button class="mini primary" type="button" id="sh-make" aria-busy=move || (working.get() || saving.get()).then_some("true") on:click=primary>{primary_label}</button>
+                        <button class="mini primary" type="button" id="sh-make" aria-busy=move || (working.get() || saving.get()).then_some("true") on:click=move |_| primary()>{primary_label}</button>
                     }
                     .into_any()
                 }}

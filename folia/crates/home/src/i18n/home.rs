@@ -324,7 +324,7 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Warum gibt es kein Konto? Fehlt dadurch etwas?",
-                "Nein. Das Konto fehlt mit Absicht, nicht die Funktionen: Merkliste, Stundenplan mit Platzhaltern und ausgewählten Terminen, gespeicherte Pläne, „Mein Studiengang“ und deine Einstellungen funktionieren ohne Anmeldung, weil sie in deinem Browser liegen statt auf einem Server. Niemand sonst kann sie einsehen, und es gibt weder Passwort noch Profil. Auf ein anderes Gerät kommen Merkliste und Stundenplan per Link, in Apple Kalender, Google Kalender oder Outlook per Abo.",
+                "Nein. Das Konto fehlt mit Absicht, nicht die Funktionen: Merkliste, Stundenplan mit Platzhaltern und ausgewählten Terminen, gespeicherte Pläne, „Mein Studiengang“ und deine Einstellungen funktionieren ohne Anmeldung, weil sie in deinem Browser liegen statt auf einem Server. Niemand sonst kann sie einsehen, und es gibt weder Passwort noch E-Mail-Adresse. Auf deine anderen Geräte bringt sie Betula Sync, verschlüsselt, und in Apple Kalender, Google Kalender oder Outlook kommt der Stundenplan per Abo.",
             ),
         ],
     },
@@ -345,7 +345,7 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Kann ich Betula auf mehreren Geräten nutzen?",
-                "Ja, ohne Konto. „Link für ein anderes Gerät“ im Menü der Merkliste kopiert einen Link, der deine Merkliste hinter dem „#“ der Adresse trägt, und diesen Teil schickt kein Browser an einen Server. Einen Stundenplan gibst du mit „Link zum Teilen kopieren“ weiter, an dein anderes Gerät oder an andere Studierende, die seine Module dann übernehmen können. Und ein Kalender-Abo zeigt deinen Plan auf jedem Gerät, auf dem dein Kalender läuft.",
+                "Ja, ohne Konto. Betula Sync hält dein Profil auf deinen Geräten gleich: „Gerät verbinden“ auf der Seite „Profil“ verbindet ein Handy, ein Tablet oder einen Rechner per QR-Code oder Link, und von da an ist jede Änderung an Merkliste, Stundenplan oder „Mein Studium“ sofort auch auf den anderen. Dein Browser verschlüsselt alles, bevor es den Server erreicht, und den Schlüssel bekommen nur deine eigenen Geräte. Einen Stundenplan gibst du mit „Link zum Teilen kopieren“ an andere Studierende weiter, die seine Module dann übernehmen können. Und ein Kalender-Abo zeigt deinen Plan auf jedem Gerät, auf dem dein Kalender läuft.",
             ),
             (
                 "Funktioniert Betula ohne JavaScript?",
@@ -541,7 +541,7 @@ pub const EN: Texts = Texts {
             ),
             (
                 "Why is there no account? Is anything missing without one?",
-                "No. The account is left out on purpose, not the features: saved modules, a timetable with placeholders and chosen dates, saved plans, “My programme” and your settings all work without signing up, because they live in your browser instead of on a server. Nobody else can see them, and there is no password and no profile. Links take your saved modules and your timetable to another device, and a subscription takes the timetable into Apple Calendar, Google Calendar or Outlook.",
+                "No. The account is left out on purpose, not the features: saved modules, a timetable with placeholders and chosen dates, saved plans, “My programme” and your settings all work without signing up, because they live in your browser instead of on a server. Nobody else can see them, and there is no password and no e-mail address. Betula Sync takes them to your other devices, encrypted, and a subscription takes the timetable into Apple Calendar, Google Calendar or Outlook.",
             ),
         ],
     },
@@ -562,7 +562,7 @@ pub const EN: Texts = Texts {
             ),
             (
                 "Can I use Betula on several devices?",
-                "Yes, without an account. “Link for another device” in the menu of your saved modules copies a link that carries your saved modules behind the “#” of the address, and no browser sends that part to a server. You pass a timetable on with “Copy link to share”, to your other device or to other students, who can then add its modules to their own. And a calendar subscription shows your plan on every device your calendar runs on.",
+                "Yes, without an account. Betula Sync keeps your profile the same on your devices: “Connect a device” on the page “Profile” connects a phone, a tablet or a computer by a QR code or a link, and from then on every change to your saved modules, your timetable or “My studies” is on the others at once. Your browser encrypts everything before it reaches the server, and only your own devices get the key. You pass a timetable on to other students with “Copy link to share”, who can then add its modules to their own. And a calendar subscription shows your plan on every device your calendar runs on.",
             ),
             (
                 "Does Betula work without JavaScript?",

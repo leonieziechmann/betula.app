@@ -189,6 +189,22 @@ of „Alle") or one collection (its menu's „Teilen …"):
 | the shares in force | lines `s` of the collections' store (`collections::ListShare`), records `C\|s\|<id>`: renewed by the leader when the marks, the collections or the notes change; a collection deleted takes its shares along, and their parts go |
 | following | „Als Liste folgen": a line `f` of the collections' store (`collections::Followed`, records `C\|f\|<id>`), a list of its own under „Geteilt mit dir" beside the collections, under a number of theirs (`?collection=<n>`), named as the sharer names it until it is renamed; the page lists its modules with the sharer's collections and notes, the rows' marks are the visitor's, „Alle übernehmen" takes everything (`Shelf::adopt`). Watched and fetched as a calendar's part; a part that is gone leaves the list with its last state, „Behalten" and „Löschen" |
 
+Both dialogs answer the keyboard as the rest of Betula does (owner, 2026-11-18: „das Verhalten mit
+einer Tastatur richtig buggy"; Folia 1.102.4): in an option group („Wie", „Wer den Link öffnen
+kann", the Stundenplan's „Mit Personen" and „In Kalender-App") ← and → choose, Pos1 and Ende the
+first and the last, and the option chosen is the group's one stop of Tab (`folia_design::nav::
+radio_key`, as enhance.js's `radioKey` in a mode); Enter in „Für wen" makes the link as the
+dialog's button does, and the phone's keyboard says „Los" there (`enterkeyhint="go"`): with the
+screen's keyboard up the dialog's foot waits for it to go, so until then the field had no way on.
+The link made, the focus goes to „Link kopieren" („Adresse kopieren"): it stayed on the button that
+had made it, which says „Fertig" then, and a second Enter closed the dialog before the link was
+copied. „Für wen" is a field as Betula's others are (owner, the same day: „das Textfeld unten ein
+fail mach das mal ordentlich im Betula styling"; until then the browser's own box, white in the dark
+too): the line's colour around it, the accent's while it is typed in, at its start the avatar of the
+row it names in „Geteilt" — its initial, a person while it is empty —, on a phone 46 px tall and in
+16 px. With the screen's keyboard up it comes up to the top of the dialog under its label, in a long
+dialog too (`folia_design::keyboard`, docs/folia/frontend.md „The screen's keyboard").
+
 The start page's setup ends with it (owner, 2026-11-08: „Mach das mal als step in die einführung
 mit rein. So als letzten schritt. So dass man es gleich auch auf dem handy hat";
 `folia/crates/home/src/home/devices.rs`, docs/folia/frontend.md „The start page"): after

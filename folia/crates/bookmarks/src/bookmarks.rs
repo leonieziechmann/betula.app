@@ -50,7 +50,7 @@ use folia_design::stage::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
-use folia_stores::bookmarks::{brought_from_fragment, share_fragment, Bookmarks, BrokenLink, Brought, Mark, MarkButton, MarkLook, MAX_MARKS};
+use folia_stores::bookmarks::{brought_from_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook, MAX_MARKS};
 use folia_stores::collections::{Anchor, Collections, Followed, Refused, Shelf};
 use folia_widgets::marknote::{Notice, Notices};
 use folia_stores::myprogram::{MineResolved, MyProgram};
@@ -1033,7 +1033,7 @@ fn tags(url: &BookmarksUrl, program_set: bool, t: &'static Texts) -> Vec<(&'stat
 enum Keep {
     /// Marked, with the notes that came along: „Nur merken", „Hinzufügen".
     Marked,
-    /// Marked, and in every collection the link brings (the link for another device).
+    /// Marked, and in every collection the link brings (the link of the whole Merkliste).
     Everything,
     /// Marked, and in the collection of this name („Als Sammlung merken", „Zu ‚Für Lena‘
     /// hinzufügen", „Anderer Name …").
@@ -1049,7 +1049,7 @@ enum Keep {
 /// What it offers follows what the link brings (folia/design/merken/oberflaeche.html, „Weitergeben
 /// und Ankommen"): modules alone „Hinzufügen"; a collection „Als Sammlung merken" or „Nur merken",
 /// and where a collection of its name is there „Zu ‚Für Lena‘ hinzufügen" or „Anderer Name …",
-/// which asks for one that is not; the link for another device every collection at once. Notes
+/// which asks for one that is not; the link of the whole Merkliste every collection at once. Notes
 /// come along where a module has none. More than there is room for: the first that fit.
 #[component]
 fn Offer() -> impl IntoView {
@@ -1213,7 +1213,7 @@ fn Offer() -> impl IntoView {
                 };
                 ((b.from_link_named)(&name, all), line, answers)
             }
-            // The link for another device: every collection at once.
+            // The link of the whole Merkliste: every collection at once.
             many => {
                 let line = if full || short { room_line() } else { (b.new_of)(new) };
                 let answers = view! {
@@ -2479,8 +2479,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 entries
             }
             None => {
-                let marks: Vec<String> = bookmarks.map(Bookmarks::marks_untracked).unwrap_or_default().into_iter().map(|mark| mark.id).collect();
-                let count = marks.len();
+                let count = bookmarks.map_or(0, |bookmarks| bookmarks.marks_untracked().len());
                 if ui.confirming.get() {
                     return Some(view! {
                         <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
@@ -2502,17 +2501,11 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     }.into_any());
                 }
                 let text = data.with_untracked(|data| as_text(data.as_ref(), |id| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(id)), t));
-                // The link for another device takes everything along: the collections with their
-                // marked modules, and every note (konzept.html: „Das eigene Gerät bekommt alles").
-                let everything = collections.map(|collections| {
-                    collections.with_untracked(|shelf| {
-                        let held = shelf.collections().iter().map(|collection| (collection.name.clone(), marks.iter().filter(|id| shelf.holds(collection.id, id)).cloned().collect())).collect();
-                        (held, notes_of(shelf, &marks))
-                    })
-                });
-                let (held, notes) = everything.unwrap_or_default();
-                let link = share_fragment(&Brought { ids: marks.clone(), collections: held, notes }).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS))));
-                // „Teilen …": the dialog of the whole list (`share.rs`).
+                // „Teilen …": the dialog of the whole list (`share.rs`). The list's own devices have
+                // it through Betula Sync; „Link für ein anderes Gerät", which copied it with every
+                // collection and note, is gone since Folia 1.102.4 (owner, 2026-11-18: „Das wird ja
+                // jetzt per sync erledigt und verwirrt nur leute"): the dialog's fixed copy for
+                // everybody is the same link, the notes along where its switch says so.
                 let mut entries = vec![Entry {
                     icon: "share-2",
                     label: t.bookmarks_share.open.to_string(),
@@ -2524,22 +2517,6 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                         ui.dialog.set(Some(0));
                     }),
                 }];
-                if let Some(link) = link.filter(|_| count > 0) {
-                    entries.push(Entry {
-                        icon: "link",
-                        label: b.transfer.to_string(),
-                        hint: Some(b.transfer_hint),
-                        key: None,
-                        danger: false,
-                        does: Callback::new(move |()| {
-                            copy(&link);
-                            close();
-                            if let Some(notices) = notices {
-                                notices.say(Notice::Copied { link: true, count });
-                            }
-                        }),
-                    });
-                }
                 if count > 0 {
                     entries.push(Entry {
                         icon: "copy",

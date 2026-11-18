@@ -18,13 +18,16 @@ mod tests {
             let quoted = |label: &str| format!("{open}{label}{close}");
             let home = &t.home;
             let answer = |question: usize, faq: &folia_home::i18n::home::Faq| faq.questions.get(question).map(|(_, answer)| *answer).unwrap_or_default();
+            let sync = &folia_profile::i18n::texts(*locale).sync;
             let pairs = [
                 (answer(0, &home.using_betula), quoted(t.topics.finding.name)),
                 (answer(0, &home.using_betula), quoted(t.topics.more)),
                 (answer(1, &home.using_betula), quoted(t.studyplan_head.plan)),
                 (answer(1, &home.using_betula), quoted(t.catalog.fits)),
                 (answer(2, &home.using_betula), quoted(t.catalog.saved_chip)),
-                (answer(3, &home.using_betula), quoted(t.bookmarks.transfer)),
+                (answer(3, &home.using_betula), quoted(sync.pair)),
+                (answer(3, &home.using_betula), quoted(t.profile.title)),
+                (answer(3, &home.using_betula), quoted(t.app.my_studies)),
                 (answer(3, &home.using_betula), quoted(t.studyplan_share.copy_link)),
                 (answer(0, &home.for_studies), quoted(t.program.in_catalog)),
                 (answer(0, &home.for_studies), quoted(t.myprogram.mine)),
@@ -49,10 +52,12 @@ mod tests {
             let quoted = |label: &str| format!("{open}{label}{close}");
             let d = &t.home_detail;
             let point = |chapter: &folia_home::i18n::home_detail::Chapter, n: usize| chapter.points.get(n).map(|point| point.text).unwrap_or_default();
+            let sync = &folia_profile::i18n::texts(*locale).sync;
             let pairs = [
                 (point(&d.filters, 3), quoted(t.common.reset)),
                 (point(&d.timetable, 3), quoted(t.catalog.fits)),
-                (point(&d.account, 0), quoted(t.bookmarks.transfer)),
+                (point(&d.account, 0), quoted(sync.pair)),
+                (point(&d.account, 0), quoted(t.profile.title)),
                 (point(&d.account, 1), quoted(t.studyplan_share.copy_link)),
                 (point(&d.data, 2), quoted(t.common.not_stated)),
                 (point(&d.data, 2), quoted(t.module.time_open)),

@@ -8500,7 +8500,22 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .sh-sw .t { display: flex; flex-direction: column; }
 .sh-sw .t b { font-size: 13.5px; font-weight: 600; }
 .sh-sw .t span { font-size: 12px; color: var(--text-3); }
-.sh-input { font-size: 14px; }
+/* „Für wen": a field as Betula's others are (owner, 2026-11-18: „das Textfeld unten ein fail mach
+   das mal ordentlich im Betula styling"; until then the browser's own box) — the line's colour
+   around it, the accent's while it is typed in —, and at its start the avatar of the row it names in
+   „Geteilt": its initial, a person while it is empty. The avatar lies over the field's start and lets
+   a tap through to it; the field follows its label, which goes up with it over the screen's keyboard
+   (folia_design::keyboard). On a phone as tall as a finger, in the size a phone does not zoom into. */
+.sh-grp.sh-name { display: grid; grid-template-columns: minmax(0, 1fr); }
+.sh-name > .sh-label { grid-row: 1; }
+.sh-name > input, .sh-name > .sh-av { grid-row: 2; grid-column: 1; }
+.sh-name > .sh-hint { grid-row: 3; }
+.sh-name > input { width: 100%; min-width: 0; height: 40px; margin: 0; padding: 0 12px 0 44px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; font-size: 14px; font-weight: 500; transition: box-shadow .12s; }
+.sh-name > input::placeholder { color: var(--text-3); font-weight: 400; opacity: 1; }
+.sh-name > input:focus { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sh-name > .sh-av { z-index: 1; align-self: center; justify-self: start; width: 26px; height: 26px; margin-left: 9px; background: var(--panel-3); color: var(--text-3); pointer-events: none; transition: background-color .15s, color .15s; }
+.sh-name > .sh-av > .icon { width: 15px; height: 15px; }
+.sh-name.named > .sh-av { background: var(--accent-soft); color: var(--accent-ink); }
 .sh-hint { color: var(--text-3); font-size: 11.5px; }
 .sh-result { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 14px; padding: 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
 .sh-qr.pf-qr { width: 132px; height: 132px; }
@@ -8516,9 +8531,12 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .sh-opts { grid-template-columns: minmax(0, 1fr); }
   .sh-up { grid-template-columns: auto minmax(0, 1fr); }
   .sh-up .mini { grid-column: 2; justify-self: start; }
+  .sh-name > input { height: 46px; padding-left: 48px; font-size: 16px; }
+  .sh-name > .sh-av { width: 28px; height: 28px; margin-left: 10px; }
+  .sh-name > .sh-hint { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sh-sw .track, .sh-sw .track::after { transition: none; }
+  .sh-sw .track, .sh-sw .track::after, .sh-name > input, .sh-name > .sh-av { transition: none; }
 }
 
 @keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }
