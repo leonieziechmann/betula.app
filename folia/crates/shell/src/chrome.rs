@@ -743,11 +743,17 @@ pub fn ProfileSwitcher() -> impl IntoView {
             menu.close();
         }
     });
-    // Opened by a click or a finger, the active profile has the focus: Tab goes on from there, Esc
-    // closes the menu. A mouse resting on the way leaves the focus where it is.
+    // Where the profiles scroll (more than five, `.pm-list`), the active one stands in the middle
+    // of what is seen, and the edge where more of them lies fades. Opened by a click or a finger, the active profile has the
+    // focus: Tab goes on from there, Esc closes the menu. A mouse resting on the way leaves the
+    // focus where it is.
     let checked = NodeRef::<leptos::html::Button>::new();
     Effect::new(move |_| {
         if let Some(checked) = checked.get() {
+            nav::reveal_entry(&checked, true);
+            if let Some(list) = checked.parent_element() {
+                nav::mark_more(&list);
+            }
             if menu.is_some_and(|menu| menu.at.with_untracked(|at| at.is_some_and(|at| !at.hover))) {
                 let _ = checked.focus();
             }
@@ -899,7 +905,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
                 on:pointerleave=move |ev| menu.pointer_off(&ev)
             >
                 <p class="tab-menu-head">{t.app.profiles}</p>
-                <div class="pm-list" role="radiogroup" aria-label=t.app.profiles>{items}</div>
+                <div class="pm-list" role="radiogroup" aria-label=t.app.profiles on:scroll=nav::more_on_scroll>{items}</div>
                 {new_profile}
                 <hr class="tab-menu-rule"/>
                 <a class="tab-menu-way" href=t.path(url::PROFILE) rel="nofollow" on:click=close><Icon name="sliders-horizontal"/><span>{t.app.manage_profile}</span><Icon name="chevron-right" class="pm-end"/></a>

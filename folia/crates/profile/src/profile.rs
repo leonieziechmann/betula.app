@@ -761,8 +761,32 @@ fn ProfileList() -> impl IntoView {
     };
     // The line under each profile: its „Mein Studiengang", the active one's as its store has it.
     let programs = Memo::new(move |_| profiles.map(|profiles| profiles.program_lines(t.locale)).unwrap_or_default());
+    // Where the profiles scroll (more than five on a wide screen, `.pf-list`), the active one is in
+    // sight, at first in the middle of what is seen, later as near as it is (one chosen in the list,
+    // a new one at its end), and the edge where more of them lies fades: once the page is in front,
+    // where the list has its size.
+    let list = NodeRef::<leptos::html::Div>::new();
+    #[cfg(feature = "csr")]
+    let front = folia_design::stage::front();
+    #[cfg(feature = "csr")]
+    let seen = StoredValue::new(false);
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        all.track();
+        checked.track();
+        let Some(list) = list.get().filter(|_| front.get()) else { return };
+        request_animation_frame(move || {
+            use wasm_bindgen::JsCast;
+            let entry = list.query_selector(".pf-item[aria-checked=\"true\"]").ok().flatten().and_then(|entry| entry.dyn_into::<web_sys::HtmlElement>().ok());
+            if let Some(entry) = entry {
+                nav::reveal_entry(&entry, !seen.get_value());
+                seen.set_value(true);
+            }
+            nav::mark_more(&list);
+        });
+    });
     view! {
-        <div class="pf-list" role="radiogroup" aria-label=p.profiles>
+        <div class="pf-list" role="radiogroup" aria-label=p.profiles node_ref=list on:scroll=nav::more_on_scroll>
             <For
                 each=move || all.get()
                 key=|profile| (profile.id, profile.name.clone())
