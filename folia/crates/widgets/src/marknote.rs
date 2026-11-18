@@ -42,7 +42,7 @@ pub enum Notice {
     Deleted { deleted: Deleted, alone: Vec<String>, taken: Option<Cleared> },
     /// The Merkliste emptied: what „Rückgängig" puts back.
     Cleared(Cleared),
-    /// Copied: a link for another device, or the list as text, of so many modules.
+    /// Copied: a link of modules, or the list as text, of so many modules.
     Copied { link: bool, count: usize },
     /// The rows selected taken away: what „Rückgängig" puts back.
     Removed(Cleared),

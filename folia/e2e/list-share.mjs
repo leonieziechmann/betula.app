@@ -101,16 +101,29 @@ check((await max.page.locator(".sh-dialog[open] h2").first().textContent()).incl
 const opts = max.page.locator(".sh-dialog[open] .sh-opt");
 check(await max.page.locator(".sh-dialog[open] .sh-opt[aria-checked=true]", { hasText: "Fester Stand" }).count() === 1, "Max: a private profile does not open with „Fester Stand“");
 check(await max.page.locator(".sh-dialog[open] .sh-up").count() >= 1, "Max: no offer of Betula Sync under the fixed copy");
-await opts.filter({ hasText: "Bleibt aktuell" }).click();
-await opts.filter({ hasText: "Eine Person" }).click();
+// The options by the keyboard (Folia 1.105.2): ← chooses the one before, which takes the focus, and
+// the option chosen is its group's one stop of Tab.
+const chosen = (text) => max.page.evaluate((text) => document.activeElement?.matches(".sh-dialog[open] .sh-opt[aria-checked=true]") && document.activeElement.textContent.includes(text), text);
+await opts.filter({ hasText: "Fester Stand" }).focus();
+await max.page.keyboard.press("ArrowLeft");
+check(await chosen("Bleibt aktuell"), "Max: ← in „Wie“ does not choose „Bleibt aktuell“ with the focus");
+await opts.filter({ hasText: "Alle mit dem Link" }).focus();
+await max.page.keyboard.press("ArrowLeft");
+check(await chosen("Eine Person"), "Max: ← in „Wer den Link öffnen kann“ does not choose „Eine Person“ with the focus");
+check(await max.page.evaluate(() => [...document.querySelectorAll(".sh-dialog[open] .sh-opts")].every((group) => { const stops = group.querySelectorAll('.sh-opt[tabindex="0"]'); return stops.length === 1 && stops[0].getAttribute("aria-checked") === "true"; })), "Max: an option group is not one stop of Tab, at the option chosen");
 check(await max.page.locator(".sh-dialog[open] .sh-tag").count() === 2, "Max: the choices that need Betula Sync are not marked „mit Sync“");
 check(await max.page.locator(".sh-dialog[open] .sh-up.need").count() === 1, "Max: no word on what saving the profile means");
 await max.page.click("#sh-notes");
 await max.page.fill("#sh-who", "Lena");
+// „Für wen“ is a field of Betula's, not the browser's box, with the avatar of the row it names.
+const field = await max.page.evaluate(() => { const input = document.querySelector("#sh-who"), style = getComputedStyle(input); return { radius: parseFloat(style.borderTopLeftRadius), border: style.borderTopStyle, avatar: document.querySelector(".sh-name > .sh-av")?.textContent, hint: input.getAttribute("enterkeyhint") }; });
+check(field.radius > 0 && field.border === "none" && field.avatar === "L" && field.hint === "go", `Max: „Für wen“ is not Betula's field: ${JSON.stringify(field)}`);
 const make = max.page.locator("#sh-make");
 check((await make.textContent()).includes("Profil speichern und Link erstellen"), `Max: the button says „${await make.textContent()}“`);
-await make.click();
+// Enter in „Für wen“ makes it, as the button does; the focus goes to „Link kopieren“.
+await max.page.press("#sh-who", "Enter");
 await until("Max: the one-time link is made", max.page, () => Boolean(onPage(".sh-link")?.textContent.includes("#once=")), null, 30000);
+await until("Max: the focus at „Link kopieren“", max.page, () => document.activeElement?.id === "sh-copy", null, 5000);
 const once = (await max.page.locator(".sh-link").first().textContent()).trim();
 check(once.startsWith(base + "/bookmarks#once="), `Max: the link is ${once}`);
 await until("Max: the profile syncs after „Profil speichern“", max.page, () => syncStatus().startsWith("online"), null, 20000);

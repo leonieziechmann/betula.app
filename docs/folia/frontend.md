@@ -820,9 +820,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     notes are cut at their caps (60, 4,000 characters), 64 collections at most. What belongs to
     a module that is no longer marked (an older tab unmarked it) goes with the next change. A
     profile's file, „Profil leeren" and the profile page take it along.
-  - **To another device without a server in between:** „Link für ein anderes Gerät" copies a
-    link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
-    `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
+  - **A link without a server in between:** the fixed copy for everybody of „Teilen …"
+    (`share.rs`, below) copies a link to the list with the marked modules in its *fragment*, as a
+    code (`/bookmarks#m=…`, `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
     before, in characters an address carries as they are, and two check characters at the end.
     The order of marking does not travel (owner, 2026-09-23: it does not matter); the other device
     marks them all at once. The code begins with the number of its layout, in four bits
@@ -834,9 +834,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     — each its name and its modules by their places in the list — and notes, as fields at the end
     of the layout, empty and so absent in a code of modules alone: a code of before reads as it
     did, and one of modules alone is the same code as before (`bookmarks::share_fragment`,
-    `Brought`; `folia_pack`'s rule for lasting codes). The link for another device takes
-    everything along (konzept.html: „Das eigene Gerät bekommt alles"): every collection with its
-    marked modules and every note. „Teilen" in a collection's menu and in the bar of the rows
+    `Brought`; `folia_pack`'s rule for lasting codes). The link of the whole list takes every
+    collection with its marked modules along, and the notes where the dialog's switch takes them.
+    Until Folia 1.105.2 the menu of the whole list had „Link für ein anderes Gerät" besides, the
+    same link with every note, for one's own other device: Betula Sync brings the list there now,
+    and the entry only confused (owner, 2026-11-18: „Das wird ja jetzt per sync erledigt und
+    verwirrt nur leute"). „Teilen" in a collection's menu and in the bar of the rows
     selected is a menu of three lines: „Link kopieren" (a collection's link carries its name),
     „Notizen mitnehmen" (off until switched on, for as long as the page is open: „Notizen bleiben
     zu Hause, außer du nimmst sie mit"), „Als Text kopieren" (each module a line of a message,
@@ -846,7 +849,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     collection „Für Lena · 3 Module aus einem Link." with „Als Sammlung merken", „Nur merken" and
     „Verwerfen", and where a collection of its name is there „Die Sammlung gibt es schon." with
     „Zu ‚Für Lena‘ hinzufügen" and „Anderer Name …", whose field refuses a name there is („Gibt es
-    schon"); the link for another device „46 Module in 4 Sammlungen aus einem Link. 12 davon neu."
+    schon"); the link of the whole list „46 Module in 4 Sammlungen aus einem Link. 12 davon neu."
     with „Hinzufügen". A note comes where a module has none, never over one kept here
     (`Shelf::adopt`); more than there is room for keeps the first that fit („Die ersten 8 merken"). A list too long for a code (thousands of ids
     that are no module numbers, which the catalog does not have) gets no link. Links of the time
@@ -1850,7 +1853,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   where it is), what is typed in scrolls up and back smoothly, and what scrolled keeps its room
   below (an out-of-flow mark, `--kb-pad`; padding pushed the dialog's foot out) a moment after the
   keyboard has gone (`data-keyboard-leaving`), so that it scrolls back rather than jumping to its
-  new end. An open picker's button draws out to its list's width and back, the list unrolls from
+  new end. That room is counted from the foot of the box that scrolls, not from the end of what it
+  holds: since 1.105.2 it is as large as what was scrolled up needs (`State::room`), at least the
+  part shown, so that a field low in a long dialog comes up to the top as well (the dialog
+  „Teilen"'s „Für wen" stopped at the keyboard's edge, and a phone's browser moved the part shown
+  after it). An open picker's button draws out to its list's width and back, the list unrolls from
   it (clipped, so that what it covers does not show through it). With less motion asked for, all
   of it is there at once. `e2e/study.mjs` takes the sheet's top and its body's scroll frame by
   frame.
@@ -8301,8 +8308,8 @@ columns with „Gemerkt" turned round and „Turnus" in its sections, the search
 among the marked modules without touching the address or any request, with its line into the
 whole catalog and its empty state, the halves of the year with their counts where the marks are
 not all offered alike, the floating preview, a mark taken away staying on the page,
-copying the list, the link for another device and what the other device does with it: asking
-first, counting what is new, taking the ids out of the address without a history entry;
+copying the list, the link of its „Teilen …" (and no „Link für ein anderes Gerät" in its menu)
+and what another browser does with it: asking first, counting what is new, taking the ids out of the address without a history entry;
 emptying with the question and „Rückgängig"); „Gemerkt" as a filter of the catalog (only the
 marked ones and all but them, the rest of the filter kept, the tag above the list, a mark made
 while it is on, the two empty states with and without the app); the rail's item as a tab;
