@@ -28,7 +28,7 @@ use folia_plans::choices::{self, Choice, PlanView, Room, Stand};
 use folia_plans::study::{self, Input};
 use folia_plans::studyplan::RowRef;
 use folia_plans::{bench, variants};
-use folia_routes::url::{CatalogUrl, LocalView, StudyUrl};
+use folia_routes::url::{CatalogUrl, LocalView, StudyUrl, StudyView};
 use folia_shell::chrome::{Back, TopBack};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::PlanHint;
@@ -491,13 +491,15 @@ fn room_notes(entry: &Entry, t: &'static Texts) -> Option<impl IntoView> {
 pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
-    // The way back at the head of a phone's page: from a choice to the list, from the list to the
-    // overview, through the history where that is the step before.
+    // The way back at the head of a phone's page: from a choice to the list, or to the
+    // Regelstudienplan where a row of it opened the choice; from the list to the overview; through
+    // the history where that is the step before.
     TopBack::follow(move || {
         if !ctx.phone.get() {
             return None;
         }
         Some(match ctx.url.with(|url| url.choice) {
+            Some(_) if ctx.choice_from_plan.get() => Back { href: StudyUrl::default().with_view(StudyView::Plan).path(), label: v.plan, history: true },
             Some(_) => Back { href: ctx.url.with(|url| url.with_choice(None).with_module(None, false).path()), label: v.choices, history: ctx.choice_back.get() },
             None => Back { href: StudyUrl::default().path(), label: v.to_overview, history: ctx.view_back.get() },
         })
@@ -816,7 +818,10 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
                         let count = marked.with(|marked| count_line(entry, marked, t));
                         let room = entry.room;
                         view! {
-                            <a class="st-wcard" href=t.path(&href) style=format!("--c: {}", entry.tone) on:click=move |_| ctx.choice_back.set(true)>
+                            <a class="st-wcard" href=t.path(&href) style=format!("--c: {}", entry.tone) on:click=move |_| {
+                                ctx.choice_back.set(true);
+                                ctx.choice_from_plan.set(false);
+                            }>
                                 <span class="st-wcard-t"><b>{entry.name.clone()}</b>{fig(&entry.stand, t)}<Icon name="chevron-right"/></span>
                                 {bar(&entry.stand, None, "", t)}
                                 <small>{count}</small>
