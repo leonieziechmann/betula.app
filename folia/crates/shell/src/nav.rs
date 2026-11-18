@@ -30,9 +30,12 @@
 //!   browsers skip on Back), then the entries in place (`history.go`, `replaceState`). What the tap
 //!   changes shows at once (`Pending::hold`), the history is written after the frame that shows it
 //!   (the tap stays fresh for seconds), and the router takes the top once it is written. The tab
-//!   left keeps its stack, and comes back as it was; what is left over ahead is no way Forward. A
-//!   page come to from outside (a link in a messenger) stays as it came while it is only read, so
-//!   Back leads back out; its first use lays under it what lies above it, up to Start (`seed`).
+//!   left keeps its stack, and comes back as it was; what is left over ahead is no way Forward. The
+//!   tab one is in, tapped again, writes its own stack the same way: the page where its area
+//!   starts, Start under it (`again`; owner, 2026-11-18: „dass sich dann die standard Ansicht davon
+//!   öffnet"). A page come to from outside (a link in a messenger) stays as it came while it is
+//!   only read, so Back leads back out; its first use lays under it what lies above it, up to Start
+//!   (`seed`).
 //!   Where the browser lacks the Navigation API, or an entry below is of another load of a page (the
 //!   site's pages before the app took over, another language: going there loads that page anew; a
 //!   reload keeps the entries the page wrote), each link is a step of its own as before.
@@ -436,7 +439,7 @@ pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &st
             return false;
         }
         let stack = chain_of(to).into_iter().map(|url| Entry { url, semester: None }).collect();
-        browser::tab_to(pending, (from_path, from_search), entries, at, base, stack, landing)
+        browser::tab_to(pending, (from_path, from_search), entries, at, base, stack, landing, true)
     }
     #[cfg(not(feature = "csr"))]
     {
@@ -445,11 +448,12 @@ pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &st
     }
 }
 
-/// A tab of the bar tapped on a phone: in another tab, to its stack as it was left (else to `href`,
-/// where its link leads, with what lies above it); in its own, back to its first page, but from a
-/// page of a while on top of it (`passing`) back to the page under it, the tab as it was left. True
-/// where it did; false where the link has to take the step itself (a wide screen, no Navigation
-/// API, an entry below of another load of a page).
+/// A tab of the bar tapped on a phone, not the one shown as current (that one is `again`): in
+/// another tab, to its stack as it was left (else to `href`, where its link leads, with what lies
+/// above it); in its own, back to its first page (a module's own page of the Merkliste under the
+/// catalog's tab), and from a page of a while on top of it (`passing`) back to the page under it,
+/// the tab as it was left. True where it did; false where the link has to take the step itself (a
+/// wide screen, no Navigation API, an entry below of another load of a page).
 pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
     #[cfg(feature = "csr")]
     {
@@ -483,11 +487,51 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
             browser::saved(area).unwrap_or_else(|| chain_of(href).into_iter().map(|url| Entry { url, semester: None }).collect())
         };
         let Some(from) = pending.router_at() else { return false };
-        browser::tab_to(pending, (&from.0, &from.1), entries, at, base, stack, landing)
+        browser::tab_to(pending, (&from.0, &from.1), entries, at, base, stack, landing, true)
     }
     #[cfg(not(feature = "csr"))]
     {
         let _ = (pending, area, href);
+        false
+    }
+}
+
+/// The tab of `area`, the one the app is in, tapped again on a phone (owner, 2026-11-18: „dass sich
+/// dann die standard Ansicht davon öffnet"): its stack becomes the page where the area starts
+/// (`home`), with Start under it, so that Back leads from there to Start; Start's tab leads to Start.
+/// `step`: the app goes to `home` (else it is there already, another `page` of its list, and only
+/// what lies under it in the tab goes; where that is nothing, nothing is written). The tab the
+/// history is in keeps its stack where it is another one (a module's own page of the Merkliste
+/// under the catalog's tab). True where it did; false where the caller has to take the step (a
+/// wide screen, no Navigation API, an entry below of another load of a page).
+pub fn again(pending: crate::pending::Pending, area: Area, home: &str, step: bool) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        if !phone() {
+            return false;
+        }
+        if rewriting() {
+            return true;
+        }
+        let Some((entries, at, base, landing)) = browser::stacked_or_seeded() else { return false };
+        let now = browser::tab_at(&entries, base, at);
+        let first = if area == Area::Home { base } else { base + 1 };
+        if !step && now == area && at == first {
+            return true;
+        }
+        // Where the app stays, its own entry as it is (`page` and all), so that the router is
+        // where the browser is.
+        let stay = entries.get(at).and_then(|entry| entry.url.clone()).filter(|_| !step);
+        let stack = match stay {
+            Some(url) => vec![Entry { url, semester: None }],
+            None => chain_of(home).into_iter().map(|url| Entry { url, semester: None }).collect(),
+        };
+        let Some(from) = pending.router_at() else { return false };
+        browser::tab_to(pending, (&from.0, &from.1), entries, at, base, stack, landing, now != area)
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = (pending, area, home, step);
         false
     }
 }
@@ -1016,15 +1060,19 @@ mod browser {
 
     /// Writes the history for a change of tabs: Start and `stack` above it, the browser at its
     /// top (`super::plan`), and first the way up under a page come to from outside (`landing`). The
-    /// tab left keeps its stack (`save`). What the tap changes shows at once (`Pending::hold`); the
-    /// history is written after the frame that shows it, so that the tap answers as quickly as a
-    /// link's, and the router takes the top at the end. False where the history cannot be written
-    /// in place: an entry it would walk through is of another load of a page.
-    pub(super) fn tab_to(pending: crate::pending::Pending, from: (&str, &str), entries: Vec<Seen>, at: usize, base: usize, stack: Vec<super::Entry>, landing: Option<Landing>) -> bool {
+    /// tab left keeps its stack (`save`; `keep`, not where the tab tapped again writes its own,
+    /// `super::again`). What the tap changes shows at once (`Pending::hold`); the history is written
+    /// after the frame that shows it, so that the tap answers as quickly as a link's, and the router
+    /// takes the top at the end. False where the history cannot be written in place: an entry it
+    /// would walk through is of another load of a page.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn tab_to(pending: crate::pending::Pending, from: (&str, &str), entries: Vec<Seen>, at: usize, base: usize, stack: Vec<super::Entry>, landing: Option<Landing>, keep: bool) -> bool {
         if entries.get(base..=at).is_none_or(|walked| walked.iter().any(|entry| !entry.same)) {
             return false;
         }
-        save(&entries, base, at);
+        if keep {
+            save(&entries, base, at);
+        }
         let top = stack.last().map_or_else(|| "/".to_string(), |entry| entry.url.clone());
         let (top_path, top_search) = top.split_once('?').unwrap_or((top.as_str(), ""));
         // A tab whose page stands on its stage comes to the front at once, scrolled where it was
@@ -1038,9 +1086,12 @@ mod browser {
                 window.scroll_to_with_x_and_y(0.0, 0.0);
             }
         };
-        let done: Box<dyn FnOnce()> = Box::new(move || match turn {
-            Some(turn) => pending.release(turn, top_of_page),
-            None => top_of_page(),
+        // Where the page stays what it is (the tab tapped again where the app is, `super::again`),
+        // nothing: it goes up from where it is (`tabs::to_top`).
+        let done: Box<dyn FnOnce()> = Box::new(move || {
+            if let Some(turn) = turn {
+                pending.release(turn, top_of_page);
+            }
         });
         REWRITE.with(|rewrite| *rewrite.borrow_mut() = Some(Rewrite { ops, done: Some(done), scrolling: None, guard: None, expect: None, seed: landing, started: false }));
         folia_design::nav::after_paint(begin);

@@ -74,7 +74,7 @@ use folia_shell::frame::Frame;
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
-use folia_shell::tabs::Area;
+use folia_shell::tabs::{Area, TabAgain};
 use folia_stores::myprogram::MyProgram;
 // What the study is worked out from, as the start page works it out too (`folia_stores::study`).
 pub(super) use folia_stores::study::{assumed_start, chosen, input_of, rows_of, Setup};
@@ -593,6 +593,32 @@ pub fn StudyPage() -> impl IntoView {
         if !front.get() && ctx.view_back.get_untracked() {
             ctx.view_back.set(false);
         }
+    });
+    // The tab of „Studium" tapped again while the page is in front (`TabAgain`; owner, 2026-11-18:
+    // „dass sich dann die standard Ansicht davon öffnet. Also bei mein Studium zum Beispiel die mein
+    // Studium page"): the page as it starts, the address with the tab at `/study`. The workbench
+    // ends (what it planned stays planned, as with its ×), and what lies over the page goes: the
+    // menu, the dialog, the rows selected, the Gesamtplan's full screen. On a desktop the current
+    // semester comes into focus; a phone's row goes to the overview (`phone.rs`), whose semester
+    // stays where the row left it.
+    let again = TabAgain::expect();
+    Effect::new(move |before: Option<u32>| {
+        let now = again.map_or(0, |again| again.count(Area::Programs));
+        if before.is_some_and(|before| before != now) && front.get_untracked() {
+            if ctx.bench.with_untracked(Option::is_some) {
+                bench::leave(ctx);
+            }
+            ctx.menu.set(None);
+            ctx.dialog.set(None);
+            ctx.selection.set(Selection::default());
+            if ctx.full.get_untracked() {
+                grid::full(ctx, false);
+            }
+            if !ctx.phone.get_untracked() {
+                ctx.focus.set(None);
+            }
+        }
+        now
     });
     // What lies over the page (folia_shell::nav): the menu, the rows selected, the dialog. On a
     // phone whose browser has `CloseWatcher` (Android) Back closes the newest, as Esc does
