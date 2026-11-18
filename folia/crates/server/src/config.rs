@@ -127,6 +127,12 @@ pub struct Config {
     #[arg(long, env = "FOLIA_PASS_DIFFICULTY", default_value_t = crate::pass::DEFAULT_DIFFICULTY, value_parser = clap::value_parser!(u8).range(0..=32))]
     pub pass_difficulty: u8,
 
+    /// The traps (src/trap.rs): for how many minutes an address that asked for what only a program
+    /// asks for (the link nobody sees, the address nobody asks for, what a scanner looks for) is
+    /// turned away. 0: no traps.
+    #[arg(long, env = "FOLIA_TRAP_MINUTES", default_value_t = crate::trap::DEFAULT_MINUTES, value_parser = clap::value_parser!(u64).range(0..=1440))]
+    pub trap_minutes: u64,
+
     /// `text` or `json`.
     #[arg(long, env = "FOLIA_LOG_FORMAT", default_value = "text")]
     pub log_format: String,

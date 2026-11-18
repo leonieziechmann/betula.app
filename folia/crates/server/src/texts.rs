@@ -36,6 +36,12 @@ pub struct Texts {
     pub gate_open: &'static str,
     pub gate_wrong: &'static str,
     pub gate_closed: &'static str,
+    /// The page a paused address gets (`trap`): its title, why and for how many more minutes, that
+    /// an address is shared and how a person goes on, and the button.
+    pub trap_title: &'static str,
+    pub trap_text: fn(u64) -> String,
+    pub trap_shared: &'static str,
+    pub trap_go_on: &'static str,
     /// A calendar address that names no plan.
     pub no_calendar: &'static str,
     /// What Betula announces by itself (`announcements`): the title and the body of a
@@ -82,6 +88,13 @@ pub const DE: Texts = Texts {
     gate_open: "Öffnen",
     gate_wrong: "Das Passwort stimmt nicht.",
     gate_closed: "Zu viele falsche Versuche. Bitte versuche es in einer Minute noch einmal.",
+    trap_title: "Kurze Pause",
+    trap_text: |minutes| {
+        let left = if minutes == 1 { "noch etwa eine Minute".to_string() } else { format!("noch etwa {minutes} Minuten") };
+        format!("Von deiner Internetadresse hat ein Programm gerade etwas abgerufen, das Betula nur als Falle für Bots auslegt. Anfragen von dieser Adresse beantwortet Betula deshalb {left} lang nicht.")
+    },
+    trap_shared: "Eine Adresse teilen sich oft viele, etwa im Mobilfunk oder im WLAN der Uni. Bist du kein Bot, geht es hier sofort weiter:",
+    trap_go_on: "Weiter zu Betula",
     no_calendar: "Kein Kalender unter dieser Adresse.\n",
     lectures_begin: "Die Vorlesungszeit beginnt",
     lectures_begin_text: |semester| format!("Heute starten die Vorlesungen im {semester}."),
@@ -123,6 +136,13 @@ pub const EN: Texts = Texts {
     gate_open: "Open",
     gate_wrong: "The password is not right.",
     gate_closed: "Too many wrong attempts. Please try again in a minute.",
+    trap_title: "A short pause",
+    trap_text: |minutes| {
+        let left = if minutes == 1 { "about one more minute".to_string() } else { format!("about {minutes} more minutes") };
+        format!("A program has just fetched something from your internet address that Betula lays out only as a trap for bots. Betula therefore does not answer requests from this address for {left}.")
+    },
+    trap_shared: "Many people often share one address, on a mobile network or a university's Wi-Fi for example. If you are no bot, go on right away:",
+    trap_go_on: "Go on to Betula",
     no_calendar: "No calendar at this address.\n",
     lectures_begin: "Lectures begin",
     lectures_begin_text: |semester| format!("The lectures of {semester} start today."),

@@ -121,6 +121,10 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
             </head>
             <body>
                 <App/>
+                // The trap (`folia_routes::url::TRAP_LINK`, folia-server's `trap`): a link nobody
+                // sees or reaches, which search engines may not follow (`robots.txt`) and only a
+                // program that takes every address of a page does. The browser app's page has none.
+                <a href=folia_routes::url::TRAP_LINK rel="nofollow" tabindex="-1" aria-hidden="true" hidden>{t.common.trap}</a>
             </body>
         </html>
     }

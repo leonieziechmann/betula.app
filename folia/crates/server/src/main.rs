@@ -29,6 +29,7 @@ mod pass;
 mod semantic;
 mod snapshot;
 mod texts;
+mod trap;
 #[cfg(test)]
 mod tests;
 mod warm;
@@ -79,6 +80,8 @@ pub struct AppState {
     pub gate: Option<Arc<access::Gate>>,
     /// The pass a browser earns before it gets the catalog (`pass`); `None` when the catalog is open.
     pub passes: Option<Arc<pass::Passes>>,
+    /// The traps and the addresses they paused (`trap`); `None` without traps.
+    pub traps: Option<Arc<trap::Traps>>,
     /// Where pages that are not in the cache are rendered, and how long a page waits for a place
     /// before it is answered 503 (`busy`).
     pub renders: Arc<busy::Places>,
@@ -361,6 +364,8 @@ pub fn router(state: AppState) -> Router {
         .merge(pages(&state))
         // Around everything above, the page cache included; the access log sees what it turns away.
         .layer(middleware::from_fn_with_state(state.clone(), access::gate))
+        // Around the gate: a paused address hears so first, and a trap is one behind the gate too.
+        .layer(middleware::from_fn_with_state(state.clone(), trap::guard))
         .layer(middleware::from_fn_with_state(state.clone(), access_log))
         .layer(middleware::from_fn_with_state(policy, csp::send))
         .with_state(state)
@@ -474,6 +479,16 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         None => tracing::info!(component = "pass", event = "pass.off", "the catalog answers without a pass"),
     }
 
+    let traps = trap::Traps::new(config.trap_minutes).map(Arc::new);
+    match &traps {
+        Some(traps) => tracing::info!(component = "trap", event = "trap.on", minutes = traps.minutes(), "the traps are laid: an address that springs one is paused"),
+        None if config.trap_minutes > 0 => {
+            tracing::error!(component = "server", event = "server.start_failed", "the system has no randomness for the traps' key");
+            return std::process::ExitCode::FAILURE;
+        }
+        None => tracing::info!(component = "trap", event = "trap.off", "no traps"),
+    }
+
     let store = match SnapshotStore::new(config.data_dir.clone()) {
         Ok(store) => store,
         Err(error) => {
@@ -519,6 +534,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         semantic,
         gate,
         passes,
+        traps,
         renders: Arc::new(busy::Places::new("render", places(config.render_places), render_wait)),
         render_wait,
         feeds: Arc::new(busy::Places::new("calendar", places(config.feed_places), Duration::from_secs(10))),

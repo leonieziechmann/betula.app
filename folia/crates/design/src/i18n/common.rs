@@ -15,6 +15,9 @@ pub struct Texts {
     pub tagline: &'static str,
     /// The unit of credits: „LP" (Leistungspunkte).
     pub credits_unit: &'static str,
+    /// The words of the link nobody sees, for whoever reads the page without its styles: it is a
+    /// trap for programs (`folia_routes::url::TRAP_LINK`).
+    pub trap: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -28,6 +31,7 @@ pub const DE: Texts = Texts {
     to_programs: "Zu den Studiengängen",
     tagline: "Modulkatalog · inoffiziell",
     credits_unit: "LP",
+    trap: "Nicht folgen: eine Falle für Bots",
 };
 
 pub const EN: Texts = Texts {
@@ -41,4 +45,5 @@ pub const EN: Texts = Texts {
     to_programs: "To the degree programmes",
     tagline: "Module catalogue · unofficial",
     credits_unit: "CP",
+    trap: "Do not follow: a trap for bots",
 };
