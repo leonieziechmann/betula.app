@@ -57,11 +57,48 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     // first) and no workbench's sheet (`bench::BenchSheet`, which Back closes first), the semester
     // is the page's state that Back undoes: on Android Back brings the row to the overview, and so
     // does the way back at the head on every phone (`folia_shell::nav`).
-    folia_shell::nav::layer_while(move || pages.away() && ctx.url.with(|url| url.open.is_none()) && ctx.bench.with(Option::is_none), move || pages.home(), folia_shell::nav::Kind::State);
+    // Where the page is lent to the calendar (`folia_shell::nav::lent`: „Module planen in „Mein
+    // Studium““; owner, 2026-11-18: „dass dann der Terminkalender das back ist"), the semester the
+    // address itself opened (`plan=1`) is no state the visitor opened: Back and the arrow lead to the
+    // calendar from it. A semester turned to by ‹ › or a swipe is, and Back brings the overview.
+    let opened = RwSignal::new(None::<SemesterKey>);
+    Effect::new(move |before: Option<bool>| {
+        let (plan, focused) = (ctx.url.with(|url| url.plan), ctx.focused());
+        let next = if !plan {
+            None
+        } else if before != Some(true) || opened.get_untracked().is_none() {
+            focused
+        } else {
+            opened.get_untracked()
+        };
+        if next != opened.get_untracked() {
+            opened.set(next);
+        }
+        plan
+    });
+    let close = move || {
+        if opened.get_untracked().is_some_and(|at| Some(at) == ctx.focused_untracked()) && folia_shell::nav::lent() {
+            folia_shell::nav::back();
+        } else {
+            pages.home();
+        }
+    };
+    folia_shell::nav::layer_while(move || pages.away() && ctx.url.with(|url| url.open.is_none()) && ctx.bench.with(Option::is_none), close, folia_shell::nav::Kind::State);
     // The way back at the head, as soon as the row leaves the overview and while it is anywhere
     // else (owner, 2026-10-06: „der sollte eigentlich sofort eingeblendet werden, wenn man weg
     // swiped, von der main page").
-    TopBack::follow(move || pages.away().then(|| Back { href: url::STUDY.to_string(), label: s.overview, history: false }));
+    // It says where it leads: the calendar from the semester the calendar's way opened, while the
+    // page is lent to it (the arrow is Back, and Back leads there), the overview from anywhere else.
+    let calendar = t.studyplan.title;
+    TopBack::follow(move || {
+        pages.away().then(|| {
+            if opened.get().is_some_and(|at| Some(at) == ctx.focused()) && folia_shell::nav::lent() {
+                Back { href: url::STUDYPLAN.to_string(), label: calendar, history: false }
+            } else {
+                Back { href: url::STUDY.to_string(), label: s.overview, history: false }
+            }
+        })
+    });
     let back = TopBack::expect();
     // The tab of „Studium" tapped again, or the way back pressed: back to the overview at once,
     // wherever the row is or goes (owner, 2026-10-06: „Wenn man den anklickt muss es sofort wieder
@@ -78,10 +115,20 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
         again.takes_its_top(Area::Programs);
     }
     let front = folia_design::stage::front();
+    let going = folia_shell::pending::Pending::expect();
     Effect::new(move |before: Option<(u32, u32)>| {
         let now = (again.map_or(0, |again| again.count(Area::Programs)), back.map_or(0, TopBack::presses));
-        if before.is_some_and(|before| before != now) && front.get_untracked() && !ctx.url.with_untracked(|url| url.plan) {
-            pages.home();
+        if before.is_some_and(|before| before != now) && front.get_untracked() {
+            if !ctx.url.with_untracked(|url| url.plan) {
+                pages.home();
+            } else if before.is_some_and(|before| before.0 != now.0) {
+                // The tab tapped again where the address says the semesters (the calendar's way
+                // here, `plan=1`), which the tab's step keeps as it is: the address of the area as
+                // it starts, once its stack is written (`nav::again`), and the row follows it.
+                if let Some(going) = going {
+                    folia_shell::nav::after_rewrite(move || going.go(url::STUDY, leptos_router::NavigateOptions { replace: true, scroll: false, ..Default::default() }));
+                }
+            }
         }
         now
     });
