@@ -75,8 +75,8 @@ check(["finding", "planning", "data", "technology", "questions"].every((slug) =>
 // (2026-11-18); „Deine Daten" speaks of the profile and of Betula Sync, and no page of an account.
 const data = await topic("data");
 const anchors = (page) => [...page.matchAll(/<section (?=[^>]*\bclass="panel feature[^"]*")[^>]*\bid="([a-z-]+)"/g)].map((section) => section[1]).join();
-check(anchors(finding) === "way,filters,saved" && anchors(planning) === "study-plans,my-studies,timetable" && anchors(data) === "profile,sync,sharing,sources" && anchors(technology) === "technology,devices", `server HTML: the chapters are not the topics': ${[finding, planning, data, technology].map(anchors).join(" | ")}`);
-check(["weg", "filter", "einstiege"].every((old) => finding.includes(`id="${old}"`)) && ["ohne-konto", "daten"].every((old) => data.includes(`id="${old}"`)) && questions.includes('id="fragen"'), "server HTML: an anchor of before leads nowhere");
+check(anchors(finding) === "way,filter,saved" && anchors(planning) === "study-plans,my-studies,timetable" && anchors(data) === "profile,sync,sharing,sources" && anchors(technology) === "technology,devices", `server HTML: the chapters are not the topics': ${[finding, planning, data, technology].map(anchors).join(" | ")}`);
+check(["weg", "einstiege"].every((old) => finding.includes(`id="${old}"`)) && !finding.includes('id="filters"') && ["ohne-konto", "daten"].every((old) => data.includes(`id="${old}"`)) && questions.includes('id="fragen"'), "server HTML: an anchor of before leads nowhere");
 check([html, finding, planning, data, technology, questions].every((page) => !/konto|konten/i.test(page.replace(/ohne-konto/g, ""))), "server HTML: a page about Betula speaks of an account");
 // The ways into the catalog on „Module finden", eight with their counts, and the faculties on
 // „Studium planen", each leading to its programs; not on the overview any more.
@@ -341,11 +341,11 @@ const detail = await page.evaluate(() => ({
   chapters: [...allOnPage(".home .feature")].map((section) => "#" + section.id).join(),
   groups: allOnPage(".board .bgroup").length,
   switches: allOnPage(".board button.chip[role=checkbox]").length,
-  chipLinks: allOnPage("#filters a.chip").length,
+  chipLinks: allOnPage("#filter a.chip").length,
   example: onPage(".board-foot a")?.getAttribute("href"),
   links: [...allOnPage(".feature-link")].map((a) => a.getAttribute("href")).join(),
 }));
-check(detail.chapters === "#way,#filters,#saved" && detail.groups === 12 && detail.switches === 25 && detail.chipLinks === 0, `„Module finden" has not its chapters and the board of the filters: ${JSON.stringify(detail)}`);
+check(detail.chapters === "#way,#filter,#saved" && detail.groups === 12 && detail.switches === 25 && detail.chipLinks === 0, `„Module finden" has not its chapters and the board of the filters: ${JSON.stringify(detail)}`);
 check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/bookmarks", `„Module finden" leads nowhere: ${JSON.stringify(detail)}`);
 
 // A chip of the board switches in place (owner, 2026-09-29: it led straight into the catalog):
@@ -474,6 +474,37 @@ const room = await page.evaluate(() => ["home-program"].map((id) => {
   return Math.round(button.closest(".panel").getBoundingClientRect().right - button.getBoundingClientRect().right);
 }));
 check(room.every((px) => px >= 16), `phone: „Choose a degree programme" stands out of its panel at 320 px: ${room}`);
+
+// An anchor of before (`.was-anchor`: the German ones of the pages about Betula and of the legal
+// pages, until 2026-11-18) stops where its section's own does, on a computer and on a phone: the
+// page is opened at the one and at the other, and the section stands at the same height once the
+// app has taken over. Measured, since standing in the HTML says nothing of where: for a day an old
+// anchor stopped in the middle of its chapter, and too low on a phone.
+for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 780 }]) {
+  const context = await browser.newContext({ viewport });
+  const visit = await context.newPage();
+  const stop = async (path, hash, id) => {
+    await visit.goto("about:blank");
+    await visit.goto(`${base}${path}#${hash}`, { waitUntil: "load" });
+    await visit.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+    await visit.waitForTimeout(300);
+    return visit.evaluate((id) => Math.round(onPage(`[id="${id}"]`).getBoundingClientRect().top), id);
+  };
+  let anchors = 0;
+  for (const path of ["/about/overview", "/about/finding", "/about/planning", "/about/data", "/about/technology", "/about/questions", "/privacy", "/imprint"]) {
+    const html = await (await fetch(base + path)).text();
+    const pairs = [...html.matchAll(/<section [^>]*\bid="([a-z-]+)"[^>]*>(?:<!--[^>]*-->)*((?:<span [^>]*class="was-anchor"[^>]*><\/span>(?:<!--[^>]*-->)*)+)/g)]
+      .flatMap((section) => [...section[2].matchAll(/\bid="([a-z-]+)"/g)].map((old) => [old[1], section[1]]));
+    check(pairs.length === (html.match(/class="was-anchor"/g) || []).length, `${path}: an anchor of before is not the first child of its section`);
+    for (const [old, id] of pairs) {
+      const [was, now] = [await stop(path, old, id), await stop(path, id, id)];
+      check(Math.abs(was - now) <= 1, `${viewport.width} px, ${path}: #${old} stops at ${was} px, #${id} at ${now} px`);
+      anchors += 1;
+    }
+  }
+  check(anchors === 27, `${viewport.width} px: ${anchors} anchors of before were measured, not 27`);
+  await context.close();
+}
 
 check(errors.length === 0, `page errors: ${errors.join(" | ")}`);
 await browser.close();

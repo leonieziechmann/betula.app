@@ -82,7 +82,11 @@ struct Look {
 }
 
 const FLOW: Look = Look { id: "way", was: &["weg"], tint: "t-ice", icon: "route", points: ["search", "panel-right-open", "link", "keyboard"] };
-const FILTERS: Look = Look { id: "filters", was: &["filter"], tint: "t-violet", icon: "sliders-horizontal", points: ["circle-check-big", "eye", "graduation-cap", "smartphone"] };
+// `filter`, as the chapter always was, and not `filters`: that is the catalog's panel of filters,
+// which the page's script looks for on whatever page is in front (`byId("filters")` in
+// `assets/enhance.js`: the sheet of a phone, the handle of its width) and would find in this
+// chapter (`no_chapter_takes_an_id_the_script_looks_for`).
+const FILTERS: Look = Look { id: "filter", was: &[], tint: "t-violet", icon: "sliders-horizontal", points: ["circle-check-big", "eye", "graduation-cap", "smartphone"] };
 const MARKS: Look = Look { id: "saved", was: &[], tint: "t-rose", icon: "bookmark", points: ["layers", "pencil", "graduation-cap", "users-round"] };
 const PLANS: Look = Look { id: "study-plans", was: &["regelstudienplaene"], tint: "t-sun", icon: "file-check-2", points: ["scan-line", "sigma", "sparkles", "waypoints"] };
 const STUDY: Look = Look { id: "my-studies", was: &[], tint: "t-green", icon: "graduation-cap", points: ["zap", "target", "triangle-alert", "shuffle"] };
@@ -813,5 +817,37 @@ fn devices(t: &'static Texts) -> impl IntoView {
             <span class="badge"><Icon name="languages"/>"DE · EN"</span>
             <span class="badge"><Icon name="sun"/><Icon name="moon"/></span>
         </p>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const LOOKS: [&Look; 12] = [&FLOW, &FILTERS, &MARKS, &PLANS, &STUDY, &TIMETABLE, &PROFILE, &SYNC, &SHARING, &TECHNOLOGY, &DATA, &DEVICES];
+
+    /// A chapter's id is an address, and nothing else on its page: the page's script looks parts
+    /// of the app up by their ids on whatever page is in front (`byId("filters")`, the catalog's
+    /// panel: the sheet of a phone, the handle of its width), and a chapter of that id would be
+    /// what it finds — as „Filter" was for a day (`#filters`, 2026-11-18).
+    #[test]
+    fn no_chapter_takes_an_id_the_script_looks_for() {
+        let script = include_str!("../../../../assets/enhance.js");
+        assert!(script.contains("byId(\"filters\")"), "the script looks the catalog's filters up by their id");
+        for look in LOOKS {
+            for id in std::iter::once(&look.id).chain(look.was) {
+                assert!(!script.contains(&format!("byId(\"{id}\")")), "#{id} is a part of the app the script looks for");
+            }
+        }
+    }
+
+    /// No two chapters share an anchor, an anchor of before included.
+    #[test]
+    fn every_anchor_is_one_chapters() {
+        let mut ids: Vec<&str> = LOOKS.iter().flat_map(|look| std::iter::once(look.id).chain(look.was.iter().copied())).collect();
+        let all = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), all);
     }
 }

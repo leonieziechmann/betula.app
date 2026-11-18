@@ -246,11 +246,10 @@ fn article(page: Legal, t: &'static Texts) -> impl IntoView {
             </header>
             {page.parts().iter().map(|part| view! {
                 <section class="legal-part" id=part.id aria-labelledby=format!("{}-title", part.id)>
-                    // The anchors the part had before: a link to one still stops at its heading.
-                    <h2 id=format!("{}-title", part.id)>
-                        {part.was.iter().map(|old| view! { <span class="legal-was" id=*old></span> }).collect_view()}
-                        {(part.heading)(t)}
-                    </h2>
+                    // The anchors the part had before: a link to one still stops where a link to
+                    // the part does (`.was-anchor`).
+                    {part.was.iter().map(|old| view! { <span class="was-anchor" id=*old></span> }).collect_view()}
+                    <h2 id=format!("{}-title", part.id)>{(part.heading)(t)}</h2>
                     {(part.body)(t)}
                 </section>
             }).collect_view()}

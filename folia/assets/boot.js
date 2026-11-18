@@ -384,6 +384,13 @@ try {
   // takes the sizes and the scroll of the server's (below).
   const root = document.documentElement;
   root.style.setProperty("overflow-anchor", "none");
+  // A page opened at one of its sections has all its panels drawn (app.css, `.home:has(:target)`),
+  // so that it stands at the section. The picture and the app's page are new boxes, none of them
+  // the address's target: they are drawn whole as well while the one stands and the other takes
+  // the scroll (`jumping`, as a jump within the page), and stand as the server's page did; the
+  // app's panels keep the heights they were drawn with once only those near the screen are again.
+  const atSection = !!document.querySelector(".home :target");
+  if (atSection) root.classList.add("jumping");
   const picture = takePicture(lazy);
   // The app has taken the page over once its first answers are in and the picture goes: from then
   // on it is the app (`__betulaApp`, which enhance.js and the checks go by).
@@ -402,7 +409,10 @@ try {
     carryScroll(scrolled, document.body);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       picture.remove();
-      requestAnimationFrame(() => requestAnimationFrame(() => root.style.removeProperty("overflow-anchor")));
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        root.style.removeProperty("overflow-anchor");
+        if (atSection) root.classList.remove("jumping");
+      }));
       window.__betulaApp = true;
       window.__betulaStarting = false;
       // Where a link followed meanwhile leads, now within the app (once what it set off has run).
@@ -416,6 +426,7 @@ try {
   window.__betulaStarting = false;
   document.querySelector(".takeover-picture")?.remove();
   document.documentElement.style.removeProperty("overflow-anchor");
+  document.documentElement.classList.remove("jumping");
   // Not fatal: the site stays a classic website, and says nothing of it: neither that its data is
   // loading nor, offline with a copy of an older schema, why the app does not start (owner,
   // 2026-10-15: „Ach mach das einfach weg. Das Laden geht schnell genug, so dass man es nicht sehen
