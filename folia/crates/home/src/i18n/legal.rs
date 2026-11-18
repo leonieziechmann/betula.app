@@ -202,6 +202,9 @@ pub struct AccessLog {
     pub retention: &'static str,
     /// Folia's own log, after the facts.
     pub app_log: &'static str,
+    /// The traps (`folia/crates/server/src/trap.rs`): what the server keeps of an address it
+    /// turns away for a while.
+    pub traps: &'static str,
 }
 
 /// „Cookies": the gate's cookie, whose name the page writes as code between `before` and
@@ -400,6 +403,7 @@ pub const DE: Texts = Texts {
         legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist ein sicherer und funktionierender Betrieb.",
         retention: "Die Einträge stehen im Systemprotokoll des Servers und in einer Protokollauswertung auf demselben Server und werden an beiden Stellen nach 7 Tagen automatisch gelöscht.",
         app_log: "Daneben führt die Anwendung ein eigenes Protokoll: welche Seite wann aufgerufen wurde, ohne den Teil nach dem „?“, mit Statuscode und Dauer, aber ohne IP-Adresse und ohne Browserkennung. In der Protokollauswertung wird es nach 30 Tagen gelöscht.",
+        traps: "Gegen Programme, die die Seite massenhaft abrufen, legt Betula Adressen aus, die kein Mensch und kein Teil der App aufruft, etwa einen Link, der auf keiner Seite zu sehen ist. Ruft ein Programm eine davon ab, beantwortet der Server Anfragen von dessen IP-Adresse eine Stunde lang nicht. Dafür merkt er sich bis zum Ablauf einen Fingerabdruck der Adresse, gebildet mit einem Schlüssel, den nur der laufende Server kennt, und nur im Arbeitsspeicher: nicht die Adresse selbst, nichts auf der Festplatte und nichts im Protokoll der Anwendung. Weil sich viele eine Adresse teilen können, zeigt die Seite, die du dann siehst, einen Knopf, mit dem es sofort weitergeht. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; mein berechtigtes Interesse ist, dass Betula für alle erreichbar bleibt.",
     },
     cookies: Cookies {
         heading: "Cookies",
@@ -602,6 +606,7 @@ pub const EN: Texts = Texts {
         legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is secure and functioning operation.",
         retention: "The entries are kept in the server's system log and in a log analysis on the same server, and are deleted automatically in both places after 7 days.",
         app_log: "In addition, the application keeps a log of its own: which page was requested when, without the part after the “?”, with status code and duration, but without IP address and without browser identifier. In the log analysis it is deleted after 30 days.",
+        traps: "Against programs that fetch the site in bulk, Betula lays out addresses that no person and no part of the app requests, such as a link that cannot be seen on any page. If a program requests one of them, the server does not answer requests from its IP address for one hour. For this it keeps a fingerprint of the address until the hour is over, made with a key only the running server knows, and in memory only: not the address itself, nothing on disk and nothing in the application's log. Because many people can share one address, the page you then see has a button that lets you go on at once. The legal basis is Art. 6(1)(f) GDPR (DSGVO); my legitimate interest is that Betula stays reachable for everyone.",
     },
     cookies: Cookies {
         heading: "Cookies",

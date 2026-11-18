@@ -49,7 +49,9 @@
 //!   journal, where Traefik logs through the journald driver (`logging` in `edge.yml`,
 //!   `deploy/vps/files/journald-betula.conf`); the rate limit per address
 //!   (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log without addresses, 30 days
-//!   (`access_log` in `folia/crates/server/src/main.rs`);
+//!   (`access_log` in `folia/crates/server/src/main.rs`); the traps and what they keep of an
+//!   address they turn away (`folia/crates/server/src/trap.rs`: the hour is `DEFAULT_MINUTES`, the
+//!   fingerprint in memory alone, the button of the page);
 //! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`) and the pass in front of
 //!   the catalog (`folia/crates/server/src/pass.rs`: its 7 days, its network, the path `/api/`), the
 //!   only two;
@@ -434,6 +436,7 @@ fn privacy_access_log(t: &'static Texts) -> AnyView {
             {fact(facts.retention, log.retention)}
         </dl>
         <p>{log.app_log}</p>
+        <p>{log.traps}</p>
     }
     .into_any()
 }

@@ -5448,6 +5448,8 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 .gate-brand small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gate-panel h1 { font-size: 20px; font-weight: 650; letter-spacing: -.015em; margin-bottom: 6px; }
 .gate-panel > p { color: var(--text-2); margin-bottom: 22px; }
+/* The page of a pause (folia-server's `trap`) says two things: why, then how a person goes on. */
+.gate-panel > p.gate-why { margin-bottom: 12px; }
 .gate-panel label { display: block; color: var(--text-2); font-size: 12px; font-weight: 550; margin-bottom: 5px; }
 .gate-panel input[type="password"] { width: 100%; height: 48px; padding: 0 14px; border: 0; outline: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 16px; }
 .gate-panel input[type="password"]:focus { box-shadow: 0 0 0 2px var(--accent); }
