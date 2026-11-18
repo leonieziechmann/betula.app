@@ -38,6 +38,12 @@ use crate::i18n::{self, Locale};
 
 const BTU: &str = "https://www.b-tu.de";
 
+/// The BTU's Online-Portal (QISPOS), where a student downloads the Notenübersicht as a PDF
+/// („Notenübersicht abrufen und ausdrucken", the BTU's page of its quicklinks): the way
+/// „Notenübersicht einlesen" shows (`transcript.rs`). The same address in both languages, as the
+/// BTU's own pages link it; e2e/btu.mjs checks it with the others.
+pub(super) const ONLINE_PORTAL: &str = "https://www.b-tu.de/qispos11/rds?state=user&type=0&noDBAction=y&init=y";
+
 /// Which Rahmenordnung concerns the student: the one of the degree, both where it is neither.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Level {
