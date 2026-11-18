@@ -6395,7 +6395,12 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   with the focus (where there are two ways, two answers, each with a line that sets it apart, the
   first with the focus), „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
   button, and nothing on the page moves. A
-  profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. The
+  profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. What
+  the page did is said there, out of sight from the Gefahrenzone at its end: since Folia 1.105.1 the
+  page goes up to its very top once the note is said (the frame's scroll area, `#page-scroll`, on a
+  wide screen, the window on a phone; smooth unless less motion is asked for), and the note lights
+  up once it is there (owner, 2026-11-18: „Es braucht unbedingt Bestätigung dass man ein profil
+  gelöscht hat, sonst denkt man dass es nicht geklappt hat und löscht dann noch ein anderes"). The
   language lives in the profile's menu since 2026-10-14 (owner: „allgemein kann man die
   Spracheinstellungen komplett in das Profil moven“), light and dark beside it since 2026-11-08;
   the rail and the start page's brand line have no switch of the language, and without JavaScript

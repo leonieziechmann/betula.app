@@ -75,6 +75,7 @@ const DELETE_YES_ID: &str = "pf-delete-yes";
 const DELETE_END_ID: &str = "pf-delete-end";
 const OPEN_ID: &str = "pf-open";
 const UNDO_ID: &str = "pf-undo";
+const NOTE_ID: &str = "pf-note";
 
 /// What the page says of the last thing done on it, at its head; a profile deleted or emptied
 /// comes back from there with „Rückgängig" until the page is left.
@@ -154,6 +155,42 @@ pub fn ProfilePage() -> impl IntoView {
     .into_any()
 }
 
+/// Scrolls the page to its very top, where the note of what was just done stands, and lets the note
+/// light up once: the frame's scroll area on a wide screen (`#page-scroll`, its own on each stage),
+/// the window on a phone.
+fn to_note() {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return };
+        let Some(note) = window.document().and_then(|document| document.get_element_by_id(NOTE_ID)) else { return };
+        let reduced = window.match_media("(prefers-reduced-motion: reduce)").ok().flatten().is_some_and(|query| query.matches());
+        let options = web_sys::ScrollToOptions::new();
+        options.set_top(0.0);
+        options.set_behavior(if reduced { web_sys::ScrollBehavior::Instant } else { web_sys::ScrollBehavior::Smooth });
+        // Out of sight, it lights up once the page has come up to it (`SCROLL_MS`).
+        let away = note.get_bounding_client_rect().top() < 0.0;
+        if let Ok(Some(area)) = note.closest("#page-scroll") {
+            area.scroll_to_with_scroll_to_options(&options);
+        }
+        window.scroll_to_with_scroll_to_options(&options);
+        let flash = move || {
+            let list = note.class_list();
+            let _ = list.remove_1("pf-flash");
+            let _ = note.get_bounding_client_rect();
+            let _ = list.add_1("pf-flash");
+        };
+        if away && !reduced {
+            set_timeout(flash, std::time::Duration::from_millis(SCROLL_MS));
+        } else {
+            flash();
+        }
+    }
+}
+
+/// About how long a smooth scroll to the top takes, before the note lights up (ms).
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+const SCROLL_MS: u64 = 450;
+
 /// Scrolls the page to Betula Sync and lets it light up once (`#devices`).
 fn to_devices() {
     #[cfg(feature = "csr")]
@@ -205,7 +242,12 @@ impl Kept {
     }
 }
 
-/// The note of the last thing done, with „Rückgängig" where it can be taken back.
+/// The note of the last thing done, with „Rückgängig" where it can be taken back. Once it is
+/// said, the page goes to its very top, where the note stands, and the note lights up once (owner,
+/// 2026-11-18: „Es braucht unbedingt Bestätigung dass man ein profil gelöscht hat, sonst denkt man
+/// dass es nicht geklappt hat und löscht dann noch ein anderes. Also es braucht eine Bestätigung und
+/// dann den scroll nach ganz oben"): the Gefahrenzone is at the page's end, and what it did was said
+/// out of sight.
 #[component]
 fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
@@ -224,7 +266,8 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
         note.set(None);
     };
     // What was done is felt as it is said: a profile made or taken over from a file as success, one
-    // deleted or emptied lightly (it can be taken back). Not what was said before the page came.
+    // deleted or emptied lightly (it can be taken back). Not what was said before the page came. And
+    // it is seen: the page at its top, the note lit up.
     Effect::new(move |seen: Option<()>| {
         let felt = note.with(|note| {
             note.as_ref().map(|note| match note {
@@ -235,6 +278,7 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
         });
         if let (Some(()), Some(felt)) = (seen, felt) {
             haptic::play(felt);
+            request_animation_frame(to_note);
         }
     });
     move || {
@@ -248,7 +292,7 @@ fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
                 Note::NotEnded(why) => ("triangle-alert", (p.not_ended)(why), false),
             };
             view! {
-                <div class="offer pf-note" role="status">
+                <div class="offer pf-note" id=NOTE_ID role="status">
                     <Icon name=icon/>
                     <p>{said}</p>
                     {undoable.then(|| view! { <button data-haptic="tap" class="mini hit" type="button" id=UNDO_ID on:click=undo>{t.common.undo}</button> })}
