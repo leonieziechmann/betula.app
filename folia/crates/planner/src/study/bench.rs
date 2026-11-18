@@ -73,6 +73,7 @@ use folia_design::haptic::TapTick;
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::studyplan::BenchAim;
+use folia_shell::tabs::{Area, TabAgain};
 
 use super::picker::{lacks_required, offer_note};
 use super::{module_href, n, now_secs, Plans, Ready, StudyCtx};
@@ -162,19 +163,24 @@ pub(super) fn follow_view(ctx: StudyCtx, to_view: Callback<super::StudyView>) {
         }
         open
     });
-    // Ended in the semesters' view: back to the view it came from.
-    Effect::new(move |was: Option<Option<Bench>>| {
+    // Ended in the semesters' view: back to the view it came from. Where the tab of „Studium"
+    // tapped again ended it (mod.rs, `TabAgain`), the address stays the semesters': the tab leads to
+    // the page as it starts; the Gesamtplan, a way of showing the semesters, comes back all the same.
+    let again = TabAgain::expect();
+    let tapped = move || again.map_or(0, |again| untrack(|| again.count(Area::Programs)));
+    Effect::new(move |was: Option<(Option<Bench>, u32)>| {
         let now = ctx.bench.get();
-        if let (Some(Some(before)), None) = (was, now) {
+        let count = tapped();
+        if let Some((Some(before), at)) = was.filter(|_| now.is_none()) {
             if let Some(from) = before.from.filter(|_| here() == shown && !ctx.phone.get_untracked()) {
                 ctx.view.set(from.1);
-                if from.0 != super::StudyView::Semesters {
+                if from.0 != super::StudyView::Semesters && at == count {
                     to_view.run(from.0);
                 }
                 super::dom::page_to_top();
             }
         }
-        now
+        (now, count)
     });
     // Another view picked meanwhile, away from the semesters': the mode ends.
     Effect::new(move |was: Option<(super::StudyView, super::View)>| {
