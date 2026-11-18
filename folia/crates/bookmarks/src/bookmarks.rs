@@ -1465,12 +1465,16 @@ fn List(
             // A row's link is not dragged away: a mouse drawn over the rows selects them.
             on:dragstart=move |ev: leptos::ev::DragEvent| ev.prevent_default()
         >
-            {(!any_marked).then(|| view! {
-                <div class="state">
-                    <p class="state-title">{t.bookmarks.empty_title}</p>
-                    <p>{t.bookmarks.empty_hint_start}<kbd>"M"</kbd>{t.bookmarks.empty_hint_end}</p>
-                    <a class="btn secondary" href=t.path(url::CATALOG)>{t.common.to_catalog}</a>
-                </div>
+            {(!any_marked).then(|| {
+                // Where the list lives, by whether the active profile is synced.
+                let synced = folia_stores::sync::active_synced();
+                view! {
+                    <div class="state">
+                        <p class="state-title">{t.bookmarks.empty_title}</p>
+                        <p>{t.bookmarks.empty_hint_start}<kbd>"M"</kbd>{move || t.bookmarks.empty_hint_end(synced.get())}</p>
+                        <a class="btn secondary" href=t.path(url::CATALOG)>{t.common.to_catalog}</a>
+                    </div>
+                }
             })}
             {(any_marked && !has_rows && searching).then(|| view! {
                 <div class="state">

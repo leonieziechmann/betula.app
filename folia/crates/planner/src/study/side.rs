@@ -78,11 +78,12 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// Where all of it lives.
+/// Where all of it lives, by whether the active profile is synced (`active_synced`).
 #[component]
 pub(super) fn StorageHint() -> impl IntoView {
     let t = i18n::t();
-    view! { <p class="hint storage-hint"><Icon name="shield-check"/><span>{t.study.storage_hint}</span></p> }
+    let synced = folia_stores::sync::active_synced();
+    view! { <p class="hint storage-hint"><Icon name="shield-check"/><span>{move || t.study.storage_hint(synced.get())}</span></p> }
 }
 
 /// What the program's card says.

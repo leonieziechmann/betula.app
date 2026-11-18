@@ -6804,6 +6804,24 @@ switched on; R20 has the exception.
   behalten" lets it stand; a hint whose module stands in one semester only is done. Nothing is
   decided for the visitor (owner, the design's question 6: the later version stands, the other one
   beside it).
+- **Where the data lives, said by the profile's state** (Folia 1.109.1; owner, 2026-11-18: „wir
+  können noch nicht reinschreiben. Deinen stundenplan liegt nur in deinem Browser, wenn sync an
+  ist?"): the four hints of the app that say where a profile's data lies ask
+  `folia_stores::sync::active_synced`, one memo of the active profile and its `State::synced`
+  (connected or not), and follow it as Sync is switched on or ended and a profile switched. A
+  private profile, a state on its way (`Starting`, `Ending`), `Ended`, `Failed`, the server's page
+  and a site without Betula Sync keep „in diesem Browser"; a synced profile says its other devices
+  and the server's encrypted copy: the Stundenplan's storage hint in the sidebar and at a phone's
+  page end (`studyplan.storage_hint`: „Dein Stundenplan liegt in diesem Browser und, weil Betula
+  Sync an ist, auf deinen anderen Geräten. Auf dem Server liegt er nur verschlüsselt."), „Mein
+  Studium"'s (`study.storage_hint`), the setup's foot (`study.stays_here`: „Liegt in diesem
+  Browser und, weil Betula Sync an ist, auf deinen anderen Geräten; auf dem Server nur
+  verschlüsselt.") and the end of the empty Merkliste's hint (`bookmarks.empty_hint_end`); each
+  text chooses by `Texts::…(synced)`, tested for every state in both languages. What the server
+  renders without the app cannot know the state and says what holds in both: „Mein Studium"'s
+  „… und was du planst, liegt in deinem Browser." and „Inoffiziell, lokal in deinem Browser." (its
+  description), the Merkliste's „Sie liegt in deinem Browser, wo der Server sie nicht lesen kann,
+  …". The page „Profil" says it of profiles as such (`profile.storage_hint`, `storage_hint_sync`).
 
 ## 2. Rules
 

@@ -7248,8 +7248,10 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-gone { display: flex; gap: 8px; align-items: flex-start; color: var(--warn) !important; }
 .st-gone .icon { flex: none; margin-top: 2px; }
 .st-setup-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 4px; }
-.st-setup-foot .hint { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; margin: 0; }
-.st-setup-foot .hint .icon { width: 16px; height: 16px; }
+/* The hint takes the room beside the link and the button and breaks into lines there: a synced
+   profile's hint, three times as long, keeps „Studium anlegen" in the row on a wide screen. */
+.st-setup-foot .hint { flex: 1 1 260px; min-width: 0; display: flex; align-items: flex-start; gap: 8px; margin: 0; }
+.st-setup-foot .hint .icon { flex: none; width: 16px; height: 16px; margin-top: 1px; }
 /* The sidebar: the program as one card, which is the button that changes it (side.rs), the ways
    to its pages under it; then the legend, the parts of the bar apart from the marks of a module,
    each under its own label. */

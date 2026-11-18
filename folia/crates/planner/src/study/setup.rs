@@ -25,6 +25,9 @@ use crate::i18n;
 pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
+    // The foot's line says where the study will lie: with Betula Sync on for the profile, on its
+    // other devices as well.
+    let synced = folia_stores::sync::active_synced();
     let kept = ctx.mine.map(|mine| untrack(move || mine.get())).unwrap_or_default();
     let (all, items) = program_items(ctx);
     let program = RwSignal::new(kept.program.clone());
@@ -148,7 +151,7 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
             // Or all of it from the Notenübersicht: program, Studienbeginn and the modules passed.
             <TranscriptBox ctx/>
             <footer class="st-setup-foot">
-                <p class="hint"><Icon name="shield-check"/><span>{s.stays_here}</span></p>
+                <p class="hint"><Icon name="shield-check"/><span>{move || s.stays_here(synced.get())}</span></p>
                 <a class="ghost" href=t.path(folia_routes::url::PROGRAMS)>{s.all_programs}</a>
                 <button class="btn primary" type="button" id="st-create" disabled=move || !ready.get() on:click=create>{s.create}<Icon name="arrow-right"/></button>
             </footer>
