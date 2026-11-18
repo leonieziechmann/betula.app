@@ -3,7 +3,7 @@
 // calendar's two states (owner, 2026-11-17: „Ganz wichtig ist auch, dass man zu Modulen custom termine
 // hinzufügen und auch editieren kann"), on canary's data of 2026W: Informatik B.Sc.'s first semester
 // planned (EvS, EEG, PP, MIT1).
-//   SMOKE_BASE_URL=http://127.0.0.1:8080 node own.mjs [--only=form,card,module,kind,alone,lena,phone,start]
+//   SMOKE_BASE_URL=http://127.0.0.1:8080 node own.mjs [--only=form,card,module,kind,alone,lena,phone,finger,start]
 // - While looking nothing makes a Termin: no „+ Termin", a click on a free stretch opens nothing.
 //   „Bearbeiten": the bar's „+ Termin" opens the form („Neuer Termin", „In „Mein Studiengang“, WiSe
 //   2026/27"; „Was", „Gehört zu", „Art" above „Wann", „Tag", „Zeit"), the draft dashed in the week where
@@ -45,13 +45,23 @@
 //   still, its times in a tag; lifted, the form with exactly that, a lift without a move 90 minutes; a
 //   pointercancel gives it up; in the last column the tag stays on the screen and off the finger; a
 //   finger that moves at once scrolls.
+// - A real finger (owner, 2026-11-18: „Ja das dragging funktioniert nicht dass ist richtig buggy."),
+//   on a phone's carousel while editing: held and trembling 9 px and back, 90 minutes stand and the
+//   lift gives them; held and lifted with a shift of 12 px within 30 ms, 90 minutes; drawn to 17:15,
+//   rested 300 ms and lifted with a shift of 13 px, 17:15; a steady drag lifted in motion, what its
+//   tag said last; resting 1 px past the line of 17:15 and trembling ±2 px, the end does not flip
+//   (come from below) or steps once and never back (come from above); drifting 6 or 8 px sideways
+//   while held, the hold completes, no week is carried and the lift gives 90 minutes; drifting 9 or
+//   12 px, no hold, the week carried and back, no span, nothing open; nothing stored.
 // - The start page: a Termin of one's own of today in the day, its card leading to the Stundenplan.
 // History: 2026-11-17, the edit mode. The ways in are the mode's (the head's „+ Termin", the round
 // button of a phone and a free stretch while looking went); the form has „Art" and puts „Gehört zu"
 // first; the view of a Termin of one's own is its card (its rows „Im Stundenplan" went into the tools);
 // a module's Termin is a row under its module, not under „Eigene Termine"; a name the student did not
 // write is said without quotes („PBS angelegt"). 2026-11-18: a span drawn by a drag (owner: „drag
-// placement um gleich eine Zeitspanne zu machen"); a finger held draws it before the form opens.
+// placement um gleich eine Zeitspanne zu machen"); a finger held draws it before the form opens; the
+// checks' finger stood still to the pixel and lifted without moving, and a real one, which trembles,
+// drifts and shifts as it lifts, lost or changed the span (Folia 1.106.1).
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -696,6 +706,174 @@ if (block("phone")) {
   await page.waitForTimeout(800);
   const moved = await page.evaluate(() => ({ scroll: scrollY, draft: allOnPage(".sp-week .slot.draft, .sp-sketch").length, form: Boolean(onPage("dialog.own-form[open]")) }));
   check(moved.scroll > still + 40 && moved.draft === 0 && !moved.form, `a finger moving at once scrolls and draws nothing: ${JSON.stringify({ ...moved, still })}`);
+  check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
+  await context.close();
+}
+
+// ---------- a real finger: it trembles, drifts and shifts as it lifts ----------
+// (owner, 2026-11-18, of a real Android phone: „Ja das dragging funktioniert nicht dass ist richtig
+// buggy."). On the phone's carousel of A, B and A/B, while editing; a finger's millimetre is some 6 px.
+if (block("finger")) {
+  const { page, context } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true }, FS1, "/studyplan?edit=1");
+  await until(page, "the week while editing", () => allOnPage(".sp-week .slot").length > 0 && /[?&]edit=1/.test(location.search) && Boolean(onPage(".sp-slide.is-current")));
+  const cdp = await context.newCDPSession(page);
+  const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: Math.round(x), y: Math.round(y), id: 1 }] });
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // The shift of a lifting finger: its moves and the lift sent `ms` apart, not each waiting for the
+  // browser's answer (which alone takes some 50 ms).
+  const lift = async (moves, ms = 15) => {
+    const sent = [];
+    for (const [x, y] of moves) {
+      sent.push(touch("touchMove", x, y));
+      await sleep(ms);
+    }
+    sent.push(touch("touchEnd"));
+    await Promise.all(sent);
+  };
+  const now = () => page.evaluate(() => ({
+    tag: onPage(".sp-sketch-tag")?.textContent ?? null,
+    form: allOnPage("dialog.own-form[open] .own-two input").map((input) => input.value).join() || null,
+    carried: getComputedStyle(onPage(".sp-slide.is-current") ?? document.body).getPropertyValue("--drag").trim(),
+    weeks: location.search,
+  }));
+  const formIs = (name, times) => until(page, name, ([form, times]) => allOnPage(`${form} .own-two input`).map((input) => input.value).join() === times && !onPage(".sp-sketch-tag"), [form, times]);
+  const close = async () => {
+    if (await page.evaluate(() => Boolean(onPage("dialog.own-form[open]")))) await page.keyboard.press("Escape");
+    await until(page, "the form closed, the mode stays", () => !onPage("dialog.own-form[open]") && /[?&]edit=1/.test(location.search));
+  };
+  // Both points taken once the page holds still for them.
+  const points = async (...minutes) => {
+    for (const minute of minutes) await spot(page, 3, minute);
+    await page.waitForTimeout(200);
+    const out = [];
+    for (const minute of minutes) out.push(await spot(page, 3, minute));
+    return out;
+  };
+  const stored = await own(page);
+  // Held, then the finger trembles 9 px (1.5 mm) and back: the 90 minutes stand, and the lift gives them.
+  {
+    const [at] = await points(16 * 60 + 5);
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    await touch("touchMove", at.x + 1, at.y + 9);
+    await page.waitForTimeout(40);
+    const trembled = await now();
+    await touch("touchMove", at.x, at.y + 1);
+    await page.waitForTimeout(40);
+    await touch("touchEnd");
+    check(trembled.tag === "16:00–17:30", `a finger trembling 9 px drew another span than 90 minutes: ${JSON.stringify(trembled)}`);
+    await formIs("a trembling finger lifted gives 90 minutes", "16:00,17:30");
+    await close();
+  }
+  // Held, then lifted with a lifting finger's shift of 12 px within 30 ms: 90 minutes.
+  {
+    const [at] = await points(16 * 60 + 5);
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    await lift([[at.x + 2, at.y - 6], [at.x + 3, at.y - 12]]);
+    await formIs("a hold lifted with a shift gives 90 minutes", "16:00,17:30");
+    await close();
+  }
+  // Drawn on purpose to 17:15, the finger rests 300 ms and lifts with a shift of 13 px: 17:15.
+  {
+    const [at, to] = await points(16 * 60 + 5, 17 * 60 + 10);
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    for (let i = 1; i <= 10; i++) {
+      await touch("touchMove", at.x, at.y + ((to.y - at.y) * i) / 10);
+      await page.waitForTimeout(25);
+    }
+    await page.waitForTimeout(300);
+    const rested = await now();
+    check(rested.tag === "16:00–17:15", `the span drawn to 17:15: ${JSON.stringify(rested)}`);
+    await lift([[at.x + 2, to.y + 7], [at.x + 3, to.y + 13]]);
+    await formIs("a span rested on and lifted with a shift gives what stood", "16:00,17:15");
+    await close();
+  }
+  // A steady drag lifted in motion: the form says the tag's last span.
+  {
+    const [at] = await points(16 * 60 + 5);
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    let last = null;
+    for (let i = 1; i <= 12; i++) {
+      await touch("touchMove", at.x, at.y + 7 * i);
+      await page.waitForTimeout(25);
+      last = (await now()).tag;
+    }
+    await touch("touchEnd");
+    const times = last?.replace("–", ",") ?? "a tag";
+    check(Boolean(last) && last !== "16:00–17:30", `a steady drag drew no span of its own: ${last}`);
+    await formIs(`a drag lifted in motion gives what its tag said (${last})`, times);
+    await close();
+  }
+  // A finger resting 1 px past the line of 17:15 and trembling ±2 px, so that it crosses the line
+  // each time. Come back up from 17:45, so that 17:30 stands: the end does not flip. Come down from
+  // above, so that 17:15 stands: the tremble's 3 px past the line step it once at most, and it
+  // never steps back.
+  for (const below of [true, false]) {
+    const [at, line, far] = await points(16 * 60 + 5, 17 * 60 + 15, 17 * 60 + 40);
+    // 1 px past the line (`spot` gives its minute 2 px down).
+    const y = line.y - 1;
+    const via = below ? far.y : y - 12;
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(700);
+    for (let i = 1; i <= 8; i++) {
+      await touch("touchMove", at.x, at.y + ((via - at.y) * i) / 8);
+      await page.waitForTimeout(25);
+    }
+    for (let i = 1; i <= 4; i++) {
+      await touch("touchMove", at.x, via + ((y - via) * i) / 4);
+      await page.waitForTimeout(25);
+    }
+    await page.waitForTimeout(100);
+    const tags = [(await now()).tag];
+    for (let i = 0; i < 12; i++) {
+      await touch("touchMove", at.x + (i % 2), y + (i % 2 ? 2 : -2));
+      await page.waitForTimeout(30);
+      tags.push((await now()).tag);
+    }
+    const steps = tags.filter((tag, i) => i === 0 || tag !== tags[i - 1]);
+    if (below) check(JSON.stringify(steps) === JSON.stringify(["16:00–17:30"]), `a resting finger flipped the end: ${JSON.stringify(steps)}`);
+    else check(steps[0] === "16:00–17:15" && steps.length <= 2 && steps.every((tag) => /^16:00–17:(15|30)$/.test(tag)), `a resting finger come from above flipped the end back and forth: ${JSON.stringify(steps)}`);
+    await touch("touchEnd");
+    await formIs("a resting finger lifted gives what stood", steps.at(-1).replace("–", ","));
+    await close();
+  }
+  // Drifting 6 px, and the hold's whole 8 px, sideways while held: the hold completes, no week is
+  // carried, the lift gives 90 minutes (the element the finger came down on held its pointer until
+  // then; its loss of it is not the week's).
+  for (const drift of [6, 8]) {
+    const [at] = await points(16 * 60 + 5);
+    const weeks = (await now()).weeks;
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(150);
+    await touch("touchMove", at.x + drift, at.y + 1);
+    await page.waitForTimeout(550);
+    const held = await now();
+    check(held.tag === "16:00–17:30" && held.carried === "0px", `a finger drifting ${drift} px while held: ${JSON.stringify(held)}`);
+    await touch("touchEnd");
+    await formIs(`a hold drifted ${drift} px gives 90 minutes as it lifts`, "16:00,17:30");
+    check((await now()).weeks === weeks, `a hold drifted ${drift} px turned the week`);
+    await close();
+  }
+  // Drifting 9 and 12 px sideways while held: no hold, the week carried and back, no span, nothing open.
+  for (const drift of [9, 12]) {
+    const [at] = await points(16 * 60 + 5);
+    const weeks = (await now()).weeks;
+    await touch("touchStart", at.x, at.y);
+    await page.waitForTimeout(150);
+    await touch("touchMove", at.x + drift, at.y + 1);
+    await page.waitForTimeout(550);
+    const drifted = await now();
+    check(drifted.tag === null && drifted.carried !== "0px", `a finger drifting ${drift} px while held: the hold and the carousel both had it, or neither: ${JSON.stringify(drifted)}`);
+    await touch("touchEnd");
+    await page.waitForTimeout(600);
+    const after = await now();
+    check(after.tag === null && after.form === null && after.carried === "0px" && after.weeks === weeks, `a finger drifted ${drift} px and lifted: ${JSON.stringify(after)}`);
+    await close();
+  }
+  check(JSON.stringify(await own(page)) === JSON.stringify(stored), "a Termin was stored without „Anlegen\"");
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
   await context.close();
 }
