@@ -243,6 +243,32 @@
           };
         };
 
+        # ---------------------------------------------------------------- Xylem (Go)
+
+        # The service of Betula's notifications (docs/xylem/xylem.md): the Go module xylem/, a
+        # binary of its own. What it is built from, relative to xylem/ (not live/, its check
+        # against a real push service). No image yet: its place on the server is not decided
+        # (docs/xylem/xylem.md, "Not yet").
+        xylemPaths = [ "go.mod" "go.sum" "cmd" "internal" ];
+
+        xylem = buildGoModule {
+          pname = "betula-xylem";
+          version = self.shortRev or self.dirtyShortRev or "dev";
+          src = pathsSource (map (p: "xylem/" + p) xylemPaths);
+          modRoot = "xylem";
+          subPackages = [ "cmd/xylem" ];
+
+          # Update after changing xylem/go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy
+          # the hash Nix prints (or, without a build: go mod vendor -o <dir>, nix hash path <dir>).
+          vendorHash = "sha256-JIqffDGU076jdWEEW6Uw7c1oC3ZHrr+gEqi6sfdIgAk=";
+
+          env.CGO_ENABLED = "0";
+          ldflags = [ "-s" "-w" ];
+          doCheck = true;
+
+          meta.mainProgram = "xylem";
+        };
+
         # ---------------------------------------------------------------- Folia (Rust)
 
         # Only the Cargo workspace folia/ (its crates and the assets the server embeds): a change
@@ -441,7 +467,7 @@
       in
       {
         packages = {
-          inherit radix radix-image cortex cortex-image phloem phloem-image folia folia-client folia-semantic folia-transcript folia-image;
+          inherit radix radix-image cortex cortex-image phloem phloem-image xylem folia folia-client folia-semantic folia-transcript folia-image;
           default = radix;
         };
 
