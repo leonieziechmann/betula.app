@@ -193,10 +193,9 @@ pub(super) enum Dialog {
     CountFor { semester: SemesterKey, id: String },
     /// „Umfang …" of a placeholder of a semester (`size.rs`).
     Size { semester: SemesterKey, pid: u32 },
-    /// What a Notenübersicht was read as, and what taking it over does (`transcript.rs`): in the
-    /// browser alone.
-    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
-    Transcript(Box<transcript::Reading>),
+    /// „Notenübersicht einlesen" (`transcript.rs`): what it does, the file being read, what was
+    /// read; where it stands is `StudyCtx::transcript`.
+    Transcript,
 }
 
 /// The rows selected in a semester (`Item::key`), for what is done to several at once (owner,
@@ -278,8 +277,8 @@ pub(super) struct StudyCtx {
     /// soll so sein, dass die nav bar noch funktioniert und oben auch noch die suchleiste ist").
     /// Not kept: a reload shows the page as it is.
     pub full: RwSignal<bool>,
-    /// A Notenübersicht is being read (`transcript.rs`).
-    pub reading: RwSignal<bool>,
+    /// Where „Notenübersicht einlesen" stands (`transcript.rs`): its dialog's view.
+    pub transcript: RwSignal<transcript::Flow>,
 }
 
 /// The last change that „Rückgängig" takes back: what its note says, the plan before it, and its
@@ -548,7 +547,7 @@ pub fn StudyPage() -> impl IntoView {
         bench: RwSignal::new(None),
         trail: RwSignal::new(Vec::new()),
         full: RwSignal::new(false),
-        reading: RwSignal::new(false),
+        transcript: RwSignal::new(transcript::Flow::default()),
     };
     // While the workbench is open, „Einplanen" elsewhere aims at its semester and subgroup
     // (`Planning::bench`); its end ends that.

@@ -13,6 +13,40 @@ pub struct Texts {
     /// The dialog's title, and the line under it once the file is read.
     pub title: &'static str,
     pub read_here: &'static str,
+
+    // What it does, before a file is picked.
+    /// The line under the title, and what Betula does with the Notenübersicht.
+    pub intro_sub: &'static str,
+    pub intro_lead: &'static str,
+    /// The three steps: download it (with the way to the BTU's Online-Portal), pick it, check it.
+    pub step_download: &'static str,
+    pub step_download_line: &'static str,
+    pub portal: &'static str,
+    pub step_pick: &'static str,
+    pub step_pick_line: &'static str,
+    pub step_check: &'static str,
+    pub step_check_line: &'static str,
+    /// That the file stays on the device.
+    pub stays_title: &'static str,
+    pub stays_line: &'static str,
+    /// The button that opens the file picker.
+    pub pick: &'static str,
+
+    // The file being read.
+    pub reading_sub: &'static str,
+    pub reading_title: &'static str,
+    pub read_done: &'static str,
+    pub reading_here: &'static str,
+    /// The name of the bar, for a screen reader.
+    pub progress: &'static str,
+    /// Each step while it runs and once it is done: „PDF wird geöffnet …", „PDF geöffnet"; „36
+    /// Module gelesen" is `modules_read`; „35 von 36 im Katalog gefunden".
+    pub opening: &'static str,
+    pub opened: &'static str,
+    pub reading_modules: &'static str,
+    pub matching: &'static str,
+    pub found: fn(usize, usize) -> String,
+    pub reading_safe: &'static str,
     /// The program the Notenübersicht names: „seit WiSe 2022/23"; what becomes of it.
     pub since: fn(&str) -> String,
     pub program_same: &'static str,
@@ -76,6 +110,31 @@ pub const DE: Texts = Texts {
 
     title: "Notenübersicht einlesen",
     read_here: "Auf diesem Gerät gelesen · die Datei ist schon wieder vergessen",
+
+    intro_sub: "Dein Studium in einem Schritt",
+    intro_lead: "Betula liest aus der PDF deiner Notenübersicht deinen Studiengang und deine Module: was du bestanden hast, was nicht und wofür du angemeldet bist. Damit füllt es „Mein Studium“.",
+    step_download: "Notenübersicht herunterladen",
+    step_download_line: "Im Online-Portal der BTU mit deinem BTU-Account, als PDF.",
+    portal: "Zum Online-Portal",
+    step_pick: "Hier auswählen",
+    step_pick_line: "Betula liest sie in deinem Browser, in ein paar Sekunden.",
+    step_check: "Prüfen und übernehmen",
+    step_check_line: "Du siehst jedes Modul, bevor sich in deinem Studium etwas ändert.",
+    stays_title: "Die Datei bleibt bei dir.",
+    stays_line: "Sie wird nur hier im Browser gelesen, nicht hochgeladen, nicht gespeichert und danach vergessen. Noten und Angaben über dich liest Betula nicht.",
+    pick: "Notenübersicht auswählen",
+
+    reading_sub: "Nur hier in deinem Browser",
+    reading_title: "Deine Notenübersicht wird gelesen …",
+    read_done: "Deine Notenübersicht ist gelesen",
+    reading_here: "Nichts davon verlässt dein Gerät.",
+    progress: "Fortschritt",
+    opening: "PDF wird geöffnet …",
+    opened: "PDF geöffnet",
+    reading_modules: "Module werden gelesen …",
+    matching: "Module werden im Katalog gesucht …",
+    found: |found, read| if found == read { format!("Alle {read} im Katalog gefunden") } else { format!("{found} von {read} im Katalog gefunden") },
+    reading_safe: "Die Datei wird nicht hochgeladen und nicht gespeichert.",
     since: |semester| format!("seit {semester}"),
     program_same: "Dein Studiengang",
     program_new: "Wird dein Studiengang",
@@ -128,6 +187,31 @@ pub const EN: Texts = Texts {
 
     title: "Read your transcript",
     read_here: "Read on this device · the file is already forgotten",
+
+    intro_sub: "Your studies in one step",
+    intro_lead: "Betula reads your programme and your modules from the PDF of your transcript: what you passed, what you did not pass and what you are registered for. With them it fills “My studies”.",
+    step_download: "Download your transcript",
+    step_download_line: "In the BTU's Online-Portal with your BTU account, as a PDF.",
+    portal: "To the Online-Portal",
+    step_pick: "Choose it here",
+    step_pick_line: "Betula reads it in your browser, in a few seconds.",
+    step_check: "Check and take over",
+    step_check_line: "You see every module before anything in your studies changes.",
+    stays_title: "The file stays with you.",
+    stays_line: "It is read here in your browser only, not uploaded, not stored and forgotten afterwards. Betula does not read grades or anything about you.",
+    pick: "Choose transcript",
+
+    reading_sub: "Only here in your browser",
+    reading_title: "Reading your transcript …",
+    read_done: "Your transcript is read",
+    reading_here: "None of it leaves your device.",
+    progress: "Progress",
+    opening: "Opening the PDF …",
+    opened: "PDF opened",
+    reading_modules: "Reading the modules …",
+    matching: "Finding the modules in the catalogue …",
+    found: |found, read| if found == read { format!("All {read} found in the catalogue") } else { format!("{found} of {read} found in the catalogue") },
+    reading_safe: "The file is not uploaded and not stored.",
     since: |semester| format!("since {semester}"),
     program_same: "Your programme",
     program_new: "Becomes your programme",
