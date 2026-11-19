@@ -1469,6 +1469,11 @@ pub const PAGE_SIZE: u64 = 50;
 /// How many areas one address may name (`area=12,7`): a row of the plan means at most a handful.
 pub const MAX_AREAS: usize = 20;
 
+/// How long the name of a choice of the FÜS catalog may be in an address (`choice=…`): the longest
+/// one has 105 letters („Schwerpunkt Mathematik in Informatik, Naturwissenschaften und Technik,
+/// Anwendungsbereich Bauingenieurwesen", 2026-11-19).
+pub const MAX_CHOICE_CHARS: usize = 200;
+
 /// What a catalog URL says: the filter and the page (1-based).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CatalogUrl {
@@ -1588,6 +1593,7 @@ impl CatalogUrl {
                 // Derived by the page loader, never read from an address.
                 semester_areas: Vec::new(),
                 semester_electives: false,
+                choice: first("choice").filter(|name| name.chars().count() <= MAX_CHOICE_CHARS),
             }
         });
 
@@ -1720,6 +1726,10 @@ impl CatalogUrl {
                     });
                     out.push((name, join(codes.collect())));
                 }
+            }
+            // Written with either list: the curriculum keeps it for the way back (`in_force`).
+            if let Some(choice) = &scope.choice {
+                out.push(("choice", choice.clone()));
             }
         }
         out.extend(q.lecturers_include.iter().map(|name| ("lecturer", name.clone())));
@@ -2037,6 +2047,7 @@ mod tests {
                     areas: vec![17],
                     semester_areas: Vec::new(),
                     semester_electives: false,
+                    choice: Some("Anwendungsfach Maschinenbau / Elektrotechnik".into()),
                 }),
                 lecturers_include: vec!["Köhler, Ekkehard".into()],
                 lecturers_exclude: vec!["Meer, Klaus".into(), "Wachsmuth, Gerd".into()],
@@ -2083,13 +2094,47 @@ mod tests {
         assert_eq!(
             text,
             "q=Lineare+Algebra+%26+%C3%96kologie&program=bachelor-informatik-2008&list=fues&semester=3&area=17&kind=elective,none\
-             &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
+             &not-kind=thesis&choice=Anwendungsfach+Maschinenbau+%2F+Elektrotechnik&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
              &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&events=yes&status=all&ects_min=5&ects_max=7.5\
              &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&collection=3&fits=2026W&fits-skip=exercise&fits-undated=1\
              &prereqs=met&sort=ects&desc=1&page=4&open=12104&fill=p3"
         );
         assert_eq!(CatalogUrl::parse(&text), url);
+    }
+
+    /// Each list of a program keeps what belongs to the other in its address, for the way back, and
+    /// applies only its own: the FÜS list no semester, kind or area, the curriculum no choice.
+    #[test]
+    fn a_list_of_a_program_keeps_the_others_filters_for_the_way_back() {
+        let both = "program=bachelor-informatik-2008&semester=3&area=17&kind=elective&choice=Anwendungsfach+Physik";
+        let curriculum = CatalogUrl::parse(both);
+        assert_eq!(curriculum.to_query_string(), both);
+        let scope = curriculum.query.program.clone().unwrap();
+        assert_eq!(scope.in_force(), ProgramScope { choice: None, ..scope.clone() });
+        assert_eq!(curriculum.query.active_filters(), 4);
+
+        let fues = CatalogUrl::parse(&format!("{both}&list=fues"));
+        assert_eq!(
+            fues.to_query_string(),
+            "program=bachelor-informatik-2008&list=fues&semester=3&area=17&kind=elective&choice=Anwendungsfach+Physik"
+        );
+        let scope = fues.query.program.clone().unwrap();
+        assert_eq!(
+            scope.in_force(),
+            ProgramScope {
+                program_slug: "bachelor-informatik-2008".into(),
+                relation: ProgramRelation::Fues,
+                choice: Some("Anwendungsfach Physik".into()),
+                ..Default::default()
+            }
+        );
+        // The program and the choice.
+        assert_eq!(fues.query.active_filters(), 2);
+        // An empty choice is none; one longer than any the catalog names is no choice of it.
+        assert_eq!(CatalogUrl::parse("program=x&list=fues&choice=+").query.program.unwrap().choice, None);
+        let long = format!("program=x&list=fues&choice={}", "a".repeat(MAX_CHOICE_CHARS + 1));
+        assert_eq!(CatalogUrl::parse(&long).query.program.unwrap().choice, None);
     }
 
     /// The catalog's „Gemerkt" about a collection names it by its number alone, and only with the

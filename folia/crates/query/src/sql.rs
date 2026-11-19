@@ -4,8 +4,32 @@
 
 use folia_model::db::Value;
 use folia_model::labels::{Campus, Labelled, OfferStatus, TeachingForm};
-use folia_routes::filter::{CatalogQuery, ExamPart, FitIds, KindFilter, Language, PlanSemesterFilter, SortKey};
-use folia_search::Plan;
+use folia_routes::filter::{CatalogQuery, ExamPart, FitIds, KindFilter, Language, PlanSemesterFilter, ProgramScope, SortKey};
+use folia_search::{Plan, ORDER_FOLDS, ORDER_LEAD};
+
+/// A module title as the lists order it, by its letters (DIN 5007-1, as a dictionary does): what
+/// stands before its first letter or digit is passed over („(Cyber-)Mobbing" stands under C,
+/// „„Achtung, wir drehen!“" under A), Ä, Ö and Ü are A, O and U, ß is ss, and the case does not
+/// count; titles that come out alike are then ordered as written (`column` after the key). Until
+/// 2026-11-19 the lists ordered `COLLATE NOCASE`, by the bytes of the text: what began with a
+/// bracket or a quotation mark stood before A, and Ä, Ö and Ü after Z (20 of the 4,938 modules;
+/// owner: „(Cyber-)Mobbing sollte offensichlich bei C stehen und nicht vor A"). Built from
+/// SQLite's own functions, so that the server and the browser's sql.js order alike; it costs the
+/// default list about 3 ms more than `COLLATE NOCASE` (3,232 modules, natively). Its counterpart
+/// in Rust is `folia_search::order_key`, whose characters and letters it takes.
+pub fn title_key(column: &str) -> String {
+    let lead = ORDER_LEAD.replace('\'', "''");
+    let mut key = format!("ltrim({column}, '{lead}')");
+    for (from, to) in ORDER_FOLDS {
+        key = format!("replace({key}, '{from}', '{to}')");
+    }
+    format!("{key} COLLATE NOCASE")
+}
+
+/// The terms that order module titles (`title_key`), each in `direction`.
+fn by_title(column: &str, direction: &str) -> String {
+    format!("{} {direction}, {column} {direction}", title_key(column))
+}
 
 /// A WHERE clause over `v_module_facets f JOIN v_module m` (and `v_program_module pm`
 /// when a program is selected), with its parameters in order.
@@ -118,13 +142,30 @@ impl CatalogSql for CatalogQuery {
             conditions.push(plan.condition("sr"));
         }
 
-        if let Some(scope) = &self.program {
+        // As its list applies it: what the scope keeps for the other list filters nothing here.
+        if let Some(scope) = self.program.as_ref().map(ProgramScope::in_force) {
             joins.push_str(
                 " JOIN v_program_module pm ON pm.module_id = f.module_id \
                  AND pm.program_id = (SELECT id FROM v_program WHERE slug = ?) AND pm.relation = ?",
             );
             params.push(Value::from(&scope.program_slug));
             params.push(Value::from(scope.relation.code()));
+
+            // The choice of the FÜS list (`ProgramScope::choice`): left out is what a season's
+            // catalog excludes for it while no season admits it for it (`FuesNoteRow::admits`;
+            // `v_program_fues_note` holds only the seasons that restrict a module, so the season
+            // that admits it for everyone has no row).
+            if let Some(choice) = &scope.choice {
+                conditions.push(
+                    "NOT EXISTS (SELECT 1 FROM v_program_fues_note n WHERE n.program_id = pm.program_id AND n.module_id = f.module_id \
+                     AND instr('; ' || IFNULL(n.excluded_for, '') || '; ', ?) > 0 \
+                     AND NOT EXISTS (SELECT 1 FROM v_program_fues_note o WHERE o.program_id = n.program_id AND o.module_id = n.module_id \
+                     AND o.admitted = 1 AND instr('; ' || IFNULL(o.excluded_for, '') || '; ', ?) = 0))"
+                        .to_string(),
+                );
+                let listed = format!("; {choice}; ");
+                params.extend([Value::from(&listed), Value::from(&listed)]);
+            }
 
             match scope.plan_semester {
                 Some(PlanSemesterFilter::Semester(n)) => {
@@ -365,14 +406,15 @@ impl CatalogSql for CatalogQuery {
             return "sr.rank, f.module_id".to_string();
         }
         let direction = if self.descending { "DESC" } else { "ASC" };
+        let title = by_title("m.title", "ASC");
         match self.sort {
             SortKey::Default if self.program.is_some() => {
-                format!("pm.plan_semester IS NULL, pm.plan_semester {direction}, m.title COLLATE NOCASE, f.module_id")
+                format!("pm.plan_semester IS NULL, pm.plan_semester {direction}, {title}, f.module_id")
             }
-            SortKey::Default | SortKey::Title => format!("m.title COLLATE NOCASE {direction}, f.module_id"),
+            SortKey::Default | SortKey::Title => format!("{}, f.module_id", by_title("m.title", direction)),
             SortKey::Id => format!("f.module_id {direction}"),
-            SortKey::Credits => format!("f.credits {direction}, m.title COLLATE NOCASE, f.module_id"),
-            SortKey::Events => format!("f.teaching_events {direction}, m.title COLLATE NOCASE, f.module_id"),
+            SortKey::Credits => format!("f.credits {direction}, {title}, f.module_id"),
+            SortKey::Events => format!("f.teaching_events {direction}, {title}, f.module_id"),
         }
     }
 }
@@ -430,6 +472,35 @@ mod tests {
         assert_eq!(count(&with(Some(FitIds::Only(two.clone())))), 2);
         assert_eq!(count(&with(Some(FitIds::Without(two)))), all - 2);
         assert_eq!(count(&with(Some(FitIds::Without(Vec::new())))), all);
+    }
+
+    /// The list orders titles by their letters, as `folia_search::order_key` does in Rust:
+    /// „(Cyber-)Mobbing" under C, „Ökologie" under O (owner, 2026-11-19), either way round.
+    #[test]
+    fn titles_are_ordered_by_their_letters() {
+        let db = folia_test_support::open();
+        for descending in [false, true] {
+            let query = CatalogQuery { offer: Some(OfferStatus::ALL.to_vec()), sort: SortKey::Title, descending, ..Default::default() };
+            let total = crate::catalog_count(&db, &query).unwrap();
+            let rows = crate::catalog_page(&db, &query, 0, total).unwrap().rows;
+            let titles: Vec<&str> = rows.iter().map(|row| row.title.as_str()).collect();
+            let mut expected = titles.clone();
+            expected.sort_by_cached_key(|title| (folia_search::order_key(title), title.to_string()));
+            if descending {
+                expected.reverse();
+            }
+            assert_eq!(titles, expected, "descending: {descending}");
+            let first = if descending { titles.last() } else { titles.first() };
+            assert!(first.is_some_and(|title| title.starts_with(|c: char| c.is_ascii_alphanumeric())), "{first:?}");
+        }
+        // The owner's example, and an umlaut among the letters, by SQLite itself.
+        let before = |a: &str, b: &str| {
+            let sql = format!("SELECT COUNT(*) WHERE {} < {}", title_key("?"), title_key("?"));
+            folia_model::db::fetch_count(&db, "before", &sql, &[Value::from(a), Value::from(b)]).unwrap() == 1
+        };
+        assert!(before("Cyber Security Lab", "(Cyber-)Mobbing - Aufgeklärt!") && before("(Cyber-)Mobbing - Aufgeklärt!", "Datenbanken"));
+        assert!(before("Nachhaltigkeit", "Ökologie und Naturschutz") && before("Ökologie und Naturschutz", "Programmierung"));
+        assert!(before("„Achtung“", "Bauen") && before("Maßtheorie", "Masterarbeit") && !before("Masterarbeit", "Maßtheorie"));
     }
 
     #[test]

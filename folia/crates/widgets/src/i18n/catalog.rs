@@ -259,6 +259,18 @@ pub struct Texts {
     pub curriculum: &'static str,
     pub module_kind: &'static str,
     pub not_stated: &'static str,
+    /// The FÜS list's choice (`ProgramScope::choice`; owner, 2026-11-19): what the panel calls the
+    /// choices where they do not all begin with the same word, which then is their name
+    /// („Anwendungsfach", the catalog's word in every language), and the picker's own name …
+    pub choice: &'static str,
+    /// … its button while none is chosen, its search …
+    pub choice_none: &'static str,
+    pub search_choice: &'static str,
+    /// … beside a choice how many modules of the list it leaves out („2 Module nicht zugelassen";
+    /// the value is the number with its noun, `format::modules`) …
+    pub choice_leaves_out: fn(&str) -> String,
+    /// … and under the picker what it does.
+    pub choice_hint: &'static str,
     /// A chosen person: modules with them, without them; the words are those of the legend.
     pub with_person: &'static str,
     pub without_person: &'static str,
@@ -514,6 +526,11 @@ pub const DE: Texts = Texts {
     curriculum: "Curriculum",
     module_kind: "Modulart",
     not_stated: "Nicht angegeben",
+    choice: "Deine Wahl im Studiengang",
+    choice_none: "Nicht angegeben",
+    search_choice: "Wahl suchen",
+    choice_leaves_out: |modules| format!("{modules} nicht zugelassen"),
+    choice_hint: "Blendet aus, was die Negativliste des Studiengangs im FÜS-Katalog der BTU dafür nicht zulässt. Für eine Wahl, die hier fehlt, schließt sie nichts aus.",
     with_person: "Module mit dieser Person",
     without_person: "Module ohne diese Person",
     with: "mit",
@@ -757,6 +774,11 @@ pub const EN: Texts = Texts {
     curriculum: "Curriculum",
     module_kind: "Module type",
     not_stated: "Not stated",
+    choice: "Your choice in the programme",
+    choice_none: "Not stated",
+    search_choice: "Search choices",
+    choice_leaves_out: |modules| format!("{modules} not admitted"),
+    choice_hint: "Hides what the programme's negative list in the BTU's FÜS catalogue does not admit for it. For a choice not listed here it excludes nothing.",
     with_person: "Modules with this person",
     without_person: "Modules without this person",
     with: "with",
