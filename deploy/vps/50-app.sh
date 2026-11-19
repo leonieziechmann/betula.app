@@ -287,7 +287,7 @@ preflight() {
   service_on_network edge_traefik "edge_${INSTANCE_STACK}" ||
     die "edge_traefik is not on the network edge_${INSTANCE_STACK}: it could not route to this instance's web server. bash ${BETULA_ROOT}/vps/40-stacks.sh edge first (stacks/edge.yml names it; README.md section 15)"
 
-  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, Betula Sync ${INSTANCE_SYNC}, release ${TAG}"
+  log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, Betula Sync ${INSTANCE_SYNC}, notifications ${INSTANCE_PUSH}, release ${TAG}"
   for image in "${RADIX_IMAGE}" "${FOLIA_IMAGE}"; do
     docker image inspect "${image}" >/dev/null 2>&1 ||
       die "image ${image} is not loaded on this server (deploy/ship.sh builds and loads it; loaded: $(docker image ls --format '{{.Repository}}:{{.Tag}}' "${image%%:*}" | tr '\n' ' '))"
@@ -418,6 +418,16 @@ deploy_app() {
       INSTANCE_SYNC="off"
     fi
   fi
+  # Notifications: offered only where a Xylem serves the host's /push/v1/ (README.md section 17),
+  # for the same reason.
+  local xylem=""
+  if [[ "${INSTANCE_PUSH}" == "on" ]]; then
+    xylem="$(xylem_stack_for_host "${INSTANCE_HOST}")"
+    if [[ -z "${xylem}" ]] || ! docker service inspect "${xylem}_push" >/dev/null 2>&1; then
+      warn "FOLIA_PUSH=on, but no Xylem serves https://${INSTANCE_HOST}/push/v1/ yet (${xylem:-no stacks/xylem/*.env names the host}): the notifications stay off in this deploy. Deploy Xylem first (README.md section 17), then 50-app.sh ${INSTANCE_STACK} again"
+      INSTANCE_PUSH="off"
+    fi
+  fi
   # Folia fetches the parts of calendar subscriptions that stay current at Traefik's entrypoint
   # parts while the site syncs (stacks/betula.yml, FOLIA_SYNC_PARTS).
   FOLIA_SYNC_PARTS=""
@@ -425,7 +435,7 @@ deploy_app() {
     FOLIA_SYNC_PARTS="http://edge_traefik:8083/sync/v1/"
   fi
   FEED_PRIORITY="$(feed_priority "${ROUTER_PRIORITY}" "${INSTANCE_HOST}")"
-  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" FOLIA_SYNC="${INSTANCE_SYNC}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY FOLIA_SYNC_PARTS FEED_PRIORITY
+  export STACK_NAME="${INSTANCE_STACK}" APP_HOST="${INSTANCE_HOST}" FOLIA_ACCESS_GATE="${INSTANCE_GATE}" FOLIA_SYNC="${INSTANCE_SYNC}" FOLIA_PUSH="${INSTANCE_PUSH}" RADIX_IMAGE FOLIA_IMAGE ROUTER_PRIORITY FOLIA_SYNC_PARTS FEED_PRIORITY
   # never: the default asks a registry for the digest of the tag, and no registry knows these images.
   STACK_DEPLOY_ARGS=(--resolve-image never)
   deploy_stack "${INSTANCE_STACK}" "${files[@]}"

@@ -2,7 +2,8 @@
 // push subscriptions of the browsers that asked for notifications, with the topics each listens
 // to, and tells every one of a topic what is announced for it (the exam period begins, the next
 // semester's dates are there, the lectures pause), through the browser's own push service. It
-// knows no profile and no plan.
+// knows no profile and no plan. The image runs `xylem start`, which puts Xylem's firewall in place
+// and drops every privilege before it becomes `xylem serve`.
 package main
 
 import (
@@ -43,6 +44,7 @@ func init() {
 	// In init, since help refers to the table.
 	commands = []command{
 		{"serve", "Service: the HTTP API on --addr and the sender (the default command)", runServe},
+		{"start", "The image's entrypoint: as root, the firewall, then without privileges serve", runStart},
 		{"announce", "Tell everybody who listens to a topic something, now or at a time", runAnnounce},
 		{"announcements", "List the newest announcements and how far each has come", runAnnouncements},
 		{"cancel", "End an announcement that is not finished: nobody else gets it", runCancel},
@@ -50,6 +52,7 @@ func init() {
 		{"status", "Print the status of the local instance as one JSON object (GET /status)", runStatus},
 		{"key", "Print the public half of the VAPID key, which a browser subscribes with", runKey},
 		{"healthcheck", "Exit 0 if the local instance is live (for container health checks)", runHealthcheck},
+		{"probe", "Try what the firewall forbids and the way out it leaves, and check the privileges of the service; exit 1 if anything is not as it should be", runProbe},
 		{"version", "Print the version", runVersion},
 		{"help", "Print this help", runHelp},
 	}
@@ -69,11 +72,17 @@ func run(args []string) int {
 		name, args = args[0], args[1:]
 	}
 
-	// The development convenience, a git-ignored .env file (XYLEM_ENV_FILE); the real
-	// environment wins.
-	if _, err := dotenv.LoadDotEnv(envOr("XYLEM_ENV_FILE", ".env")); err != nil {
+	if err := loadDevEnv(name); err != nil {
 		fmt.Fprintln(stderr, "Error:", err)
 		return 2
+	}
+	// Root is start's alone (the firewall), and serve says so itself when it is given root: every
+	// other command, run with docker exec or as the health check, becomes Xylem's user first.
+	if name != "start" && name != "serve" {
+		if err := dropIfRoot(); err != nil {
+			fmt.Fprintln(stderr, "Error:", err)
+			return 1
+		}
 	}
 	if name == "--help" || name == "-h" {
 		name = "help"
@@ -86,6 +95,18 @@ func run(args []string) int {
 	fmt.Fprintf(stderr, "Unknown command: %s\n\n", name)
 	printUsage(stderr)
 	return 2
+}
+
+// loadDevEnv reads the development convenience, a git-ignored .env file (XYLEM_ENV_FILE); the
+// real environment wins. Never for start: what configures the step that runs as root (the
+// firewall, the nft it runs) comes from the image and the stack alone, not from a file that a
+// Xylem taken over could have written.
+func loadDevEnv(command string) error {
+	if command == "start" {
+		return nil
+	}
+	_, err := dotenv.LoadDotEnv(envOr("XYLEM_ENV_FILE", ".env"))
+	return err
 }
 
 func printUsage(w io.Writer) {

@@ -33,7 +33,9 @@ use std::fmt;
 /// FÜS list (`v_program_fues_note`, `v_fues_catalog`; docs/radix/schema-v2.md, „FÜS catalogs").
 /// 24: the lines of the catalogs' negative lists for one choice in a table of their own, so that a
 /// snapshot with catalogs passes Radix's validation; the read views are 23's.
-pub const SCHEMA_VERSION: i64 = 24;
+/// 25: Radix's privacy register (`privacy_person`, docs/radix/privacy.md), which no snapshot holds:
+/// the export drops it; the tables and read views are 24's.
+pub const SCHEMA_VERSION: i64 = 25;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

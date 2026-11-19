@@ -291,7 +291,7 @@ pub const DE: Texts = Texts {
     unfollow: "Nicht mehr folgen",
     empty: |name| format!("„{name}“ ist gerade leer."),
     empty_hint: "Was dazukommt, erscheint hier.",
-    private: "Aktualisiert, wenn du die Merkliste öffnest; mit Betula Sync kommt jede Änderung sofort an, auf allen deinen Geräten.",
+    private: "Aktualisiert sich alle 30 Sekunden, solange Betula offen ist; mit Betula Sync kommt jede Änderung sofort an, auf allen deinen Geräten.",
     saved: "Gespeichert: Jede Änderung kommt jetzt sofort an.",
 };
 
@@ -437,6 +437,6 @@ pub const EN: Texts = Texts {
     unfollow: "Unfollow",
     empty: |name| format!("“{name}” is empty just now."),
     empty_hint: "What is added shows here.",
-    private: "Updated when you open your saved modules; with Betula Sync every change arrives at once, on all your devices.",
+    private: "Updates every 30 seconds while Betula is open; with Betula Sync every change arrives at once, on all your devices.",
     saved: "Saved: every change arrives at once now.",
 };

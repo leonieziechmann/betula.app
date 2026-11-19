@@ -15,29 +15,45 @@
 #            scripts deploy on the server must at least load
 #   up       the host's networks, made by the code of vps/30-docker.sh (ensure_host_networks); the
 #            stacks edge (+www), placeholder, monitoring (+public), cortex, the instances betula
-#            (+cortex) and canary (+cortex +egress), and a stand-in of phloem (netmatrix/phloem.yml),
+#            (+cortex) and canary (+cortex +egress), a stand-in of phloem (netmatrix/phloem.yml:
+#            Phloem without TURN, which deploy/test/turn.sh tries) and xylem (stacks/xylem.yml),
 #            each rendered from the real file and changed by netmatrix/transform.py: real
 #            Traefik, socket proxy, Prometheus, scraper and Alloy (the part of config.alloy that
-#            reads Phloem's file), stand-ins for the rest; Phloem's firewall (phloem/deploy/firewall.nft)
-#            loaded into its stand-in, and the guard run once; the scraper's targets written once
+#            reads the files of Phloem and Xylem), stand-ins for the rest; the firewalls of Phloem
+#            and Xylem (phloem/deploy/firewall.nft, xylem/deploy/firewall.nft) loaded into their
+#            stand-ins, and their guards run once; the scraper's targets written once
 #            (vps/files/betula-scraper-targets.sh, which the server runs every minute)
-#   check    vps/91-verify-stacks.sh netmatrix phloem (no FAIL), the routes through Traefik
-#            (per site, /sync/v1/ above Folia, sync-ratelimit), folia_status of lib-stacks.sh,
-#            what Prometheus has (up of every job, phloem_up, the guard); then two mutations
-#            that the checks must catch: a web server on a network too many, Phloem without its
-#            firewall; and an instance removed (canary), whose Radix must leave the scraper's
-#            targets instead of staying a target that is down (deployed again afterwards)
-#   down     the stacks, the networks of the plan, /run/betula/phloem, the work directory
+#   check    vps/91-verify-stacks.sh netmatrix phloem xylem (no FAIL), the routes through Traefik
+#            (per site, /sync/v1/ and /push/v1/ above Folia, sync-ratelimit, push-ratelimit),
+#            folia_status of lib-stacks.sh, what Prometheus has (up of every job, phloem_up,
+#            xylem_up, the guards); then mutations that the checks must catch: a web server on a
+#            network too many, Phloem without its firewall, Xylem without its firewall, Xylem
+#            with a firewall that lets it into the house; and an instance removed (canary), whose
+#            Radix must leave the scraper's targets instead of staying a target that is down
+#            (deployed again afterwards)
+#   down     the stacks, the networks of the plan, /run/betula/phloem, /run/betula/xylem, the
+#            instance files it wrote below /opt/betula/stacks, the work directory
 #
 # The stack names are the real ones (edge, monitoring, ...), as the plan names services by them:
-# it refuses to start where such a stack runs that it did not make itself.
-# Environment: NETMATRIX_DIR (work directory, default /tmp/betula-netmatrix), KEEP=1.
+# it refuses to start where such a stack runs that it did not make itself. 91-verify-stacks.sh
+# reads the instances of Phloem and Xylem from /opt/betula/stacks, as on the server: the harness
+# writes the two it deploys there (Phloem without TURN, Xylem without a feed) and marks the
+# directory as its own (/opt/betula/.netmatrix); it refuses a /opt/betula it did not make.
+# Environment: NETMATRIX_DIR (work directory, default /tmp/betula-netmatrix), KEEP=1,
+# NETMATRIX_XYLEM_IMAGE (an image of Xylem that is loaded here, betula-xylem:<tag>: the real
+# service instead of its stand-in, with the firewall `xylem start` loads itself).
 set -Eeuo pipefail
 
 TEST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${TEST_DIR}/.." && pwd)"
 # Phloem's own firewall, as `phloem start` loads it (the stand-in has none of its own).
 PHLOEM_FIREWALL="${DEPLOY_DIR}/../phloem/deploy/firewall.nft"
+# Xylem's, as `xylem start` loads it.
+XYLEM_FIREWALL="${DEPLOY_DIR}/../xylem/deploy/firewall.nft"
+# Where 91-verify-stacks.sh reads the instances of Phloem and Xylem (lib-stacks.sh), and the file
+# that says the harness made it.
+OPT_DIR="/opt/betula"
+OPT_MARK="${OPT_DIR}/.netmatrix"
 # shellcheck source=../vps/lib.sh
 . "${DEPLOY_DIR}/vps/lib.sh"
 # shellcheck source=../vps/lib-stacks.sh
@@ -48,7 +64,10 @@ betula_init --tmp
 
 NETMATRIX_DIR="${NETMATRIX_DIR:-/tmp/betula-netmatrix}"
 export NETMATRIX_DIR
-STACKS=(edge placeholder monitoring cortex betula canary phloem)
+STACKS=(edge placeholder monitoring cortex betula canary phloem xylem)
+# Stacks the plan knows that the harness does not deploy: none of them may run here either.
+OTHER_STACKS=(phloem-canary xylem-canary)
+export NETMATRIX_XYLEM_IMAGE="${NETMATRIX_XYLEM_IMAGE:-}"
 LABEL="app.betula.netmatrix"
 CHECKS_FAILED=0
 
@@ -66,8 +85,11 @@ preflight() {
   python3 -c 'import yaml' 2>/dev/null || die "python3 has no yaml module (apt-get install python3-yaml)"
   require_swarm_manager
   [[ ! -d /opt/betula/vps ]] || die "/opt/betula/vps exists: this looks like the server. The harness replaces its stacks; run it somewhere else"
+  [[ ! -e "${OPT_DIR}" || -e "${OPT_MARK}" ]] || die "${OPT_DIR} exists and the harness did not make it (no ${OPT_MARK}): not touching it"
+  [[ -z "${NETMATRIX_XYLEM_IMAGE}" ]] || docker image inspect "${NETMATRIX_XYLEM_IMAGE}" >/dev/null 2>&1 ||
+    die "NETMATRIX_XYLEM_IMAGE names ${NETMATRIX_XYLEM_IMAGE}, which is not loaded here (docker image ls betula-xylem)"
   local stack svc
-  for stack in "${STACKS[@]}" phloem-canary; do
+  for stack in "${STACKS[@]}" "${OTHER_STACKS[@]}"; do
     stack_exists "${stack}" || continue
     while IFS= read -r svc; do
       [[ -n "${svc}" ]] || continue
@@ -108,6 +130,19 @@ render_all() {
     render x "${files[@]}" >/dev/null
     ok "docker stack config: ${combo}"
   done
+  # Xylem's file, as 49-xylem.sh deploys it: its service on <stack>_in and a network of its own.
+  if STACK_NAME=xylem XYLEM_IMAGE=betula-xylem:netmatrix XYLEM_MAX_SUBSCRIPTIONS=1000 XYLEM_FEED=https://betula.app/api/announcements XYLEM_REV=netmatrix \
+    render x xylem.yml | python3 -c '
+import sys, yaml
+doc = yaml.safe_load(sys.stdin)
+svc = doc["services"]["push"]
+names = {k: (v or {}).get("name", "xylem_" + k) for k, v in doc["networks"].items()}
+ok = {names[n] for n in svc["networks"]} == {"xylem_in", "xylem_out"} and not svc.get("ports") and svc["environment"]["XYLEM_SITE"] == "https://betula.app"
+sys.exit(0 if ok else 1)'; then
+    ok "docker stack config: xylem.yml (xylem_push on xylem_in and xylem_out, nothing published, the site https://betula.app)"
+  else
+    bad "xylem.yml does not render to a service on xylem_in and xylem_out that publishes nothing"
+  fi
   # What the legacy file does: Traefik keeps every planned network and gets the old one.
   if render x edge.yml edge.legacy.yml | python3 -c '
 import sys, yaml
@@ -150,7 +185,19 @@ workdir() {
   for stack in phloem phloem-canary; do
     install -d -m 0755 -o 65532 -g 65532 "/run/betula/phloem/${stack}/stats"
   done
+  for stack in xylem xylem-canary; do
+    install -d -m 0755 -o 65532 -g 65532 "/run/betula/xylem/${stack}/stats"
+    # The data of a real Xylem (NETMATRIX_XYLEM_IMAGE): where transform.py puts its bind mount.
+    install -d -m 0700 -o 65532 -g 65532 "${NETMATRIX_DIR}/xylem/${stack}/data"
+  done
   install -d -m 0755 /run/betula/metrics
+  # The instances 91-verify-stacks.sh reads (sections phloem and xylem), as the harness deploys
+  # them: Phloem without TURN (its stand-in publishes nothing), Xylem without a feed (no Folia
+  # here names announcements).
+  install -d -m 0755 "${OPT_DIR}" "${OPT_DIR}/stacks/phloem" "${OPT_DIR}/stacks/xylem"
+  : >"${OPT_MARK}"
+  printf 'STACK_NAME=phloem\nAPP_HOST=betula.app\nPHLOEM_ORIGINS=https://betula.app\nPHLOEM_BUDGET_BYTES=1000000000\nPHLOEM_DATA_SIZE=2G\n' >"${OPT_DIR}/stacks/phloem/phloem.env"
+  printf 'STACK_NAME=xylem\nAPP_HOST=betula.app\nXYLEM_LANG=de\nXYLEM_FEED=off\nXYLEM_MAX_SUBSCRIPTIONS=1000\nXYLEM_DATA_SIZE=64M\n' >"${OPT_DIR}/stacks/xylem/xylem.env"
 }
 
 networks_up() {
@@ -181,6 +228,12 @@ deploy_canary() {
   deploy canary STACK_NAME=canary APP_HOST=canary.betula.app FOLIA_ACCESS_GATE=on RADIX_IMAGE=alpine:3.22 FOLIA_IMAGE=alpine:3.22 ROUTER_PRIORITY=0 -- betula.yml betula.cortex.yml betula.egress.yml
 }
 
+# Xylem from its real stack file: a stand-in, or with NETMATRIX_XYLEM_IMAGE the service itself.
+deploy_xylem() {
+  deploy xylem STACK_NAME=xylem APP_HOST=betula.app XYLEM_IMAGE="${NETMATRIX_XYLEM_IMAGE:-alpine:3.22}" XYLEM_LANG=de XYLEM_FEED= \
+    XYLEM_MAX_SUBSCRIPTIONS=1000 XYLEM_REV=netmatrix -- xylem.yml
+}
+
 stacks_up() {
   step "The stacks, with stand-ins"
   local common=(ACME_CASERVER=https://127.0.0.1:9/directory MONITORING_CONFIG_REV=netmatrix PLACEHOLDER_CONFIG_REV=netmatrix)
@@ -192,6 +245,7 @@ stacks_up() {
   deploy_canary
   env STACK_NAME=phloem APP_HOST=betula.app NETMATRIX_DIR="${NETMATRIX_DIR}" docker stack deploy --detach=true -c "${TEST_DIR}/netmatrix/phloem.yml" phloem >/dev/null
   log "deployed phloem (netmatrix/phloem.yml, the stand-in)"
+  deploy_xylem
   local stack
   for stack in "${STACKS[@]}"; do
     wait_for_stack "${stack}"
@@ -214,6 +268,25 @@ phloem_firewall_up() {
   fi
   bash "${DEPLOY_DIR}/vps/files/betula-phloem-guard.sh"
   sed 's/^/  /' /run/betula/metrics/phloem-guard.prom | grep -v '^  #'
+}
+
+xylem_firewall_up() {
+  step "Xylem's firewall${NETMATRIX_XYLEM_IMAGE:+ (its own: ${NETMATRIX_XYLEM_IMAGE})}, and the guard once"
+  local cid pid
+  cid="$(service_container xylem_push)"
+  [[ -n "${cid}" ]] || die "no container of xylem_push"
+  pid="$(container_pid "${cid}")"
+  if nsenter -t "${pid}" -n -- nft list table inet xylem >/dev/null 2>&1; then
+    log "table inet xylem is in ${cid:0:12} already"
+  elif [[ -n "${NETMATRIX_XYLEM_IMAGE}" ]]; then
+    die "the Xylem of ${NETMATRIX_XYLEM_IMAGE} runs without its table inet xylem: \"xylem start\" should have loaded it (docker service logs xylem_push)"
+  else
+    # What "xylem start" does at every start; a task swarm replaced since has none yet.
+    nsenter -t "${pid}" -n -- nft -f "${XYLEM_FIREWALL}"
+    log "table inet xylem loaded into ${cid:0:12}"
+  fi
+  BETULA_GUARD_KIND=xylem bash "${DEPLOY_DIR}/vps/files/betula-phloem-guard.sh"
+  sed 's/^/  /' /run/betula/metrics/xylem-guard.prom | grep -v '^  #'
 }
 
 # The scraper's targets, as betula-scraper-targets writes them on the server (every minute there),
@@ -278,14 +351,14 @@ verify() {
 }
 
 check_verify() {
-  step "vps/91-verify-stacks.sh netmatrix phloem"
+  step "vps/91-verify-stacks.sh netmatrix phloem xylem"
   local n=0 foreign
-  verify netmatrix phloem || n=$?
+  verify netmatrix phloem xylem || n=$?
   foreign="$(foreign_stacks)"
   if [[ "${n}" -eq 0 ]]; then
-    ok "91-verify-stacks.sh netmatrix phloem: no FAIL${foreign:+ but about the stacks of somebody else (${foreign//|/, })}"
+    ok "91-verify-stacks.sh netmatrix phloem xylem: no FAIL${foreign:+ but about the stacks of somebody else (${foreign//|/, })}"
   else
-    bad "91-verify-stacks.sh netmatrix phloem: ${n} FAIL (above)"
+    bad "91-verify-stacks.sh netmatrix phloem xylem: ${n} FAIL (above)"
   fi
 }
 
@@ -300,11 +373,23 @@ check_routes() {
       bad "https://${host}${path} -> '${out}', wanted 200 from ${want}"
     fi
   done
+  # /push/v1/ above Folia's router: the stand-in names itself, the real Xylem gives its key.
+  out="$(through_traefik betula.app /push/v1/key)"
+  if [[ "${out}" == "200 xylem_push /push/v1/key"* || "${out}" == '200 {"key":"'* ]]; then ok "https://betula.app/push/v1/key -> ${out:0:60}"; else
+    bad "https://betula.app/push/v1/key -> '${out}', wanted 200 from xylem_push"
+  fi
+  out="$(through_traefik betula.app /status)"
+  if [[ "${out}" == "200 betula_folia /status"* ]]; then ok "https://betula.app/status -> ${out} (not Xylem's)"; else
+    bad "https://betula.app/status -> '${out}', wanted Folia's answer: only /push/v1/ is Xylem's"
+  fi
   out="$(through_traefik www.betula.app /x)"
   if [[ "${out}" == 30[18]* ]]; then ok "https://www.betula.app/x -> ${out%% *} (the redirect of edge.www.yml)"; else bad "https://www.betula.app/x -> '${out}'"; fi
   # 200 requests, 20 at a time: well above 20 a second and the burst of 60.
   n429="$(seq 1 200 | xargs -P 20 -I{} curl -sk --noproxy '*' -o /dev/null --max-time 5 --resolve betula.app:18443:127.0.0.1 -w '%{http_code}\n' https://betula.app:18443/sync/v1/x 2>/dev/null | grep -c '^429$' || true)"
   if [[ "${n429}" -gt 0 ]]; then ok "sync-ratelimit: ${n429} of 200 requests, 20 at a time, got 429"; else bad "sync-ratelimit: none of 200 requests, 20 at a time, got 429"; fi
+  # 100 requests, 20 at a time: well above 5 a second and the burst of 20.
+  n429="$(seq 1 100 | xargs -P 20 -I{} curl -sk --noproxy '*' -o /dev/null --max-time 5 --resolve betula.app:18443:127.0.0.1 -w '%{http_code}\n' https://betula.app:18443/push/v1/x 2>/dev/null | grep -c '^429$' || true)"
+  if [[ "${n429}" -gt 0 ]]; then ok "push-ratelimit: ${n429} of 100 requests, 20 at a time, got 429"; else bad "push-ratelimit: none of 100 requests, 20 at a time, got 429"; fi
   for path_want in "/livez 200" "/healthz 200" "/api/status 401" "/api/db 401"; do
     read -r path want <<<"${path_want}"
     code="$(folia_status betula "${path}")"
@@ -318,13 +403,16 @@ check_prometheus() {
   step "What Prometheus has (after a minute of scrapes and remote writes)"
   local query value
   for _ in $(seq 1 24); do
-    [[ "$(prom 'min(up{job="traefik"})')" == "1" && "$(prom 'count(up{job="radix"} == 1)')" == "2" && -n "$(prom 'max(phloem_up)')" && -n "$(prom 'max(betula_phloem_guard_firewall)')" ]] && break
+    [[ "$(prom 'min(up{job="traefik"})')" == "1" && "$(prom 'count(up{job="radix"} == 1)')" == "2" && -n "$(prom 'max(phloem_up)')" && -n "$(prom 'max(betula_phloem_guard_firewall)')" &&
+      -n "$(prom 'max(xylem_up)')" && -n "$(prom 'max(betula_xylem_guard_firewall)')" ]] && break
     sleep 5
   done
   for query in 'min(up{job="scraper"})' 'min(up{job="traefik"})' 'min(up{job="radix", stack="betula"})' \
     'min(up{job="radix", stack="canary"})' 'count(up{job="cortex"} == 1)' 'min(up{job="alloy"})' \
     'max(phloem_up{job="phloem", stack="phloem"})' 'max(betula_phloem_guard_firewall{stack="phloem"})' \
-    'max(betula_phloem_guard_containers{stack="phloem"})'; do
+    'max(betula_phloem_guard_containers{stack="phloem"})' \
+    'max(xylem_up{job="xylem", stack="xylem"})' 'max(betula_xylem_guard_firewall{stack="xylem"})' \
+    'max(betula_xylem_guard_containers{stack="xylem"})'; do
     value="$(prom "${query}")"
     case "${query}:${value}" in
       count*:2 | *:1) ok "${query} = ${value}" ;;
@@ -333,6 +421,8 @@ check_prometheus() {
   done
   value="$(prom 'max(betula_phloem_guard_privileged{stack="phloem"})')"
   if [[ "${value}" == "0" ]]; then ok "betula_phloem_guard_privileged{stack=\"phloem\"} = 0"; else bad "betula_phloem_guard_privileged = ${value:-absent}"; fi
+  value="$(prom 'max(betula_xylem_guard_privileged{stack="xylem"})')"
+  if [[ "${value}" == "0" ]]; then ok "betula_xylem_guard_privileged{stack=\"xylem\"} = 0"; else bad "betula_xylem_guard_privileged = ${value:-absent}"; fi
 }
 
 # mutation WHAT CMD... - CMD breaks something on purpose; 91-verify-stacks.sh must FAIL on it.
@@ -362,10 +452,19 @@ check_mutations() {
   nsenter -t "${pid}" -n -- nft delete table inet phloem
   expect_fail "Phloem without its firewall" phloem
   nsenter -t "${pid}" -n -- nft -f "${PHLOEM_FIREWALL}"
-  if verify netmatrix phloem >/dev/null; then
-    ok "after both are undone: netmatrix and phloem have no FAIL again"
+  cid="$(service_container xylem_push)"
+  pid="$(container_pid "${cid}")"
+  nsenter -t "${pid}" -n -- nft delete table inet xylem
+  expect_fail "Xylem without its firewall" xylem
+  # Its rules without the one that keeps it out of the house: port 443 of Traefik and of the
+  # host would answer it.
+  grep -v '@special' "${XYLEM_FIREWALL}" | nsenter -t "${pid}" -n -- nft -f -
+  expect_fail "Xylem with a firewall that lets it into the house" xylem
+  nsenter -t "${pid}" -n -- nft -f "${XYLEM_FIREWALL}"
+  if verify netmatrix phloem xylem >/dev/null; then
+    ok "after all are undone: netmatrix, phloem and xylem have no FAIL again"
   else
-    bad "after both are undone, 91-verify-stacks.sh netmatrix phloem still FAILs"
+    bad "after all are undone, 91-verify-stacks.sh netmatrix phloem xylem still FAILs"
   fi
 }
 
@@ -412,7 +511,7 @@ check_removed_instance() {
 down() {
   step "Down"
   local stack net svc mine
-  for stack in "${STACKS[@]}" phloem-canary; do
+  for stack in "${STACKS[@]}" "${OTHER_STACKS[@]}"; do
     stack_exists "${stack}" || continue
     mine=1
     while IFS= read -r svc; do
@@ -426,9 +525,13 @@ down() {
   for net in $(netplan_host_networks) "${NETPLAN_NETS[@]}"; do
     docker network rm "${net}" >/dev/null 2>&1 || true
   done
-  docker volume ls -q | grep -E '^(edge|monitoring|cortex|betula|canary|phloem)_' | xargs -r docker volume rm >/dev/null 2>&1 || true
-  rm -rf -- /run/betula/phloem "${NETMATRIX_DIR}"
-  rm -f -- /run/betula/metrics/phloem-guard.prom /run/betula/metrics/verify-probes.prom
+  docker volume ls -q | grep -E '^(edge|monitoring|cortex|betula|canary|phloem|xylem)_' | xargs -r docker volume rm >/dev/null 2>&1 || true
+  rm -rf -- /run/betula/phloem /run/betula/xylem "${NETMATRIX_DIR}"
+  rm -f -- /run/betula/metrics/phloem-guard.prom /run/betula/metrics/xylem-guard.prom /run/betula/metrics/verify-probes.prom
+  if [[ -e "${OPT_MARK}" ]]; then
+    rm -rf -- "${OPT_DIR}/stacks/phloem" "${OPT_DIR}/stacks/xylem" "${OPT_MARK}"
+    rmdir -- "${OPT_DIR}/stacks" "${OPT_DIR}" 2>/dev/null || true
+  fi
   log "removed"
 }
 
@@ -443,10 +546,12 @@ case "${what}" in
     networks_up
     stacks_up
     phloem_firewall_up
+    xylem_firewall_up
     scraper_targets
     ;;
   check)
     phloem_firewall_up
+    xylem_firewall_up
     scraper_targets
     check_verify
     check_routes
@@ -461,6 +566,7 @@ case "${what}" in
     networks_up
     stacks_up
     phloem_firewall_up
+    xylem_firewall_up
     scraper_targets
     check_verify
     check_routes

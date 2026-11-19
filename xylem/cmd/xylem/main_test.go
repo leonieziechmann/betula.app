@@ -22,6 +22,12 @@ import (
 	"github.com/leonieziechmann/betula/xylem/internal/webpush"
 )
 
+// The tests may run as root, and every command but start and serve drops root first.
+func TestMain(m *testing.M) {
+	setKeepRoot()
+	os.Exit(m.Run())
+}
+
 // capture replaces stdout and stderr for one command.
 func capture(t *testing.T) (out, errOut *bytes.Buffer) {
 	t.Helper()

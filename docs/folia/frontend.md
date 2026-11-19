@@ -1994,16 +1994,32 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       own language and the other the translation („Graph Theory" in italic over „Graphentheorie").
       Broken files never panic (cut anywhere, bytes changed, `table::tests`).
     - *Which modules* (`TranscriptAsk`, `folia_pages::transcript`, `folia_transcript::matching`): the
-      data worker beside the page is asked with the rows' titles and credits alone, never through a
-      request (the browser's `DataClient::ask_once`, which keeps neither question nor answer), and
-      matches them in Rust over every module's titles (`queries::module_titles`, a statement without
-      a parameter, so the worker's kept answers of statements hold nothing of the file). A row is the
-      module one of whose titles is one of the row's two, folded (case, accents, hyphens): of several
-      the program's own first (its curriculum and its FÜS list: „Proseminar" is 12111, not one of the
-      four others), then the one whose main title is the row's first line, then the one of the row's
-      credits, then one still offered. The program by its name and degree: the kept one where it is
-      that program, else its newest PO. A real Notenübersicht of Informatik B.Sc. was read and
-      matched whole on 2026-11-18, every module of it found (it is no part of the repository).
+      data worker beside the page is asked with what the sentence names of the study (the program,
+      its degree and profile, the semester it began in) and the rows' titles and credits alone, never
+      through a request (the browser's `DataClient::ask_once`, which keeps neither question nor
+      answer), and matches them in Rust over every module's titles (`queries::module_titles`, a
+      statement without a parameter, so the worker's kept answers of statements hold nothing of the
+      file). A row is the module one of whose titles is one of the row's two, compared by their keys
+      (`key`: case, accents, hyphens, punctuation and spaces aside, so that „Kosten-und
+      Leistungsrechnung" is „Kosten- und Leistungsrechnung"): of several the program's own first (its
+      curriculum and its FÜS list: „Proseminar" is 12111, not one of the four others; then those of
+      its other POs, profiles and variants), then the one whose main title is the row's first line,
+      then the one that has the row's second title as well („Grundlagen der Elektrotechnik" as
+      „General Electrical Engineering" or as „Fundamentals in Electrical Engineering"), then the one
+      of the row's credits, then one still offered. The rows are as many modules
+      (`Matcher::assign`): a row whose best module an earlier row has takes the next of its titles,
+      so that three rows „Seminar" are three of the Informatik Master's six modules „Seminar"
+      (Folia 1.110.2; owner, 2026-11-19, of a friend's Notenübersicht: „zwei ihrer module nicht
+      importiert": all took the first, and taking them over kept one, `take` moving it from
+      semester to semester). The program by its name, degree and profile („universitäres Profil"
+      for „Bachelor (universitär)"): the kept one where it is that program; else of its POs the
+      newest in force when the study began (a PO of the year Y from the winter semester Y/Y+1 on:
+      Elektrotechnik B.Sc. begun in 2020 is of the PO 2019), the oldest where none was yet, the
+      newest without a beginning; until 1.110.2 always the newest, and a study of an older PO took
+      the newer one's modules of the same titles. A real Notenübersicht of Informatik B.Sc. was read
+      and matched whole on 2026-11-18, every module of it found (it is no part of the repository);
+      every module of the catalog in one, every program's with its own, on 2026-11-19 (the checks
+      below).
     - *The dialog* (size m, on a phone the sheet all up), one from the first word to what was read,
       in three views (`Flow`; Folia 1.106.0, the same day: „mach das mal so, dass sich ein Dialog
       öffnet, bei dem ganz kurz erklärt wird, dass die Module aus dem Dokument lokal ausgelesen
@@ -8128,9 +8144,16 @@ What `cargo test` checks:
   also without encryption and object streams and without the lines; nothing of the student or the
   grades in what it is read as; a file with a password locked; files cut anywhere and with bytes
   changed read without a panic; MD5 and RC4 by their test vectors, DEFLATE by zlib's; the matching
-  by its order (the program's own, the first line, the credits). In `pages`, the made-up file
-  against the real catalog: its program and all twelve modules. In `plans`, what taking rows over
-  does to a plan (a first attempt moved, a second kept, a later plan after passing gone).
+  by its order (the program's own, the first line, the second title, the credits), every row a
+  module of its own, a hyphen at a line's end before „und" keeping its space. In `pages`, the
+  made-up file against the real catalog: its program and all twelve modules; the PO by the
+  profile and the beginning; every one of the 4938 modules of the catalog written in a
+  Notenübersicht as the BTU writes it (`fixture::paginate`: its column, its lines, its pages) and
+  read back as written; every program's modules (its curriculum and its FÜS list) found, each row
+  a module of its own, with „Mein Studiengang" each as itself or as a twin no row tells apart, and
+  without it in the PO chosen by its beginning (owner, 2026-11-19: „Kannst du das mal mit allen
+  modulen simulieren"). In `plans`, what taking rows over does to a plan (a first attempt moved, a
+  second kept, a later plan after passing gone).
 
 - `pack` (needs no snapshot): every shape of serde's data model there and back, the codes of
   fixed values (the format is frozen), a field added at the end read from older codes, versioned

@@ -67,6 +67,10 @@ type Config struct {
 	// Semantic computes the vectors of Folia's semantic search (semantic.go); without an
 	// encoder it does not run.
 	Semantic Semantic
+
+	// History is the history of the published catalog (history.go, docs/radix/history.md): every
+	// cycle records the published snapshot when it is new. Empty: no history.
+	History string
 }
 
 // DefaultConfig is a polite setup for the BTU servers, which asks QIS for what changes as
@@ -414,6 +418,13 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 			s.semanticStage(ctx, &result)
 		}
 	}()
+	// Before the semantic stage (the later defer runs first): what is published goes into the
+	// history, whether this cycle exported it or an earlier one did.
+	defer func() {
+		if ctx.Err() == nil && result.Result != "failed" {
+			s.historyStage(ctx, &result)
+		}
+	}()
 
 	// What the published snapshot holds decides, not what the last build held: the build stores
 	// its digest whether or not its content goes out, so the next build finds content a cycle built
@@ -422,6 +433,7 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	published, _ := catalogdb.PublishedDigest(s.cfg.SnapshotDir)
 	if published == report.ContentDigest {
 		result.Stages = append(result.Stages, StageResult{Name: "export", Skipped: "content unchanged"})
+		s.db.PruneSnapshotsForRegister(ctx, s.cfg.SnapshotDir) // a register that changed nothing published
 		return result
 	}
 	if published != "" && !report.ContentChanged {

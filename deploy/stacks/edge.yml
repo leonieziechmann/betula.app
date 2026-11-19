@@ -24,7 +24,8 @@
 # networks      one per service Traefik routes to, with Traefik and that service on it and nothing else
 #               (vps/files/networks.conf, README.md section 15): edge_<instance> for the web server of
 #               each instance (betula, betula-green, canary, canary-green), edge_placeholder,
-#               edge_grafana, <stack>_in for Phloem (docs/phloem/protocol.md). All internal: the
+#               edge_grafana, <stack>_in for Phloem (docs/phloem/protocol.md) and for Xylem
+#               (docs/xylem/xylem.md). All internal: the
 #               only way out is Traefik's own "out" (ACME, the published ports). Made by
 #               vps/30-docker.sh before this stack, external here; a service names its network in
 #               the label traefik.swarm.network, and there is no default (a forgotten label would
@@ -241,6 +242,8 @@ services:
       - edge_canary-green
       - phloem_in
       - phloem-canary_in
+      - xylem_in
+      - xylem-canary_in
     volumes:
       # Traefik creates the store file itself with mode 0600 and refuses a restored copy that is more open.
       # The volume root belongs to root, which is why Traefik runs as root (without capabilities, see below).
@@ -410,6 +413,10 @@ networks:
   phloem_in:
     external: true
   phloem-canary_in:
+    external: true
+  xylem_in:
+    external: true
+  xylem-canary_in:
     external: true
 
 volumes:
