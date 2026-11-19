@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # crawlers.sh - the filter in front of the sites in a real Traefik: config/traefik/dynamic/crawlers.yml,
-# crawler-networks.yml and europe.yml, who gets 403 and who is served. Needs Docker and curl, no
+# fleets.yml, crawler-networks.yml and europe.yml, who gets 403 and who is served. Needs Docker and curl, no
 # swarm; pulls the Traefik image of stacks/edge.yml. Never on the server (it publishes 127.0.0.1:18444).
 #
 #   bash deploy/test/crawlers.sh        # up, check, down; exit 1 when a check fails
 #
-# Traefik runs with the three files as they are, next to two stand-ins of the sites' routers:
+# Traefik runs with the four files as they are, next to two stand-ins of the sites' routers:
 # Folia's for the host betula.app (priority 37, the colour's) and Phloem's /sync/v1/ (1000). Both
 # lead to Traefik's ping, which answers 200 to every path, so 200 is "served" and 403 is the filter.
-# The user agents are the ones the crawlers send (their operators' documentation, 2026-11). Then the
+# The user agents are the ones the crawlers send (their operators' documentation, 2026-11), and the
+# fleets' (Traefik's access log of 2026-11-19) next to the browsers closest to them. Then the
 # networks, in copies that Traefik reloads: the test's own address (Docker's bridge) put among the
 # clouds' of crawler-networks.yml, and taken out of Europe's open networks of europe.yml. Then the
 # same over IPv6, from a client container on two IPv6 networks of Docker that Traefik joins (the
@@ -41,7 +42,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${WORK}/dynamic"
-for file in crawlers.yml crawler-networks.yml europe.yml; do
+for file in crawlers.yml fleets.yml crawler-networks.yml europe.yml; do
   cp "${DEPLOY_DIR}/config/traefik/dynamic/${file}" "${WORK}/dynamic/"
 done
 cat >"${WORK}/dynamic/sites.yml" <<'EOF'
@@ -168,6 +169,52 @@ if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
 else
   FAILED=$((FAILED + 1))
   printf 'FAIL  the access log has %s lines of edge-crawlers@file for %s requests turned away\n' "${logged}" "${TURNED_AWAY}"
+fi
+
+# The fleets that pass for browsers (fleets.yml): their user agents exactly, and the browsers
+# closest to them, which are served: the next and the previous versions, Chrome 146 on a Mac, the
+# same version on a phone, and a browser built on the same Chrome that adds a word of its own.
+for _ in $(seq 1 30); do
+  [[ "$(status 'Lightpanda/1.0' /)" == 403 ]] && break
+  sleep 1
+done
+TURNED_AWAY=0
+W='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
+M='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)'
+expect 403 / "${W} Chrome/118.0.0.0 Safari/537.36"
+expect 403 /api/db "${W} Chrome/119.0.0.0 Safari/537.36"
+expect 403 '/en/catalog?form=excursion&open=14016&turnus=winter' "${W} Chrome/120.0.0.0 Safari/537.36"
+expect 403 / "${W} Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
+expect 403 / "${W} Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
+expect 403 / "${M} Chrome/119.0.0.0 Safari/537.36"
+expect 403 /sync/v1/x "${M} Chrome/120.0.0.0 Safari/537.36"
+expect 403 / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0'
+expect 403 / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0'
+expect 403 / 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+expect 403 /sw.js "${W} Chrome/146.0.0.0 Safari/537.36"
+expect 403 / 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
+expect 403 '/en/catalog?kind=thesis' 'Lightpanda/1.0'
+expect 200 / "${W} Chrome/117.0.0.0 Safari/537.36"
+expect 200 / "${W} Chrome/121.0.0.0 Safari/537.36"
+expect 200 / "${W} Chrome/145.0.0.0 Safari/537.36"
+expect 200 / "${W} Chrome/147.0.0.0 Safari/537.36"
+expect 200 / "${M} Chrome/146.0.0.0 Safari/537.36"
+expect 200 / "${W} Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0"
+expect 200 / 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+expect 200 / 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0'
+expect 200 / 'Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0'
+expect 200 /robots.txt "${W} Chrome/120.0.0.0 Safari/537.36"
+expect 200 /calendar/x.ics "${W} Chrome/146.0.0.0 Safari/537.36"
+expect 200 /healthz 'Lightpanda/1.0'
+sleep 1
+logged="$(docker logs "${NAME}" 2>/dev/null | grep -c '"DownstreamStatus":403,.*"RouterName":"edge-crawler-fleets@file"' || true)"
+if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
+  printf 'PASS  the access log has the %s requests of the fleets turned away (%s lines of edge-crawler-fleets@file)
+' "${TURNED_AWAY}" "${logged}"
+else
+  FAILED=$((FAILED + 1))
+  printf 'FAIL  the access log has %s lines of edge-crawler-fleets@file for %s requests turned away
+' "${logged}" "${TURNED_AWAY}"
 fi
 
 # The clouds' networks: Docker's bridge, where the test's requests come from, among them (the IPv4
