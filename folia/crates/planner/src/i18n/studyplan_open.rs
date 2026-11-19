@@ -8,7 +8,7 @@ pub struct Texts {
     pub open: &'static str,
     /// The phone's line: „2 Wahlen offen".
     pub open_count: fn(usize) -> String,
-    /// A choice's line: „eine von 3 anhaken" …
+    /// A choice's line: „eine von 3 auswählen" …
     pub tick_one_of: fn(usize) -> String,
     /// … of a choice among a module's events: „1 von 4 wählen" …
     pub take_of: fn(usize, usize) -> String,
@@ -32,10 +32,10 @@ pub struct Texts {
     pub gives_count: fn(usize) -> String,
 
     // ---- the choice in focus ----
-    /// Its state: „noch keine angehakt", „2 von 3 angehakt".
+    /// Its state: „noch keine ausgewählt", „2 von 3 ausgewählt".
     pub none_yet: &'static str,
     pub ticked_of: fn(usize, usize) -> String,
-    /// Whether the groups fit, and what to do: „Alle 3 passen." and „Hake eine oder mehrere an." …
+    /// Whether the groups fit, and what to do: „Alle 3 passen." and „Wähle eine oder mehrere aus." …
     pub all_fit: fn(usize) -> String,
     pub tick_hint: &'static str,
     /// … „Nur Do 09:15 passt, die anderen überschneiden sich." …
@@ -46,7 +46,7 @@ pub struct Texts {
     pub none_fit: &'static str,
     /// … and where some meet the plan, that ticking goes all the same (Betula does not say no).
     pub anyway: &'static str,
-    /// What an untouched choice shows meanwhile: „Bis du eine anhakst, stehen alle 3 schraffiert
+    /// What an untouched choice shows meanwhile: „Bis du eine auswählst, stehen alle 3 schraffiert
     /// im Stundenplan."
     pub open_note: fn(usize) -> String,
     /// The buttons: „Weiter: Übung MIT1", „Vergleichen", the tiles again, „Fertig", „Schließen".
@@ -78,7 +78,7 @@ pub struct Texts {
     /// … „trifft VL MIT1".
     pub meets: fn(&str) -> String,
     /// What a tile and a line say to a screen reader and in a tooltip: „passt", „trifft …",
-    /// „angehakt".
+    /// „ausgewählt".
     pub fits: &'static str,
     pub ticked: &'static str,
     /// The changes of Termine of QIS that ask for something (folia/design/kalender/termine.html,
@@ -119,7 +119,7 @@ pub const DE: Texts = Texts {
         1 => "1 Wahl offen".to_string(),
         n => format!("{n} Wahlen offen"),
     },
-    tick_one_of: |n| format!("eine von {n} anhaken"),
+    tick_one_of: |n| format!("eine von {n} auswählen"),
     take_of: |take, of| format!("{take} von {of} wählen"),
     none_free: "keine passt ohne Überschneidung",
     choose: "Wählen",
@@ -152,9 +152,9 @@ pub const DE: Texts = Texts {
         n => format!("{n} Besuche geben nach"),
     },
 
-    none_yet: "noch keine angehakt",
-    ticked_of: |ticked, of| format!("{ticked} von {of} angehakt"),
-    tick_hint: "Hake eine oder mehrere an.",
+    none_yet: "noch keine ausgewählt",
+    ticked_of: |ticked, of| format!("{ticked} von {of} ausgewählt"),
+    tick_hint: "Wähle eine oder mehrere aus.",
     all_fit: |n| match n {
         2 => "Beide passen.".to_string(),
         n => format!("Alle {n} passen."),
@@ -162,8 +162,8 @@ pub const DE: Texts = Texts {
     only_fits: |which| format!("Nur {which} passt, die anderen überschneiden sich."),
     some_fit: |fit, of| format!("{fit} von {of} passen, die anderen überschneiden sich."),
     none_fit: "Keine passt ohne Überschneidung.",
-    anyway: "Anhaken geht trotzdem.",
-    open_note: |n| format!("Bis du eine anhakst, stehen alle {n} schraffiert im Stundenplan."),
+    anyway: "Auswählen geht trotzdem.",
+    open_note: |n| format!("Bis du eine auswählst, stehen alle {n} schraffiert im Stundenplan."),
     next: |what| format!("Weiter: {what}"),
     compare: "Vergleichen",
     compare_close: "Vergleich schließen",
@@ -182,7 +182,7 @@ pub const DE: Texts = Texts {
     other_campus: "anderer Campus",
     meets: |what| format!("trifft {what}"),
     fits: "passt",
-    ticked: "angehakt",
+    ticked: "ausgewählt",
 };
 
 pub const EN: Texts = Texts {
@@ -191,7 +191,7 @@ pub const EN: Texts = Texts {
         1 => "1 choice open".to_string(),
         n => format!("{n} choices open"),
     },
-    tick_one_of: |n| format!("tick one of {n}"),
+    tick_one_of: |n| format!("choose one of {n}"),
     take_of: |take, of| format!("choose {take} of {of}"),
     none_free: "none fits without a clash",
     choose: "Choose",
@@ -224,9 +224,9 @@ pub const EN: Texts = Texts {
         n => format!("{n} visits give way"),
     },
 
-    none_yet: "none ticked yet",
-    ticked_of: |ticked, of| format!("{ticked} of {of} ticked"),
-    tick_hint: "Tick one or more.",
+    none_yet: "none chosen yet",
+    ticked_of: |ticked, of| format!("{ticked} of {of} chosen"),
+    tick_hint: "Choose one or more.",
     all_fit: |n| match n {
         2 => "Both fit.".to_string(),
         n => format!("All {n} fit."),
@@ -234,8 +234,8 @@ pub const EN: Texts = Texts {
     only_fits: |which| format!("Only {which} fits, the others clash."),
     some_fit: |fit, of| format!("{fit} of {of} fit, the others clash."),
     none_fit: "None fits without a clash.",
-    anyway: "You can tick one all the same.",
-    open_note: |n| format!("Until you tick one, all {n} stand hatched in the timetable."),
+    anyway: "You can choose one all the same.",
+    open_note: |n| format!("Until you choose one, all {n} stand hatched in the timetable."),
     next: |what| format!("Next: {what}"),
     compare: "Compare",
     compare_close: "Close the comparison",
@@ -254,5 +254,5 @@ pub const EN: Texts = Texts {
     other_campus: "another campus",
     meets: |what| format!("meets {what}"),
     fits: "fits",
-    ticked: "ticked",
+    ticked: "chosen",
 };
