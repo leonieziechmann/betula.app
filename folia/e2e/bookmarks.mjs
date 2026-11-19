@@ -336,15 +336,14 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
     await device.click("#offer-dismiss >> visible=true");
     check((await stored(device)).length === 2, "another device: „Verwerfen“ added something");
     // A character typed wrong, two neighbours swapped: caught for certain by the check characters,
-    // named, and nothing of the list offered.
+    // named in the note that waits (since 2026-11-19; a panel with „OK" over the list before), the
+    // link out of the address at once, and nothing of the list offered.
     const at = [...code].findIndex((c, i) => i + 1 < code.length && c !== code[i + 1]);
     const swapped = `${base}/bookmarks#m=${code.slice(0, at)}${code[at + 1]}${code[at]}${code.slice(at + 2)}`;
     for (const broken of [link.replace(/.$/, (c) => (c === "A" ? "B" : "A")), swapped]) {
       await device.goto(broken, { waitUntil: "domcontentloaded" });
       await takeover(device);
-      await device.waitForFunction(() => onPage(".offer")?.textContent.includes("beschädigt") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push(`another device: a broken link is not named: ${broken}`));
-      await device.click("#offer-dismiss >> visible=true");
-      await device.waitForFunction(() => location.hash === "" && !onPage(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take a broken link out of the address"));
+      await device.waitForFunction(() => onPage(".wait-note")?.textContent.includes("beschädigt") && !onPage(".offer") && location.hash === "", null, { timeout: 8000 }).catch(() => problems.push(`another device: a broken link is not named in a note that waits, or stays in the address: ${broken}`));
     }
     check((await stored(device)).length === 2, "another device: a broken link added something");
     const told = sent.filter((r) => r.includes(code) || carried.some((id) => r.includes(id)));

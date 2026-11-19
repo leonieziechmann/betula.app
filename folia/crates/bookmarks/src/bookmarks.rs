@@ -1044,7 +1044,8 @@ enum Keep {
 /// `bookmarks::share_fragment`), which no browser sends to a server. The page asks before it adds
 /// anything (a link must not fill somebody's list behind their back), and either answer takes the
 /// list out of the address and out of the history entry. A list whose check characters do not fit
-/// (a link cut short, a character typed wrong) is named, and nothing of it is offered.
+/// (a link cut short, a character typed wrong) is named in the note that waits, and nothing of it is
+/// offered.
 ///
 /// What it offers follows what the link brings (folia/design/merken/oberflaeche.html, „Weitergeben
 /// und Ankommen"): modules alone „Hinzufügen"; a collection „Als Sammlung merken" or „Nur merken",
@@ -1111,25 +1112,22 @@ fn Offer() -> impl IntoView {
         }
         done.run(Some(Keep::Named(name)));
     };
+    // A link that cannot be read says so in the note that waits (until 2026-11-19 a panel over the
+    // list with „OK"), and goes from the address.
+    let notices = Notices::expect();
+    Effect::new(move |_| {
+        if brought.with(Result::is_err) {
+            if let Some(notices) = notices {
+                notices.say(Notice::warn(format!("{} {}", b.broken_link, b.broken_link_hint)));
+            }
+            done.run(None);
+        }
+    });
     move || {
         let brought = match brought.get() {
             Ok(brought) if brought.ids.is_empty() => return None,
             Ok(brought) => brought,
-            Err(BrokenLink) => {
-                return Some(
-                    view! {
-                        <div class="offer" role="status">
-                            <Icon name="info"/>
-                            <p>
-                                <b>{b.broken_link}" "</b>
-                                {b.broken_link_hint}
-                            </p>
-                            <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| done.run(None)>{b.ok}</button>
-                        </div>
-                    }
-                    .into_any(),
-                )
-            }
+            Err(BrokenLink) => return None,
         };
         let all = brought.ids.len();
         let new = brought.ids.iter().filter(|id| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(id))).count();

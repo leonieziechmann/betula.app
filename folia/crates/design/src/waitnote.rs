@@ -363,6 +363,73 @@ pub fn WaitNote(
     }
 }
 
+/// What the mark at the start of a `DoneNote` says.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Mark {
+    /// Done: its icon on the accent.
+    #[default]
+    Done,
+    /// Taken away or deleted: its icon on the note's own ground.
+    Out,
+    /// It did not work, or not as asked: its icon on amber.
+    Warn,
+}
+
+/// A note of what was just done, in a note that waits (owner, 2026-11-19: „wenn man dort eins
+/// löscht sollte einfach eine wait note kommen und kein banner oben"; in place of the panels that
+/// pages put over their head or into their lists): its mark, what it says — whole, wrapped where it
+/// is long, never cut —, what it offers besides (`children`: links or buttons of
+/// `.mark-toast-act`), and „Rückgängig" after a line where what was done can be taken back
+/// (`undo`), after which it goes. The frame of the note after marking (`folia_widgets::marknote`;
+/// app.css `.done-note`). `lasting` as `WaitNote`'s: a deletion's „Rückgängig", whose going loses
+/// what was deleted for good.
+#[component]
+pub fn DoneNote(
+    /// It went (put away, moved on from, or „Rückgängig" done): the host lets go of it.
+    on_gone: Callback<()>,
+    icon: &'static str,
+    #[prop(optional)] mark: Mark,
+    #[prop(into)] said: String,
+    /// Takes back what was done; the note goes after it.
+    #[prop(optional_no_strip)]
+    undo: Option<Callback<()>>,
+    /// The id of „Rückgängig", where the keyboard is put on it.
+    #[prop(optional)]
+    undo_id: Option<&'static str>,
+    #[prop(optional)] lasting: bool,
+    /// Classes of its own besides `wait-note mark-note done-note`.
+    #[prop(optional, into)]
+    class: String,
+    #[prop(optional)] children: Option<Children>,
+) -> impl IntoView {
+    let t = i18n::t();
+    let done = RwSignal::new(false);
+    let mark = match mark {
+        Mark::Done => "plan-toast-mark",
+        Mark::Out => "plan-toast-mark out",
+        Mark::Warn => "plan-toast-mark warn",
+    };
+    view! {
+        <WaitNote on_gone away=Signal::derive(move || done.get()) lasting class=format!("mark-note done-note {class}")>
+            <div class="mark-toast">
+                <span class=mark aria-hidden="true"><Icon name=icon/></span>
+                <span class="mark-toast-said">{said}</span>
+                <span class="mark-toast-gap"></span>
+                {children.map(|children| children())}
+                {undo.map(|undo| view! {
+                    <div class="plan-toast-end">
+                        <span class="plan-toast-sep" aria-hidden="true"></span>
+                        <button data-haptic="tap" class="plan-toast-undo" type="button" id=undo_id on:click=move |_| {
+                            undo.run(());
+                            done.set(true);
+                        }>{t.common.undo}</button>
+                    </div>
+                })}
+            </div>
+        </WaitNote>
+    }
+}
+
 /// What of an address is a step of the student's: all of it but `page`, which the catalog's list
 /// writes as it scrolls.
 fn steps_of(search: &str) -> String {

@@ -17,10 +17,15 @@
 //! - Betula Sync, where the site offers it (`sync::SyncPart`), `#devices`.
 //! - „Daten": the active profile as a file („Als Datei sichern", `Backup`).
 //! - „Gefahrenzone": „Profil leeren" and „Profil löschen", each a row with its icon on a tile and a
-//!   button of one width with the same icon, the question under the row; „Rückgängig" after, until
-//!   the page is left. The only profile is emptied instead of deleted, and says so before. A synced
-//!   profile is deleted on this device alone, or with Betula Sync ended (its data on the server
-//!   deleted, owner 2026-11-18): the question asks which.
+//!   button of one width with the same icon, the question under the row; „Rückgängig" after, in a
+//!   note that waits at the window's foot until it is put away or the page is left. The only
+//!   profile is emptied instead of deleted, and says so before. A synced profile is deleted on this
+//!   device alone, or with Betula Sync ended (its data on the server deleted, owner 2026-11-18): the
+//!   question asks which.
+//! - What was just done on the page — a profile made, taken over from a file, deleted or emptied, a
+//!   file refused — says a note that waits for interaction at the window's foot (`Notice`, a
+//!   `DoneNote`; owner, 2026-11-19: „wenn man dort eins löscht sollte einfach eine wait note kommen
+//!   und kein banner oben"). Until then a panel over the head said it, to which the page scrolled up.
 //! - At its end a line: the Impressum and the Datenschutz (§ 5 DDG: every page leads to the profile
 //!   page, the rail and the head of a phone's page; the menu of the profiles names them too), the
 //!   versions and how fresh the data is, where it comes from.
@@ -53,6 +58,7 @@ use folia_design::format;
 use folia_design::haptic::{self, Haptic};
 use folia_design::nav;
 use folia_design::ui::Icon;
+use folia_design::waitnote::{DoneNote, Mark};
 use folia_shell::frame::Frame;
 use folia_shell::pending::Shape;
 use folia_shell::seo::Seo;
@@ -75,10 +81,10 @@ const DELETE_YES_ID: &str = "pf-delete-yes";
 const DELETE_END_ID: &str = "pf-delete-end";
 const OPEN_ID: &str = "pf-open";
 const UNDO_ID: &str = "pf-undo";
-const NOTE_ID: &str = "pf-note";
 
-/// What the page says of the last thing done on it, at its head; a profile deleted or emptied
-/// comes back from there with „Rückgängig" until the page is left.
+/// What the page says of the last thing done on it, in a note that waits at the window's foot; a
+/// profile deleted or emptied comes back from there with „Rückgängig" until the note is put away or
+/// the page is left.
 #[derive(Clone, Debug, PartialEq)]
 enum Note {
     /// An empty profile was made, and is the active one: its name.
@@ -91,6 +97,8 @@ enum Note {
     Cleared(Cleared),
     /// „Löschen und Sync beenden" could not end Sync, and the profile stays: why.
     NotEnded(String),
+    /// A file picked makes no profile: why.
+    Refused(String),
 }
 
 /// The tags of the profile page: a page of one visitor, the same address for everybody and nothing
@@ -155,42 +163,6 @@ pub fn ProfilePage() -> impl IntoView {
     .into_any()
 }
 
-/// Scrolls the page to its very top, where the note of what was just done stands, and lets the note
-/// light up once: the frame's scroll area on a wide screen (`#page-scroll`, its own on each stage),
-/// the window on a phone.
-fn to_note() {
-    #[cfg(feature = "csr")]
-    {
-        let Some(window) = web_sys::window() else { return };
-        let Some(note) = window.document().and_then(|document| document.get_element_by_id(NOTE_ID)) else { return };
-        let reduced = window.match_media("(prefers-reduced-motion: reduce)").ok().flatten().is_some_and(|query| query.matches());
-        let options = web_sys::ScrollToOptions::new();
-        options.set_top(0.0);
-        options.set_behavior(if reduced { web_sys::ScrollBehavior::Instant } else { web_sys::ScrollBehavior::Smooth });
-        // Out of sight, it lights up once the page has come up to it (`SCROLL_MS`).
-        let away = note.get_bounding_client_rect().top() < 0.0;
-        if let Ok(Some(area)) = note.closest("#page-scroll") {
-            area.scroll_to_with_scroll_to_options(&options);
-        }
-        window.scroll_to_with_scroll_to_options(&options);
-        let flash = move || {
-            let list = note.class_list();
-            let _ = list.remove_1("pf-flash");
-            let _ = note.get_bounding_client_rect();
-            let _ = list.add_1("pf-flash");
-        };
-        if away && !reduced {
-            set_timeout(flash, std::time::Duration::from_millis(SCROLL_MS));
-        } else {
-            flash();
-        }
-    }
-}
-
-/// About how long a smooth scroll to the top takes, before the note lights up (ms).
-#[cfg_attr(not(feature = "csr"), allow(dead_code))]
-const SCROLL_MS: u64 = 450;
-
 /// Scrolls the page to Betula Sync and lets it light up once (`#devices`).
 fn to_devices() {
     #[cfg(feature = "csr")]
@@ -242,63 +214,67 @@ impl Kept {
     }
 }
 
-/// The note of the last thing done, with „Rückgängig" where it can be taken back. Once it is
-/// said, the page goes to its very top, where the note stands, and the note lights up once (owner,
-/// 2026-11-18: „Es braucht unbedingt Bestätigung dass man ein profil gelöscht hat, sonst denkt man
-/// dass es nicht geklappt hat und löscht dann noch ein anderes. Also es braucht eine Bestätigung und
-/// dann den scroll nach ganz oben"): the Gefahrenzone is at the page's end, and what it did was said
-/// out of sight.
+/// The note of the last thing done, with „Rückgängig" where it can be taken back: a note that waits
+/// for interaction at the window's foot (`DoneNote`; owner, 2026-11-19: „wenn man dort eins löscht
+/// sollte einfach eine wait note kommen und kein banner oben"), in sight wherever the page stands
+/// (owner, 2026-11-18: „Es braucht unbedingt Bestätigung dass man ein profil gelöscht hat, sonst
+/// denkt man dass es nicht geklappt hat und löscht dann noch ein anderes"; until 2026-11-19 a panel
+/// over the head, to which the page scrolled up from the Gefahrenzone at its end and which lit up
+/// once). A profile deleted or emptied waits until the note is put away (`lasting`, as a Termin of
+/// one's own deleted): what is gone with it is gone for good once „Rückgängig" is.
 #[component]
 fn Notice(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let profiles = Profiles::expect();
-    let undo = move |_| {
-        if let Some(profiles) = profiles {
-            match note.get_untracked() {
-                Some(Note::Deleted(deleted, ..)) => {
-                    profiles.undo_delete(&deleted);
-                }
-                Some(Note::Cleared(cleared)) => profiles.undo_clear(&cleared),
-                _ => {}
-            }
-        }
-        note.set(None);
-    };
     // What was done is felt as it is said: a profile made or taken over from a file as success, one
-    // deleted or emptied lightly (it can be taken back). Not what was said before the page came. And
-    // it is seen: the page at its top, the note lit up.
+    // deleted or emptied lightly (it can be taken back), what did not work as such. Not what was said
+    // before the page came.
     Effect::new(move |seen: Option<()>| {
         let felt = note.with(|note| {
             note.as_ref().map(|note| match note {
                 Note::Created(_) | Note::Opened(_) => Haptic::Success,
                 Note::Deleted(..) | Note::Cleared(_) => Haptic::Tap,
-                Note::NotEnded(_) => Haptic::Error,
+                Note::NotEnded(_) | Note::Refused(_) => Haptic::Error,
             })
         });
         if let (Some(()), Some(felt)) = (seen, felt) {
             haptic::play(felt);
-            request_animation_frame(to_note);
         }
     });
     move || {
         note.get().map(|now| {
-            let (icon, said, undoable) = match &now {
-                Note::Created(name) => ("user-round-plus", (p.created)(name), false),
-                Note::Opened(name) => ("upload", (p.opened)(name), false),
-                Note::Deleted(_, name, false) => ("trash-2", (p.deleted)(name), true),
-                Note::Deleted(_, name, true) => ("trash-2", (p.deleted_ended)(name), true),
-                Note::Cleared(_) => ("check", p.cleared.to_string(), true),
-                Note::NotEnded(why) => ("triangle-alert", (p.not_ended)(why), false),
+            let (icon, mark, said) = match &now {
+                Note::Created(name) => ("user-round-plus", Mark::Done, (p.created)(name)),
+                Note::Opened(name) => ("upload", Mark::Done, (p.opened)(name)),
+                Note::Deleted(_, name, false) => ("trash-2", Mark::Out, (p.deleted)(name)),
+                Note::Deleted(_, name, true) => ("trash-2", Mark::Out, (p.deleted_ended)(name)),
+                Note::Cleared(_) => ("rotate-ccw", Mark::Out, p.cleared.to_string()),
+                Note::NotEnded(why) => ("triangle-alert", Mark::Warn, (p.not_ended)(why)),
+                Note::Refused(why) => ("triangle-alert", Mark::Warn, why.clone()),
             };
-            view! {
-                <div class="offer pf-note" id=NOTE_ID role="status">
-                    <Icon name=icon/>
-                    <p>{said}</p>
-                    {undoable.then(|| view! { <button data-haptic="tap" class="mini hit" type="button" id=UNDO_ID on:click=undo>{t.common.undo}</button> })}
-                    <button class="mini hit" type="button" on:click=move |_| note.set(None)>{p.ok}</button>
-                </div>
-            }
+            // „Rückgängig" where what was done can be taken back.
+            let undo = match now.clone() {
+                Note::Deleted(deleted, ..) => Some(Callback::new(move |()| {
+                    if let Some(profiles) = profiles {
+                        profiles.undo_delete(&deleted);
+                    }
+                })),
+                Note::Cleared(cleared) => Some(Callback::new(move |()| {
+                    if let Some(profiles) = profiles {
+                        profiles.undo_clear(&cleared);
+                    }
+                })),
+                _ => None,
+            };
+            let lasting = undo.is_some();
+            // A note that leaves lets go of itself alone, not of a newer one that took its place.
+            let gone = Callback::new(move |()| {
+                if note.with_untracked(|note| note.as_ref() == Some(&now)) {
+                    note.set(None);
+                }
+            });
+            view! { <DoneNote on_gone=gone icon mark said undo undo_id=UNDO_ID lasting/> }
         })
     }
 }
@@ -553,7 +529,8 @@ fn DataPart() -> impl IntoView {
 }
 
 /// „Gefahrenzone": „Profil leeren" and „Profil löschen", the question under the row, „Rückgängig"
-/// after in the note at the head. The only profile is emptied instead, and says so before. A synced
+/// after in the page's note at the window's foot. The only profile is emptied instead, and says so
+/// before. A synced
 /// profile is deleted on this device alone („Nur auf diesem Gerät löschen", the others keep it) or
 /// with Betula Sync ended („Löschen und Sync beenden"): its space at Phloem goes first, then the
 /// profile; where the space does not go, the profile stays and the note says why.
@@ -931,13 +908,17 @@ fn OpenFile(note: RwSignal<Option<Note>>) -> impl IntoView {
     let profiles = Profiles::expect();
     let input = NodeRef::<leptos::html::Input>::new();
     // What a file picked holds, until it is taken over or put aside.
-    let offer = RwSignal::new(None::<Result<Backup, Refused>>);
-    // A file refused is felt as what cannot be.
-    Effect::new(move |_| {
-        if offer.with(|offer| matches!(offer, Some(Err(_)))) {
-            haptic::play(Haptic::Error);
-        }
-    });
+    let offer = RwSignal::new(None::<Backup>);
+    // A file that makes no profile: the page's note says why (and is felt as what cannot be).
+    let refuse = move |refused: Refused| {
+        let why = match refused {
+            Refused::File(NoBackup::Unreadable) => p.file_unreadable.to_string(),
+            Refused::File(NoBackup::Newer) => p.file_newer.to_string(),
+            Refused::File(NoBackup::TooLarge) => p.file_too_large.to_string(),
+            Refused::Full => (p.file_full)(MAX_PROFILES),
+        };
+        note.try_set(Some(Note::Refused(why)));
+    };
     let pick = move |_| {
         offer.set(None);
         #[cfg(feature = "csr")]
@@ -947,12 +928,13 @@ fn OpenFile(note: RwSignal<Option<Note>>) -> impl IntoView {
     };
     let picked = move |_: leptos::ev::Event| {
         #[cfg(feature = "csr")]
-        read_file(input, offer);
+        read_file(input, offer, refuse);
     };
     let take = move |_| {
-        let (Some(profiles), Some(Ok(backup))) = (profiles, offer.get_untracked()) else { return };
+        let (Some(profiles), Some(backup)) = (profiles, offer.get_untracked()) else { return };
         if !untrack(|| profiles.room()) {
-            offer.set(Some(Err(Refused::Full)));
+            offer.set(None);
+            refuse(Refused::Full);
             return;
         }
         offer.set(None);
@@ -974,57 +956,44 @@ fn OpenFile(note: RwSignal<Option<Note>>) -> impl IntoView {
             <Icon name="upload"/><span>{p.open_file}</span>
         </button>
         <input class="visually-hidden" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" node_ref=input on:change=picked/>
-        {move || offer.get().map(|offer| match offer {
-            Ok(backup) => {
-                let holds = summary_line(&backup.summary(), t);
-                view! {
-                    <div class="pf-offer" role="status">
-                        <p><b>{(p.file_named)(&backup.name)}</b>" "{holds}</p>
-                        <p>{p.file_question}</p>
-                        <div>
-                            <button class="mini primary hit" type="button" id="pf-take" on:click=take>{p.file_take}</button>
-                            <button class="mini hit" type="button" on:click=put_aside>{p.cancel}</button>
-                        </div>
+        {move || offer.get().map(|backup| {
+            let holds = summary_line(&backup.summary(), t);
+            view! {
+                <div class="pf-offer" role="status">
+                    <p><b>{(p.file_named)(&backup.name)}</b>" "{holds}</p>
+                    <p>{p.file_question}</p>
+                    <div>
+                        <button class="mini primary hit" type="button" id="pf-take" on:click=take>{p.file_take}</button>
+                        <button class="mini hit" type="button" on:click=put_aside>{p.cancel}</button>
                     </div>
-                }
-                .into_any()
-            }
-            Err(refused) => {
-                let why = match refused {
-                    Refused::File(NoBackup::Unreadable) => p.file_unreadable.to_string(),
-                    Refused::File(NoBackup::Newer) => p.file_newer.to_string(),
-                    Refused::File(NoBackup::TooLarge) => p.file_too_large.to_string(),
-                    Refused::Full => (p.file_full)(MAX_PROFILES),
-                };
-                view! {
-                    <p class="action note-action pf-refused" role="status">
-                        <Icon name="triangle-alert"/><span>{why}</span>
-                        <button class="mini hit" type="button" on:click=put_aside>{p.ok}</button>
-                    </p>
-                }
-                .into_any()
+                </div>
             }
         })}
     }
 }
 
-/// Reads the file picked into `offer`: the backup it holds, or why it holds none. Only in the
-/// browser.
+/// Reads the file picked: into `offer` the backup it holds, or to `refuse` why it holds none. Only
+/// in the browser.
 #[cfg(feature = "csr")]
-fn read_file(input: NodeRef<leptos::html::Input>, offer: RwSignal<Option<Result<Backup, Refused>>>) {
+fn read_file(input: NodeRef<leptos::html::Input>, offer: RwSignal<Option<Backup>>, refuse: impl Fn(Refused) + 'static) {
     use folia_stores::profiles::MAX_BACKUP;
     let Some(input) = input.get_untracked() else { return };
     let Some(file) = input.files().and_then(|files| files.get(0)) else { return };
     // The same file picked once more is a change again.
     input.set_value("");
     if file.size() > MAX_BACKUP as f64 {
-        offer.set(Some(Err(Refused::File(NoBackup::TooLarge))));
+        refuse(Refused::File(NoBackup::TooLarge));
         return;
     }
     let text = file.text();
     leptos::task::spawn_local(async move {
         let read = wasm_bindgen_futures::JsFuture::from(text).await.ok().and_then(|text| text.as_string());
-        offer.try_set(Some(read.map_or(Err(Refused::File(NoBackup::Unreadable)), |text| Backup::read(&text).map_err(Refused::File))));
+        match read.map_or(Err(Refused::File(NoBackup::Unreadable)), |text| Backup::read(&text).map_err(Refused::File)) {
+            Ok(backup) => {
+                offer.try_set(Some(backup));
+            }
+            Err(refused) => refuse(refused),
+        }
     });
 }
 

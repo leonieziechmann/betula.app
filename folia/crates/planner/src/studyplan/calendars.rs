@@ -56,6 +56,7 @@ use leptos::prelude::*;
 
 use super::add::{AddPanel, AddTo};
 use super::head::{weekday_name, MarkedModule, PhoneSheet};
+use super::note::PlanNote;
 use super::share_dialog::{ShareOpen, ShareTab};
 use super::{key_of, PlanCtx};
 use crate::i18n;
@@ -382,10 +383,10 @@ fn view_switch(ctx: PlanCtx, calendar: &Shown, words: bool, t: &'static i18n::Te
 
 /// A calendar's menu, open under its row: „Modul aufnehmen" (its „+ Modul" in the list beside the
 /// week, `add.rs`), „Umbenennen" (the name in a field, „Sichern" and Enter keep it, „Abbrechen"
-/// and Esc leave it) and „Löschen", which takes it away with „Rückgängig".
+/// and Esc leave it) and „Löschen", which takes it away with „Rückgängig" (`remove_calendar`).
 /// The menu closes at once and the plan changes after the next frame (R21).
 #[component]
-fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, removed: RwSignal<Option<(usize, Calendar)>>) -> impl IntoView {
+fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
     let renaming = RwSignal::new(false);
@@ -401,13 +402,8 @@ fn CalendarMenu(ctx: PlanCtx, id: u8, name: String, open: RwSignal<Option<u8>>, 
         open.set(None);
     };
     let remove = move |_| {
-        if let Some(plan) = ctx.plan {
-            folia_design::nav::after_paint(move || {
-                let gone = plan.update(|doc| doc.remove_calendar(id));
-                let _ = removed.try_set(gone);
-            });
-        }
         open.set(None);
+        remove_calendar(ctx, id);
     };
     move || match renaming.get() {
         true => view! {
@@ -472,8 +468,7 @@ fn came_of(calendar: &Shown, semester: &str, t: &'static i18n::Texts) -> Option<
 /// Termine), and while `manage` says so its menu („…"), in a place that is there without it
 /// (`span.sp-cal-end`), so that the row is not built anew with the mode: in the sidebar while the
 /// plan is edited, in a phone's sheet always. `phone`: the switch with its words, under the name.
-#[allow(clippy::too_many_arguments)]
-fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, manage: Signal<bool>, open: RwSignal<Option<u8>>, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
+fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, manage: Signal<bool>, open: RwSignal<Option<u8>>, t: &'static i18n::Texts) -> impl IntoView {
     let c = &t.studyplan_calendars;
     let id = calendar.id;
     let line = calendar_line(&calendar, &semester, t);
@@ -487,7 +482,7 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, ma
     let menu = move || {
         (open.get() == Some(id) && manage.get()).then(|| {
             let name = name.clone();
-            view! { <CalendarMenu ctx id name open removed/> }
+            view! { <CalendarMenu ctx id name open/> }
         })
     };
     let toggle = move |_| open.update(|open| *open = if *open == Some(id) { None } else { Some(id) });
@@ -495,7 +490,7 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, ma
         Following::Live => view! { <span class="live" title=c.live_title>{c.live}</span>" · " }.into_any(),
         Following::Ended(_) => view! { <span class="live off" title=c.ended_title>{c.ended}</span>" · " }.into_any(),
     });
-    let ended = matches!(calendar.follow, Some(Following::Ended(_))).then(|| ended_note(ctx, id, removed, t));
+    let ended = matches!(calendar.follow, Some(Following::Ended(_))).then(|| ended_note(ctx, id, t));
     view! {
         <div class=format!("sp-cal {}", calendar.hue) class:off=calendar.view == CalendarView::Off>
             <i class=format!("sw {way}") aria-hidden="true"></i>
@@ -521,7 +516,7 @@ fn calendar_row(ctx: PlanCtx, calendar: Shown, semester: String, phone: bool, ma
 /// Under a calendar whose share was taken back: what that means, „Behalten" (it follows nothing any
 /// more and stays as it is) and „Löschen" (with „Rückgängig", as from its menu); each after the next
 /// frame (R21). Owner, 2026-11-08: Lena keeps the last state and can keep or delete it.
-fn ended_note(ctx: PlanCtx, id: u8, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
+fn ended_note(ctx: PlanCtx, id: u8, t: &'static i18n::Texts) -> impl IntoView {
     let c = &t.studyplan_calendars;
     let keep = move |_| {
         if let Some(plan) = ctx.plan {
@@ -530,14 +525,7 @@ fn ended_note(ctx: PlanCtx, id: u8, removed: RwSignal<Option<(usize, Calendar)>>
             });
         }
     };
-    let remove = move |_| {
-        if let Some(plan) = ctx.plan {
-            folia_design::nav::after_paint(move || {
-                let gone = plan.update(|doc| doc.remove_calendar(id));
-                let _ = removed.try_set(gone);
-            });
-        }
-    };
+    let remove = move |_| remove_calendar(ctx, id);
     view! {
         <p class="sp-cal-ended" role="status">
             <span>{c.ended_hint}</span>
@@ -547,28 +535,24 @@ fn ended_note(ctx: PlanCtx, id: u8, removed: RwSignal<Option<(usize, Calendar)>>
     }
 }
 
-/// The note after „Löschen", with „Rückgängig", which puts the calendar back where it stood after
-/// the next frame (R21).
-fn removed_note(ctx: PlanCtx, removed: RwSignal<Option<(usize, Calendar)>>, t: &'static i18n::Texts) -> impl IntoView {
-    move || {
-        removed.get().map(|(_, calendar)| {
-            let name = if calendar.name.is_empty() { (t.studyplan_calendars.unnamed)(calendar.id) } else { calendar.name.clone() };
-            let undo = move |_| {
-                if let (Some(plan), Some((at, calendar))) = (ctx.plan, removed.get_untracked()) {
-                    plan.update_after_paint(move |doc| {
-                        doc.put_calendar(at, calendar);
-                    });
-                }
-                removed.set(None);
-            };
-            view! {
-                <p class="sp-cal-note" role="status">
-                    <span>{(t.studyplan_calendars.removed)(&name)}</span>
-                    <button data-haptic="tap" class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
-                </p>
-            }
-        })
-    }
+/// „Löschen" of a calendar of one's own (its menu, the line of a share taken back): it goes after
+/// the next frame (R21), and the page's note says so with „Rückgängig", which puts it back where it
+/// stood with its Termine and its shares (`PlanUndo`); a note that lasts (`note.rs`), since what the
+/// calendar held is gone with its „Rückgängig". Until 2026-11-19 a line under the calendars said it.
+fn remove_calendar(ctx: PlanCtx, id: u8) {
+    let t = i18n::t();
+    let Some(plan) = ctx.plan else { return };
+    folia_design::nav::after_paint(move || {
+        let before = plan.with_untracked(Clone::clone);
+        let Some(name) = before.calendar(id).map(|calendar| if calendar.name.is_empty() { (t.studyplan_calendars.unnamed)(id) } else { calendar.name.clone() }) else { return };
+        let undo = PlanUndo::made(before, |doc| {
+            doc.remove_calendar(id);
+        });
+        plan.update(|doc| {
+            doc.remove_calendar(id);
+        });
+        let _ = ctx.undo.try_set(Some((format!("{CALENDAR_GONE}{}", (t.studyplan_calendars.removed)(&name)), undo)));
+    });
 }
 
 /// What the group opens over itself while the plan is edited — a calendar's menu („…"), the form
@@ -620,7 +604,6 @@ pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
     let c = &t.studyplan_calendars;
     let adding = RwSignal::new(false);
     let open = RwSignal::new(None::<u8>);
-    let removed = RwSignal::new(None::<(usize, Calendar)>);
     layer_of_mode(ctx, move || adding.get(), move || adding.set(false));
     layer_of_mode(ctx, move || open.with(Option::is_some), move || open.set(None));
     let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
@@ -628,7 +611,7 @@ pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
     let rows = move || {
         let semester = semester.get();
         let manage = Signal::derive(move || ctx.edit.get());
-        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), false, manage, open, removed, t)).collect_view()
+        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), false, manage, open, t)).collect_view()
     };
     view! {
         // A section of the keyboard's mode (`FrameKeys`), whose rows typing finds (`data-find`).
@@ -643,7 +626,6 @@ pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
                 <span class="t"><b>{c.mine}</b><small>{move || mine_line(ctx, t)}</small></span>
             </div>
             {rows}
-            {removed_note(ctx, removed, t)}
         </div>
     }
 }
@@ -663,7 +645,6 @@ pub(super) fn CalendarSheet(ctx: PlanCtx) -> impl IntoView {
     let open = Signal::derive(move || ctx.sheet.get() == Some(super::head::PhoneSheet::Calendars));
     let adding = RwSignal::new(false);
     let menu = RwSignal::new(None::<u8>);
-    let removed = RwSignal::new(None::<(usize, Calendar)>);
     // Its way out closes it alone: closed because another sheet took its place, it leaves that be.
     let close = Callback::new(move |()| {
         if ctx.sheet.get_untracked() == Some(PhoneSheet::Calendars) {
@@ -681,19 +662,18 @@ pub(super) fn CalendarSheet(ctx: PlanCtx) -> impl IntoView {
         }
         false
     });
-    // Opened again, the sheet is as it is drawn: no menu, no form, no note of before.
+    // Opened again, the sheet is as it is drawn: no menu, no form.
     Effect::new(move |_| {
         if !open.get() {
             menu.set(None);
             adding.set(false);
-            removed.set(None);
         }
     });
     let semester = Memo::new(move |_| ctx.key.get().label(t.locale));
     let manage = Signal::stored(true);
     let rows = move || {
         let semester = semester.get();
-        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), true, manage, menu, removed, t)).collect_view()
+        ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), true, manage, menu, t)).collect_view()
     };
     view! {
         <Modal open on_close=close size=ModalSize::M sheet=Sheet::Auto class="sp-cal-sheet" labelled_by="sp-cal-sheet-title" on_cancel=cancel>
@@ -705,7 +685,6 @@ pub(super) fn CalendarSheet(ctx: PlanCtx) -> impl IntoView {
                         <span class="t"><b>{c.mine}</b><small>{move || mine_line(ctx, t)}</small></span>
                     </div>
                     {rows}
-                    {removed_note(ctx, removed, t)}
                     <TogetherSwitch ctx row=true/>
                     <div class="sp-cal-newrow">
                         <NewCalendarButton ctx open=adding/>
@@ -713,6 +692,8 @@ pub(super) fn CalendarSheet(ctx: PlanCtx) -> impl IntoView {
                     </div>
                 </div>
             </div>
+            // What is done in the sheet is said at its foot (`note.rs`).
+            <PlanNote ctx shown=open/>
         </Modal>
     }
 }
@@ -752,6 +733,8 @@ pub(super) fn AddSheet(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
                 {move || follows.get().then(|| view! { <p class="hint sp-cal-follows">{(t.studyplan_add.follows)(&name.get())}</p> })}
                 {move || id.get().map(|id| view! { <AddPanel ctx to=AddTo::Calendar(id) marked sheet=close/> })}
             </div>
+            // What „Aufnehmen" did is said at the sheet's foot (`note.rs`).
+            <PlanNote ctx shown=open/>
         </Modal>
     }
 }
@@ -817,15 +800,15 @@ fn NewCalendarButton(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
 /// link holds; „Anlegen" is never disabled (CLAUDE.md, „Betula does not say no"): without a link, or
 /// with a text that is none (it says so, and that „Anlegen" still makes one), the calendar is empty;
 /// with a link it is the plan of the link. An empty name is „Kalender 2". The form closes at once
-/// and the calendar comes after the next frame (R21), the note with it. At the cap the hint.
+/// and the calendar comes after the next frame (R21), and the page's note with it, with „Rückgängig"
+/// as after „Als Kalender" (`note.rs`; until 2026-11-19 a line in the form's place). At the cap the
+/// hint.
 #[component]
 fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
     let c = &t.studyplan_calendars;
     let link = RwSignal::new(String::new());
     let name = RwSignal::new(String::new());
-    // The note after „Anlegen", and whether it says that the link could not be read.
-    let done = RwSignal::new(None::<(String, bool)>);
     let full = Memo::new(move |_| ctx.calendars.with(Vec::len) >= MAX_CALENDARS);
     let page = Memo::new(move |_| ctx.key.get());
     // What the link holds, as it is typed.
@@ -847,8 +830,6 @@ fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
     });
     let submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
-        // The note of a calendar made before goes; this one's comes with the calendar.
-        done.set(None);
         let text = link.get_untracked();
         let plan = plan_of_text(&text);
         // A link typed that names no plan: the calendar is made all the same, empty, and the note
@@ -859,14 +840,16 @@ fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
         name.set(String::new());
         open.set(false);
         folia_design::nav::after_paint(move || {
+            let Some(store) = ctx.plan else { return };
+            let before = store.with_untracked(Clone::clone);
             let made = match &plan {
                 Some(plan) => create(ctx, plan, &typed),
                 None => create_empty(ctx, typed.trim()),
             };
             if let Some(id) = made {
                 let named = made_name(&typed, id, t);
-                let said = if unread { (c.created_unread)(&named) } else { (c.created)(&named) };
-                let _ = done.try_set(Some((said, unread)));
+                let said = if unread { format!("{CALENDAR_UNREAD}{}", (c.created_unread)(&named)) } else { format!("{CALENDAR_MADE}{}", (c.created)(&named)) };
+                let _ = ctx.undo.try_set(Some((said, PlanUndo::of(before, store.with_untracked(Clone::clone)))));
             }
         });
     };
@@ -875,12 +858,7 @@ fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
             return view! { <p class="hint sp-cal-hint">{c.full_up}</p> }.into_any();
         }
         if !open.get() {
-            return view! {
-                {move || done.get().map(|(note, unread)| view! {
-                    <p class="sp-cal-note" class:warn=unread role="status"><Icon name=if unread { "triangle-alert" } else { "check" }/><span>{note}</span></p>
-                })}
-            }
-            .into_any();
+            return ().into_any();
         }
         view! {
             <form class="sp-cal-new" on:submit=submit>
@@ -899,7 +877,7 @@ fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
                 })}
                 <div class="sp-cal-actions">
                     <button class="mini primary" type="submit">{c.create}</button>
-                    <button class="mini" type="button" on:click=move |_| { open.set(false); done.set(None); }>{c.cancel}</button>
+                    <button class="mini" type="button" on:click=move |_| open.set(false)>{c.cancel}</button>
                 </div>
             </form>
         }
@@ -908,8 +886,17 @@ fn NewCalendarForm(ctx: PlanCtx, open: RwSignal<bool>) -> impl IntoView {
 }
 
 /// How the note of a module taken out of a calendar of one's own begins (`PlanCtx::undo`, which
-/// the page's other notes share), the calendar's number after it: never shown.
-const CALENDAR_REMOVED: &str = "Aus dem Kalender: ";
+/// the page's other notes share, `note.rs`), the calendar's number after it: never shown.
+pub(super) const CALENDAR_REMOVED: &str = "Aus dem Kalender: ";
+
+/// How the note of a calendar of one's own deleted begins: a mark of its own, never shown; a note
+/// that lasts (`note.rs`).
+pub(super) const CALENDAR_GONE: &str = "Kalender gelöscht: ";
+
+/// How the note of a calendar made by „Neuer Kalender" begins, and of one made empty of a link that
+/// could not be read (which it says, in amber): marks of their own, never shown.
+pub(super) const CALENDAR_MADE: &str = "Kalender angelegt: ";
+pub(super) const CALENDAR_UNREAD: &str = "Kalender leer angelegt: ";
 
 /// The calendars' parts of the module list beside the week, one per calendar in their order: a
 /// part keeps its place (and its „+ Modul" what was typed) while the calendar does. (On a phone „+
@@ -950,28 +937,7 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
         ctx.adding.update(|adding| *adding = if *adding == Some(AddTo::Calendar(id)) { None } else { Some(AddTo::Calendar(id)) });
     };
 
-    // The note of a module taken out of this calendar.
-    let note = Memo::new(move |_| {
-        ctx.undo.with(|undo| {
-            let rest = undo.as_ref()?.0.strip_prefix(CALENDAR_REMOVED)?;
-            let (of, text) = rest.split_once(' ')?;
-            (of.parse::<u8>().ok() == Some(id)).then(|| text.to_string())
-        })
-    });
-    let restoring = RwSignal::new(false);
-    let restore = move |_| {
-        if restoring.get_untracked() {
-            return;
-        }
-        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        restoring.set(true);
-        let undo = ctx.undo;
-        plan.update_after_paint(move |doc| {
-            before.restore(doc);
-            let _ = undo.try_set(None);
-            let _ = restoring.try_set(false);
-        });
-    };
+    // A module taken out of this calendar: the page's note says so with „Rückgängig" (`note.rs`).
     let remove = move |module: String, title: String| {
         let Some(plan) = ctx.plan else { return };
         let key = ctx.key.get_untracked();
@@ -1048,13 +1014,6 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
                 // A calendar that follows a share takes the sharer's next change over what is added.
                 {move || follows.get().then(|| view! { <p class="hint sp-cal-follows">{(t.studyplan_add.follows)(&name.get())}</p> })}
                 <AddPanel ctx to=AddTo::Calendar(id) marked/>
-            })}
-            {move || note.get().map(|note| view! {
-                <p class="action note-action sp-marked-note">
-                    <Icon name="check"/>
-                    <span>{note}</span>
-                    <button data-haptic="tap" class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
-                </p>
             })}
             <For each=move || lines.get() key=|line| line.clone() children=line/>
             {move || came.get().map(|came| view! { <p class="sp-cal-came">{came}</p> })}

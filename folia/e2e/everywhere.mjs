@@ -265,11 +265,11 @@ await context.close();
   await step("aufnehmen", () => page.click(".sp-addp .sp-take"), ([key, ids]) => {
     const text = localStorage.getItem(key) || "";
     return ids.every((id) => text.includes(`n\t1\t2026W\t${id}\n`) && !text.includes(`m\t2026W\t${id}\t`) && !text.includes(`v\t2026W\t${id}\t`))
-      && document.querySelector(".sp-addp .sp-marked-note")?.textContent.includes("2 gemerkte Module in „WG“ aufgenommen")
+      && onPage(".wait-note")?.textContent.includes("2 gemerkte Module in „WG“ aufgenommen")
       && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (1)"
       && document.querySelectorAll(".sp-cal-mods a.sp-mod-row").length === 2;
   }, [PLAN, [analysis, theory]]);
-  await step("Rückgängig the take", () => page.click(".sp-addp .sp-marked-note .mini"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && !document.querySelector(".sp-cal-mods a.sp-mod-row"), [PLAN, [analysis, theory]]);
+  await step("Rückgängig the take", () => page.click("#plan-note-undo"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector('.sp-addp [role="tab"][aria-selected="true"]')?.textContent === "Merkliste (3)" && !document.querySelector(".sp-cal-mods a.sp-mod-row"), [PLAN, [analysis, theory]]);
   await step("Esc closes „+ Modul“", async () => { await page.focus(".sp-addp .sp-marked-search input"); await page.keyboard.press("Escape"); }, () => !document.querySelector(".sp-addp") && document.querySelector(".sp-cal-mods .sp-add-mod")?.getAttribute("aria-expanded") === "false" && location.search === "?edit=1");
   const leaks = requests.filter((r) => [analysis, theory, programming].some((id) => r.includes(id)) || r.includes(KANDIDATEN) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes("Lenachen") || r.includes("theoret"));
   check(leaks.length === 0, `the Stundenplan's Merkliste went into a request: ${leaks.slice(0, 3).join(" | ")}`);

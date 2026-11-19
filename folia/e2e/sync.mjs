@@ -419,7 +419,7 @@ check((await marksOf(b.page)).length >= SEED.length, "B: the copy is gone after 
     && /Daten auf dem Server/.test(onPage("#pf-confirm-hint")?.textContent ?? ""), null, 5000);
   await e.page.click("#pf-delete-end >> visible=true").catch(() => problems.push("E: no „Löschen und Sync beenden“"));
   await until("E: the profile deleted, and Sync ended", e.page, () => allOnPage(".pf-list .pf-item").length === 1 && !localStorage.getItem("betula.sync.p1.v1") && localStorage.getItem("betula.myprogram.v1") === null
-    && /gelöscht und Sync beendet/.test(onPage(".pf-note")?.textContent ?? ""), null, 10000);
+    && /gelöscht und Sync beendet/.test(onPage(".wait-note")?.textContent ?? ""), null, 10000);
   await until("D: ended with it", d.page, () => !localStorage.getItem("betula.sync.p1.v1") && Object.keys(localStorage).some((k) => /^betula\.sync\.p\d+\.ended$/.test(k)), null, 10000);
   check(/^program\t079-82-2008$/m.test(await d.page.evaluate(() => localStorage.getItem("betula.myprogram.v1") || "")), "D: the study is gone after E ended Sync with deleting");
 }

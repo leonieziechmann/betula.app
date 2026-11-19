@@ -1813,7 +1813,7 @@ button.action:hover { background: var(--panel-3); }
    more, the question what to do with its last state. */
 .offer.fl-head.warn { background: var(--warn-soft); }
 .offer.fl-head.warn > .icon { color: var(--warn); }
-.fl-taken, .fl-up { color: var(--text-2); font-weight: 450; }
+.fl-up { color: var(--text-2); font-weight: 450; }
 .side-facts dd small { color: var(--text-3); font-weight: 450; font-size: 12px; }
 .storage-hint { display: flex; gap: 8px; margin-top: 2px; }
 .storage-hint .icon { width: 15px; height: 15px; margin-top: 2px; }
@@ -3959,9 +3959,6 @@ i.sp-key { width: 14px; padding: 0; }
   .sp-cal-mods .sp-row-wrap { grid-template-columns: minmax(0, 1fr) 44px; }
   .sp-cal-mods .sp-mod-end { width: 44px; height: 44px; }
 }
-/* The note of a take with „Rückgängig" (p.sp-marked-note): „+ Modul"'s „Aufnehmen", a module taken
-   out of a calendar. */
-.sp-marked-note { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 9px; margin: 0; padding: 4px 4px 4px 10px; color: var(--text-2); }
 /* „+ Modul" (section.sp-addp, add.rs), under the head of a calendar's part of the list: its name and
    ×, what a module taken in is, the note after „Aufnehmen", the Merkliste and the catalog as two
    ways (div.sp-addp-ways), a line per module with how it sits in the week and „Aufnehmen"
@@ -4127,12 +4124,6 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-cal-menu .mini { display: inline-flex; align-items: center; gap: 5px; }
 .sp-cal-menu .mini .icon { width: 13px; height: 13px; }
 .sp-cal-rename input { flex: 1 1 100%; min-width: 0; min-height: 34px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
-.sp-cal-note { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; padding: 4px 2px; color: var(--text-2); font-size: 12.5px; }
-.sp-cal-note > span { flex: 1; min-width: 0; }
-.sp-cal-note > .icon { flex: none; width: 15px; height: 15px; color: var(--ok); }
-/* A link that could not be read: the calendar is made, empty, and the note says why in amber. */
-.sp-cal-note.warn { color: var(--text); }
-.sp-cal-note.warn > .icon { color: var(--warn); }
 /* A calendar that follows a share (calendars.rs): „aktuell" with a green dot in its line while
    every change arrives, „nicht mehr geteilt" grey once it was taken back, with „Behalten" and
    „Löschen" under the row. */
@@ -5338,6 +5329,13 @@ html:not(.js) .plan-toggle { display: none; }
   .wait-note { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); border-radius: 14px; box-shadow: var(--toast-ring); animation-name: wait-note-rise; }
   @keyframes wait-note-rise { from { transform: translateY(calc(100% + 24px)); } }
   :root:has(#content > .page-stage.front .detail.is-module, #content > .pending-page .detail.is-module) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  /* In a sheet (the Stundenplan's sheets of the head, `note.rs`): nothing of the page stands over a
+     modal sheet, so what is done in it is said at its foot, over what it holds (the sheet holds it,
+     moved as it is). */
+  [data-sheet] .wait-note { z-index: 5; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  /* What the sheet holds keeps room under it while a note stands, as the workbench's sheet does: its
+     last row („+ Kalender") in reach above the note, never under it. */
+  [data-sheet]:has(.wait-note) .st-dlg-body { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   .wait-note-close { display: none; }
 }
 /* The note of „Einplanen" (.plan-toast in a .wait-note, folia/crates/widgets/src/plannote.rs;
@@ -5483,6 +5481,13 @@ html:not(.js) .plan-toggle { display: none; }
 .setup-toast-said > b { font-weight: 650; }
 .setup-toast-said > small { font-size: 12.5px; opacity: .78; overflow-wrap: anywhere; text-wrap: pretty; }
 .study-note .mark-toast-said { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; line-height: 1.3; }
+/* A note of what was just done (waitnote.rs, `DoneNote`: a profile deleted, a list taken over, a
+   calendar deleted; owner, 2026-11-19: „wenn man dort eins löscht sollte einfach eine wait note
+   kommen und kein banner oben"): what it says whole, wrapped where it is long, never cut; its mark
+   stays on a phone as well, where it says what the note is about (a deletion, a warning). */
+.done-note .mark-toast { padding-block: 6px; }
+.done-note .mark-toast-said { white-space: normal; overflow-wrap: anywhere; text-wrap: pretty; line-height: 1.3; }
+.done-note .mark-toast > .plan-toast-mark { display: grid; align-self: center; }
 @media (max-width: 900px) {
   .mark-toast { min-height: 56px; padding: 4px 6px 4px 12px; }
   .mark-toast-name.wide, .mark-toast-what.wide { display: none; }
@@ -8522,9 +8527,6 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-item.pf-add-way[aria-expanded="true"] > .icon:last-child { transform: rotate(180deg); }
 .pf-add { display: grid; gap: 2px; padding: 4px 0 6px 8px; }
 .pf-add .pf-sync-other { margin: 6px 0 4px; padding-top: 0; border-top: 0; }
-/* The note of the last thing done, a panel of its own over the head. */
-.offer.pf-note { margin: 0; background: var(--panel); box-shadow: var(--shadow-panel); }
-.pf-note > .icon { color: var(--text-2); }
 /* The head: the badge, the name and what a profile is; „Umbenennen" and „Löschen" at its end. */
 .pf-head { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; }
 .pf-head-main { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }

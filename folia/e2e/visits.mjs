@@ -162,8 +162,8 @@ const wide = { viewport: { width: 1440, height: 900 } };
   // Its row's bin takes it out, „Rückgängig" brings it back.
   check(await page.evaluate((title) => [...document.querySelectorAll(".sp-cal-mods .sp-row-wrap")].find((wrap) => wrap.textContent.includes(title))?.querySelector(".sp-remove use")?.getAttribute("href")?.endsWith("#trash-2"), EIP_TITLE), "the calendar's module has no bin");
   await page.click(`.sp-cal-mods .sp-row-wrap:has-text("${EIP_TITLE}") .sp-remove`);
-  await until(page, "taken out of Lena's", ([key, id, title]) => !(localStorage.getItem(key) ?? "").includes(`n\t1\t2026W\t${id}`) && onPage(".sp-cal-mods .sp-marked-note")?.textContent.includes(`„${title}“ aus „Lena“ genommen`), [PLAN, EIP, EIP_TITLE]);
-  await page.click(".sp-cal-mods .sp-marked-note .mini");
+  await until(page, "taken out of Lena's", ([key, id, title]) => !(localStorage.getItem(key) ?? "").includes(`n\t1\t2026W\t${id}`) && onPage(".wait-note")?.textContent.includes(`„${title}“ aus „Lena“ genommen`), [PLAN, EIP, EIP_TITLE]);
+  await page.click("#plan-note-undo");
   await until(page, "back in Lena's", ([key, id]) => (localStorage.getItem(key) ?? "").includes(`n\t1\t2026W\t${id}`), [PLAN, EIP]);
   if (shots) await page.screenshot({ path: `${shots}/visits-calendar.png` });
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
