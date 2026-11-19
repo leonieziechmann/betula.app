@@ -4,8 +4,10 @@
 // program picker (typo-tolerant search, arrow keys, Enter, Esc, click outside, clear) → lecturer picker →
 // credit slider → width of the panel (limits, localStorage) → the area picker and the list of a
 // program (plan order, the semester at the row, the second page reached by scrolling, the note of
-// a semester scrolling away, confirmed dates only) → nothing moves at the takeover (the site's
-// catalog holds the panel's place) → the site's catalog without JavaScript.
+// a semester scrolling away, confirmed dates only) → the FÜS list with its own filters (none of the
+// curriculum's, kept for the way back; the Anwendungsfach leaving out what it excludes) → titles by
+// their letters → nothing moves at the takeover (the site's catalog holds the panel's place) → the
+// site's catalog without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -379,6 +381,48 @@ check(number(inArea) > 0 && number(inArea) < number(all), `area: ${inArea} modul
 check(await page.evaluate(() => onPage("#filters").__same === true), "the filter panel was rebuilt by picking an area");
 await step("area: the tag takes it out again", () => page.click('.tag:has(em:text("Bereich")) a >> visible=true'), () => !location.search.includes("area="));
 
+// ---- the FÜS list has its own filters (owner, 2026-11-19): none of the curriculum's — what the
+// curriculum had stays in the address for the way back —, but the choice its negative list tells
+// apart, which leaves out what the list does not admit for it
+const tabCount = (name) => page.evaluate((name) => [...allOnPage('#filters .seg[aria-label="Liste"] a')].find((a) => a.querySelector(".seg-label")?.textContent === name)?.querySelector(".num")?.textContent, name);
+await step("semester 3, kept for the way back", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("3") >> visible=true'), () => new URL(location.href).searchParams.get("semester") === "3" && onPage(".plan-note"));
+const curriculumThree = await count();
+const fuesTab = await tabCount("FÜS");
+await step("FÜS list", () => page.click('#filters .seg[aria-label="Liste"] a:has-text("FÜS") >> visible=true'), () => new URL(location.href).searchParams.get("list") === "fues" && onPage("#pick-choice"));
+const fuesAll = await count();
+check(number(fuesAll) > 100 && number(fuesAll) === number(fuesTab), `FÜS list: ${fuesAll} modules where its tab beside semester 3 said ${fuesTab}`);
+check(await page.evaluate(() => !onPage("#fl-kind") && !onPage("#fl-semester") && !onPage("#pick-area") && !onPage(".plan-note")), "FÜS list: a filter of the curriculum is still shown");
+check((await param("semester")) === "3", "FÜS list: the curriculum's semester did not stay in the address");
+check(await page.evaluate(() => ![...allOnPage(".tag")].some((tag) => /Semester/.test(tag.textContent))), "FÜS list: the curriculum's semester has a tag");
+check(number(await tabCount("Curriculum")) === number(curriculumThree), `FÜS list: the curriculum's tab says ${await tabCount("Curriculum")}, the curriculum of semester 3 lists ${curriculumThree}`);
+check((await page.textContent("#fl-choice")) === "Anwendungsfach", `FÜS list: the choice is labelled „${await page.textContent("#fl-choice")}"`);
+await step("choice picker opens", () => page.click("#pick-choice >> visible=true"), () => allOnPage("#pick-choice-list .combo-option").length >= 5);
+const choiceItems = await page.evaluate(() => [...allOnPage("#pick-choice-list .combo-option")].map((el) => [el.querySelector(".combo-label")?.textContent, el.querySelector("small")?.textContent ?? ""]));
+const choiceNames = choiceItems.map(([name]) => name).filter((name) => name !== "Nicht angegeben");
+check(choiceNames.includes("Physik") && choiceNames.includes("Wirtschaftswissenschaften") && !choiceNames.some((name) => name.startsWith("Anwendungsfach")), `choice picker: offers ${choiceNames.join(" | ")}`);
+check(choiceItems.filter(([name]) => name !== "Nicht angegeben").every(([, detail]) => /^blendet \d+ aus$/.test(detail)), `choice picker: an entry says ${JSON.stringify(choiceItems)}`);
+const physikOut = number(choiceItems.find(([name]) => name === "Physik")?.[1]);
+await page.fill("#pick-choice-search >> visible=true", "physik");
+await page.waitForFunction(() => onPage("#pick-choice-list .combo-option .combo-label")?.textContent === "Physik");
+await step("choice: Enter leaves out what it excludes", () => page.keyboard.press("Enter"), () => new URL(location.href).searchParams.get("choice") === "Anwendungsfach Physik" && [...allOnPage(".tag")].some((tag) => tag.textContent.includes("Anwendungsfach") && tag.textContent.includes("Physik")));
+const fuesPhysik = await count();
+check(number(fuesPhysik) + physikOut === number(fuesAll), `choice: ${fuesPhysik} of ${fuesAll} listed, ${physikOut} said to be left out`);
+check(await page.evaluate(() => ![...allOnPage(".rows .flag.long")].some((flag) => flag.textContent.startsWith("Nicht mit"))), "choice: a row still names other choices");
+check(await page.evaluate(() => onPage("#filters").__same === true), "the filter panel was rebuilt by the FÜS list and its choice");
+await step("back to the curriculum", () => page.click('#filters .seg[aria-label="Liste"] a:has-text("Curriculum") >> visible=true'), () => !location.search.includes("list=fues") && onPage(".plan-note") && onPage("#fl-semester"));
+check(number(await count()) === number(curriculumThree), `curriculum: ${await count()} listed again, ${curriculumThree} before the FÜS list`);
+check((await param("choice")) === "Anwendungsfach Physik" && !(await page.evaluate(() => onPage("#pick-choice") || [...allOnPage(".tag")].some((tag) => tag.textContent.includes("Anwendungsfach")))), "curriculum: the choice shows, or did not stay for the way back");
+check(number(await tabCount("FÜS")) === number(fuesPhysik), `curriculum: the FÜS tab says ${await tabCount("FÜS")}, the FÜS list with the choice lists ${fuesPhysik}`);
+await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle") >> visible=true'), () => !location.search.includes("semester=") && !onPage(".plan-note"));
+
+// ---- titles by their letters (owner, 2026-11-19): „(Cyber-)Mobbing" under C, after „Cyber Security
+// Lab", not before A; a page of its own (the list ordered by title, the search narrowing it)
+await page.goto(base + "/catalog?q=cyber&sort=title", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && allOnPage(".rows .vrow a.row").length >= 2, null, { timeout: 120000 }).catch(() => problems.push("titles: the list ordered by title did not come"));
+const byTitle = await page.evaluate(() => [...allOnPage(".rows .vrow a.row .t b")].map((title) => title.textContent.trim()));
+const mobbing = byTitle.findIndex((title) => title.startsWith("(Cyber-)Mobbing"));
+check(mobbing > 0 && byTitle.slice(0, mobbing).some((title) => title.startsWith("Cyber ")), `titles: „(Cyber-)Mobbing" stands at ${mobbing} of ${byTitle.slice(0, 8).join(" | ")}`);
+
 // ---- nothing moves at the takeover: the site's catalog has no filter panel (docs/folia/
 // folia-refactor.md §4.1), but its place, with the panel's bars, so the list stands where the app's does.
 const boxes = (p) => p.evaluate(() => {
@@ -412,9 +456,9 @@ await still.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
 const total = await still.locator(".rows a.row").count();
 check((await still.locator("#filters, .filters select, .filters a.chip").count()) === 0, "no JS: the site's catalog has a filter panel");
 check((await still.locator(".filters.sk-standin").evaluate((el) => el.getClientRects().length)) === 0, "no JS: the stand-in of the filter panel shows");
-// What needs JavaScript (shortcut hints, drag handles, the slider, the theme switch) is not shown.
+// What needs JavaScript (shortcut hints, drag handles, the slider) is not shown.
 await still.goto(base + "/catalog?open=11101", { waitUntil: "domcontentloaded" });
-const leftovers = await still.evaluate(() => [...allOnPage("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
+const leftovers = await still.evaluate(() => [...allOnPage("kbd, .resizer, .slider, .scale, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
 check(leftovers.length === 0, `no JS: still visible: ${leftovers.join(", ")}`);
 // The preview is the app's: the server's page ignores `open` and every row leads to the module's own page.
 check((await still.locator(".detail").count()) === 0, "no JS: the server's page shows a preview for a shared link");

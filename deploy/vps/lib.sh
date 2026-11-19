@@ -50,6 +50,10 @@ BETULA_UNNEEDED_UNITS=(
   avahi-daemon.socket avahi-daemon.service # mDNS announcements into the provider's network
 )
 
+# Where 10-base.sh puts files/rsyslog-betula-containers.conf, the rsyslog rules that keep the lines
+# of containers on Docker's journald driver out of /var/log/syslog; 90-verify-host.sh checks it.
+RSYSLOG_CONTAINERS_CONF="/etc/rsyslog.d/10-betula-containers.conf"
+
 # ---------------------------------------------------------------- logging
 
 _ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -236,6 +240,15 @@ unit_exists() {
 
 unit_active() { systemctl is-active --quiet "$1" 2>/dev/null; }
 unit_enabled() { systemctl is-enabled --quiet "$1" 2>/dev/null; }
+# unit_started_at UNIT - when the unit's main process started, in seconds since the epoch; nothing
+# when systemd has no such time for it.
+unit_started_at() {
+  local value
+  value="$(systemctl show --timestamp=unix --property=ExecMainStartTimestamp --value "$1" 2>/dev/null || true)"
+  value="${value#@}"
+  if [[ "${value}" =~ ^[0-9]+$ ]]; then printf '%s' "${value}"; fi
+  return 0
+}
 
 # ---------------------------------------------------------------- apt
 

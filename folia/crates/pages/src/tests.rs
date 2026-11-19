@@ -160,6 +160,20 @@ fn every_query_runs_against_the_snapshot() {
     let notes = queries::catalog_fues_notes(&db, INFORMATIK_BSC, &noted).unwrap();
     assert!(notes.iter().all(|note| noted.contains(&note.module_id) && (!note.admitted || note.excluded_for.is_some())), "{notes:?}");
     assert_eq!(notes.len(), noted.len(), "{notes:?}");
+    // All of them for the program, of which its choices are read: each leaves out of the FÜS list
+    // as many modules as the list's SQL does (`FuesNote::leaves_out`, `folia_query::sql`).
+    let informatik = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.");
+    let all_notes = queries::program_fues_notes(&db, &informatik.id).unwrap();
+    assert_eq!(all_notes.len(), noted.len(), "{all_notes:?}");
+    let fues = |choice: Option<&str>| CatalogQuery {
+        program: Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation: ProgramRelation::Fues, choice: choice.map(String::from), ..Default::default() }),
+        ..Default::default()
+    };
+    let listed = queries::catalog_count(&db, &fues(None)).unwrap();
+    for choice in folia_model::rows::FuesChoice::of(&all_notes) {
+        let left = queries::catalog_count(&db, &fues(Some(&choice.name))).unwrap();
+        assert_eq!(listed - left, u64::from(choice.leaves_out), "{choice:?}");
+    }
     let newest = queries::module_schedule(&db, &id).unwrap().first().map(|date| date.semester_key.clone());
     match choices.first() {
         Some(first) if Some(&first.semester_key) == newest.as_ref() => {
@@ -680,7 +694,7 @@ fn catalog_filters_match_direct_sql() {
     let db = open();
     let program_id = queries::program_by_slug(&db, INFORMATIK_BSC).unwrap().expect("Informatik B.Sc.").id;
     let scope = |relation, plan_semester, kinds: Vec<KindFilter>| {
-        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], areas: vec![], semester_areas: vec![], semester_electives: false })
+        Some(ProgramScope { program_slug: INFORMATIK_BSC.into(), relation, plan_semester, kinds, kinds_exclude: vec![], areas: vec![], semester_areas: vec![], semester_electives: false, choice: None })
     };
     let pm = format!("v_module_facets f JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = '{program_id}'");
 
@@ -1261,7 +1275,9 @@ fn the_summary_of_a_filter_is_what_its_page_says() {
         "turnus=winter&form=lecture&exam=written".to_string(),
         format!("program={INFORMATIK_BSC}"),
         format!("program={INFORMATIK_BSC}&list=fues"),
+        format!("program={INFORMATIK_BSC}&list=fues&semester=3&kind=elective&choice=Anwendungsfach+Physik"),
         format!("program={INFORMATIK_BSC}&semester=1"),
+        format!("program={INFORMATIK_BSC}&semester=1&choice=Anwendungsfach+Physik"),
         format!("program={INFORMATIK_BSC}&semester=none&turnus=summer"),
         "program=no-such-program".to_string(),
         "q=informatik".to_string(),
@@ -1275,11 +1291,54 @@ fn the_summary_of_a_filter_is_what_its_page_says() {
         let summary = pages::catalog_summary(&db, &url.query).unwrap();
         assert_eq!(summary.total, page.page.total, "{search}: the total");
         assert_eq!(
-            (summary.program, summary.curricular_total, summary.fues_total, summary.plan_semesters, summary.areas),
-            (page.program, page.curricular_total, page.fues_total, page.plan_semesters, page.areas),
+            (summary.program, summary.curricular_total, summary.fues_total, summary.plan_semesters, summary.areas, summary.fues_choices),
+            (page.program, page.curricular_total, page.fues_total, page.plan_semesters, page.areas, page.fues_choices),
             "{search}: what the panel shows"
         );
     }
+}
+
+/// Each list of a program applies its own filters and keeps the other's for the way back (owner,
+/// 2026-11-19): the FÜS list neither the plan's semester nor a kind nor an area, the curriculum
+/// no choice of the FÜS catalog. Each total beside the lists is what its tab lists.
+#[test]
+fn a_list_of_a_program_leaves_the_others_filters_out() {
+    use folia_routes::url::CatalogUrl;
+
+    let db = open();
+    let at = |search: &str| pages::catalog(&db, &CatalogUrl::parse(search), folia_locale::Locale::De).unwrap();
+    let fues = at(&format!("program={INFORMATIK_BSC}&list=fues"));
+    let curriculum = at(&format!("program={INFORMATIK_BSC}"));
+    let semester = at(&format!("program={INFORMATIK_BSC}&semester=1&kind=compulsory"));
+    assert!(semester.page.total > 0 && semester.page.total < curriculum.page.total, "{}", semester.page.total);
+
+    // The FÜS list with the curriculum's filters kept: the whole FÜS list, no note of a semester,
+    // and beside it the curriculum as switching back lists it.
+    let kept = at(&format!("program={INFORMATIK_BSC}&list=fues&semester=1&kind=compulsory&area=1"));
+    assert_eq!(kept.page.total, fues.page.total);
+    assert_eq!(kept.fues_total, Some(fues.page.total));
+    assert!(kept.semester_plan.is_none());
+    let back = at(&format!("program={INFORMATIK_BSC}&semester=1&kind=compulsory&area=1"));
+    assert_eq!(kept.curricular_total, Some(back.page.total));
+    // The curriculum with a semester counts the FÜS list beside it whole.
+    assert_eq!(semester.fues_total, Some(fues.page.total));
+
+    // The choice: the FÜS list leaves out what it excludes for it, the curriculum keeps it for the
+    // way back and lists as without it.
+    let choices = &fues.fues_choices;
+    assert!(choices.iter().any(|choice| choice.name == "Anwendungsfach Physik" && choice.leaves_out > 0), "{choices:?}");
+    assert_eq!(curriculum.fues_choices, *choices, "the panel offers them with either list");
+    for choice in choices {
+        let encoded = folia_routes::url::encode(&choice.name);
+        let chosen = at(&format!("program={INFORMATIK_BSC}&list=fues&choice={encoded}"));
+        assert_eq!(chosen.page.total + u64::from(choice.leaves_out), fues.page.total, "{choice:?}");
+        // What it leaves out is gone; what stays says nothing of other choices.
+        assert!(chosen.page.rows.iter().all(|row| row.fues_note.as_ref().is_none_or(|note| note.excluded_for.is_empty())), "{choice:?}");
+        let ignored = at(&format!("program={INFORMATIK_BSC}&choice={encoded}"));
+        assert_eq!((ignored.page.total, ignored.fues_total), (curriculum.page.total, Some(chosen.page.total)), "{choice:?}");
+    }
+    // A choice the program's list does not tell apart leaves nothing out.
+    assert_eq!(at(&format!("program={INFORMATIK_BSC}&list=fues&choice=Anwendungsfach+Kochen")).page.total, fues.page.total);
 }
 
 #[test]
