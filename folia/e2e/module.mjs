@@ -489,7 +489,7 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   const { page, step, context } = await open(phone, "/catalog?events=yes");
   await page.waitForSelector(".rows a.row >> visible=true", { timeout: 8000 }).catch(() => problems.push("termine: no module with Termine"));
   // A module whose Termine have a week, as the server's page says: a slot of it (the module's
-  // whole page shows the list open, since Folia 1.113.0; the sheet folds it).
+  // whole page shows the list open, since Folia 1.114.0; the sheet folds it).
   const id = await page.evaluate(async () => {
     for (const row of [...allOnPage(".rows a.row")].slice(0, 24)) {
       const html = await (await fetch(`/catalog/module/${row.dataset.id}`)).text();

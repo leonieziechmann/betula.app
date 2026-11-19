@@ -670,7 +670,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const { page: running, context: runs } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog/module/11101");
   const hero = await running.evaluate(() => document.querySelector(".module-page > .hero").getBoundingClientRect().height);
   // Three places of the switch, each kept: the head's (a phone's), the sidebar's at its top (a wide
-  // screen's, since Folia 1.113.0) and the actions under the module (a phone's).
+  // screen's, since Folia 1.114.0) and the actions under the module (a phone's).
   check(before.marks === 3 && before.shown === 0 && Math.abs(before.hero - hero) < 0.5, `before the takeover: ${JSON.stringify(before)}, the heading is ${hero}px once the app runs`);
   await runs.close();
 }

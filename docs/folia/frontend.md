@@ -266,7 +266,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   same order (times and key facts, then the description); a wide page puts the halves side by
   side, the description on the left. The page keeps the frame of the catalog, so nothing jumps
   when a preview becomes a page: its sidebar has the width and the handle of the filter panel.
-- **The module's page on a wide screen** (Folia 1.113.0; owner, 2026-11-19: „wir müssen
+- **The module's page on a wide screen** (Folia 1.114.0; owner, 2026-11-19: „wir müssen
   unbedingt nochmal die volle modulseite auf dem PC überarbeiten … ich brauche keine navigation für
   eine seite mit nur 1000px zum scrollen. Wir brauchen eine bessere visual hirarchy eine sinnvolle
   nutzung der Seitenleiste und keine verschwendung von platz"; three concepts in
@@ -309,7 +309,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   everywhere, `folia/crates/widgets/src/module.rs`, app.css, enhance.js „a module's Termine"):
   - **The Termine under the week are folded** („die Termine können ruhig ausklappbar sein, so dass
     nicht so viel vertical space verschwendet wird"; on the module's whole page open since Folia
-    1.113.0, see above): a quiet line „Termine als Liste (5) +" as the
+    1.114.0, see above): a quiet line „Termine als Liste (5) +" as the
     Stundenplan's, which unfolds and folds the list as a thing does, its height from nothing to its
     own and back (`details.evfold`, a `<details>` that opens without JavaScript too). A slot of the
     week is a link to its lines (`GridSlot::lines`, `termin-<n>`): tapped, it unfolds the list, is
@@ -334,7 +334,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **„Studiengänge" is the last section** („die Studiengänge können ganz an den Schluss das
     interessiert einen wahrscheinlich eh nicht"), after the texts, on a wide page at the end of the
     description's column, and shows five curricula at most („zeige da maximal 5 mit
-    Auslauffunktion"; on the module's page on a wide screen all of them since Folia 1.113.0): the
+    Auslauffunktion"; on the module's page on a wide screen all of them since Folia 1.114.0): the
     fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
     the focus on the sixth; without JavaScript all of them. On a phone a program's kind stands under
     its line, where the name keeps its width and a long kind is whole („Wahlpflich…" was cut off).
