@@ -84,3 +84,17 @@ http:
         sourceCriterion:
           ipStrategy:
             ipv6Subnet: 64
+
+    # The notifications' service, Xylem, at /push/v1/ (docs/xylem/protocol.md), for its router. Per
+    # source address, like rate-limit: 5 requests a second and bursts of 20. A browser asks for the key
+    # once and puts its subscription when the student changes what they listen to, and once a day
+    # to say it is still there; this only stops a flood before it reaches Xylem, whose own limits
+    # hold behind it (docs/xylem/xylem.md, „Limits").
+    push-ratelimit:
+      rateLimit:
+        average: 5
+        period: 1s
+        burst: 20
+        sourceCriterion:
+          ipStrategy:
+            ipv6Subnet: 64

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -87,11 +88,21 @@ func checkFeed(raw string) (string, error) {
 
 // feedClient reads the feed: the address is the operator's own word (the site, by whatever way
 // leads to it: its public address, or one inside the house), so no rule about addresses; no
-// proxy, no redirect followed.
+// proxy, no redirect followed. Over IPv4 alone, as everything Xylem sends: its firewall on the
+// server drops IPv6 and counts it as somebody trying something (xylem/deploy/firewall.nft), and a
+// site with an AAAA record must not make Xylem's own reads that somebody.
 func feedClient(timeout time.Duration) *http.Client {
+	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
 	return &http.Client{
-		Timeout:       timeout,
-		Transport:     &http.Transport{Proxy: nil, ResponseHeaderTimeout: timeout, IdleConnTimeout: time.Minute},
+		Timeout: timeout,
+		Transport: &http.Transport{
+			Proxy: nil,
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "tcp4", address)
+			},
+			ResponseHeaderTimeout: timeout,
+			IdleConnTimeout:       time.Minute,
+		},
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }

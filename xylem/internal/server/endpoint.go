@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -179,8 +180,11 @@ func pushClient(timeout time.Duration, conns int) *http.Client {
 	return &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			Proxy:                 nil,
-			DialContext:           dialer.DialContext,
+			Proxy: nil,
+			// IPv4 alone: publicOnly takes nothing else, and so no AAAA record is even asked for.
+			DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "tcp4", address)
+			},
 			ForceAttemptHTTP2:     true,
 			MaxConnsPerHost:       conns,
 			MaxIdleConnsPerHost:   conns,
