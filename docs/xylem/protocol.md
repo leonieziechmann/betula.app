@@ -146,7 +146,7 @@ bytes, what one push message carries.
 
 ## 5. What Folia's part does
 
-Built with Folia 1.111.0 (`folia/assets/enhance.js`, „notifications"; `folia/assets/sw.js`; the
+Built with Folia 1.112.0 (`folia/assets/enhance.js`, „notifications"; `folia/assets/sw.js`; the
 row of the menu of the profiles, `folia/crates/shell/src/chrome.rs`; docs/folia/frontend.md,
 „Notifications"), where the site offers it (Folia's `--push`). This is what the contract asks of
 it, and how it does it.
