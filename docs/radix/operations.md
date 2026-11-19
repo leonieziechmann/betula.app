@@ -49,7 +49,9 @@ page is archived on its own, and the build and the plan import are single transa
 **A new release builds at start.** Every build stores which binary made it (meta `radix_build`, a
 hash of the executable). When `run` starts and another binary built the catalog, it first runs a
 cycle without the crawl stages (`service.rebuild`, then `cycle.started` with `crawl=false`): build,
-validate, and export if the snapshot does not hold the content yet. A release that reads the archived pages differently
+validate, and export if the snapshot does not hold the content yet, or has an older schema (a migration
+that adds no content, as schema 25, leaves the content digest as it was, and the release's Folia reads
+the new schema only). A release that reads the archived pages differently
 (a parser, a normalization rule, a migration) so reaches the snapshot within minutes of the deploy
 instead of after the first crawl, and if its build or validation fails, that is in the log right
 away while the previous snapshot stays current. `serve-snapshot --db <radix.db>`, the offline mode,
@@ -257,7 +259,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
 | INFO | `build.interrupted`, `stage.interrupted` (`stage`), `export.interrupted`, `cycle.finished` with `result=interrupted` | the process is stopping (a deploy removes the old colour, SIGTERM) and cut a cycle short: its context was cancelled. Nobody has to act; the build is rolled back, the previous snapshot stays current. Only the cancellation of the service's own context counts: a "context canceled" while it runs, or any other error while it stops, is still `stage.failed` / `build.failed` / `export.failed` |
-| INFO | `export.behind` | the published snapshot does not hold what the build made, although the content did not change since the last build: an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped it). This cycle validates and exports it (`published_digest`, `content_digest`) |
+| INFO | `export.behind` | the published snapshot does not hold what the build made, although the content did not change since the last build: an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped it), or it has an older schema than the catalog (a migration that adds no content). This cycle validates and exports it (`published_digest` or `published_schema` and `schema`, `content_digest`) |
 | INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache`, `refresh` or `offline`; `max_age`) |
 | INFO | `seed.started`, `seed.progress`, `seed.finished` | `radix seed-cortex`: what Cortex made of the archive's pages (`created`, `checked`, `unchanged`, `older`, `failed`, `by_source`); WARN `seed.failed` names a page Cortex did not take |
 | DEBUG | `crawl.offline_miss` | offline through Cortex: Cortex has not stored the page (`key`, `url`); skipped, the next cycle asks again |
