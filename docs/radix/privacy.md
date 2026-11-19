@@ -74,7 +74,9 @@ table but primary keys, addresses (`url`, `*_url`) and hashes.
   in Cortex (whose blobs are named by the hash of what the university sent): not done.
 - **Exports made before**: a `radix history export` or a snapshot someone downloaded keeps what it held.
 - **betula.app** runs Radix 0.10.0 (2026-11-19), which has no register: a person added on canary is out
-  of canary's catalog; on the public site, once it runs Radix 0.15.0 or later.
+  of canary's catalog until the next build of master gives canary a fresh copy of the public site's
+  radix.db, without them. The register lasts where the crawl's radix.db lives: on the public site, once
+  it runs Radix 0.15.0 or later, and from there it reaches every canary.
 
 ## 5. Checks
 

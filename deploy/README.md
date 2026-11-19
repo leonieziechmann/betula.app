@@ -441,7 +441,8 @@ The next cycle (at most 30 minutes) builds the catalog without them, exports it 
 snapshots, and takes them out of every version of the history; `validate` fails while anything is
 left. The register travels with `radix.db`, so a hand-over or a canary's copy keeps it. betula.app
 runs Radix 0.10.0 (2026-11-19), which has no register: there it takes a release of Radix 0.15.0 or
-later. The raw archive and Cortex's store keep the university's pages as they are (docs/radix/privacy.md
+later. A person added on canary is gone with its next build: each takes a fresh copy of the public
+site's radix.db. The raw archive and Cortex's store keep the university's pages as they are (docs/radix/privacy.md
 section 4).
 
 ## 5. Secrets
