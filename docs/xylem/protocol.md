@@ -163,8 +163,8 @@ the subscription was made with another one (`subscription.options.applicationSer
 `unsubscribe()` and subscribe anew; then `PUT` the subscription again. That one request is how a
 Xylem that lost its database (and with it its key), or was brought back from a backup of a day
 ago, has every browser again without anybody doing anything, and how a change of language reaches
-it. Folia does it at most twice a day per browser, and at once after the language changed or a
-choice could not be sent. A `pushsubscriptionchange` in the service worker does the same for the
+it. Folia does it at most twice a day per browser, and at once after the language changed, a
+choice could not be sent, or the browser lost its subscription. A `pushsubscriptionchange` in the service worker does the same for the
 new subscription and deletes the old endpoint, with the topics and the language the page left for
 it.
 

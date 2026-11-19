@@ -102,9 +102,10 @@
   // - Switching on is a tap's: only then may a page ask for the permission. Switching off always
   //   works here, with or without a network (a subscription Xylem could not be told of ends at
   //   the push service, and Xylem forgets it with its next message).
-  // - At a start, at most twice a day and at once after the language changed, the subscription
-  //   is put again: that is how a Xylem brought back from a backup, or one that lost its key,
-  //   has this browser again without anybody doing anything.
+  // - At a start, at most twice a day and at once after the language changed or where the
+  //   browser has no subscription any more, the subscription is put again: that is how a Xylem
+  //   brought back from a backup, or one that lost its key, has this browser again without
+  //   anybody doing anything.
   // - `window.betulaPush` for the app: `state()` says it all in one line,
   //   `<support>;<permission>;<topics>;<busy>;<error>` (support `yes`, `install`: an iPhone or
   //   iPad, where only the app on the home screen may ask, `no`; empty where the site offers no
@@ -255,7 +256,10 @@
       if (!topics.length || Notification.permission !== "granted" || pushBusy) return;
       let seen = null;
       try { seen = JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || "null"); } catch {}
-      if (seen && seen.lang === pushLang() && Date.now() - seen.at < PUSH_AGAIN) return;
+      // A browser that lost its subscription (its data cleared in part) gets a new one now.
+      const registration = await navigator.serviceWorker.getRegistration().catch(() => null);
+      const subscribed = registration ? await registration.pushManager.getSubscription().catch(() => null) : null;
+      if (subscribed && seen && seen.lang === pushLang() && Date.now() - seen.at < PUSH_AGAIN) return;
       try {
         await pushPut(topics);
       } catch (error) {

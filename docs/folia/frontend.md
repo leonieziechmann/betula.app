@@ -5253,7 +5253,8 @@ server never speaks to Xylem.
   (a subscription Xylem was not told of ends at the push service, and Xylem forgets it with its
   next message).
 - **At a start**, where this browser listens and may be told: the subscription is put again, at
-  most twice a day (`PUSH_AGAIN`, `betula.push.seen.v1`) and at once after the language changed.
+  most twice a day (`PUSH_AGAIN`, `betula.push.seen.v1`), and at once after the language changed
+  or where the browser has no subscription any more (its data cleared in part).
   That is how a Xylem brought back from a day-old backup has this browser again, and one that
   lost its database (and with it its key) as well: a subscription made with another key is given
   up for a new one. Nobody is asked anything.
