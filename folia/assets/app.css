@@ -137,7 +137,7 @@
 :root[data-season="autumn"] { --crown: oklch(.765 .105 80); }
 :root[data-season="winter"] { --crown: oklch(.575 .029 40); }
 
-/* Dark: the system setting decides, the switch in the rail overrides it (data-theme on <html>). */
+/* Dark: the system setting decides, a choice in the menu of the profiles overrides it (data-theme on <html>). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0a0c11;
@@ -410,21 +410,14 @@ table { border-collapse: collapse; width: 100%; }
 .rail nav { display: grid; gap: 2px; }
 .nav.soon { opacity: .4; pointer-events: none; }
 .rail-end { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
-/* The way to the profile page (chrome.rs `ProfileButton`): at the end of the rail above the switch
-   between light and dark, the active profile's badge or a person; current on the profile page as a
-   tab is. A mouse resting on it opens the menu of the profiles (`.profile-menu`). The language lives
-   in the profile (shell/src/languages.rs): the rail has no switch of its own any more. */
+/* The way to the profile page (chrome.rs `ProfileButton`): at the end of the rail, the active
+   profile's badge or a person; current on the profile page as a tab is. A mouse resting on it opens
+   the menu of the profiles (`.profile-menu`). The language and light or dark live in that menu
+   (shell/src/languages.rs, chrome.rs `Preferences`): the rail has no switch of its own any more. */
 .profile-btn .icon { width: 19px; height: 19px; }
 .profile-btn:hover { text-decoration: none; }
 .profile-btn[aria-current="page"]:not(:has(.avatar)) { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .profile-btn[aria-current="page"] .avatar { box-sizing: content-box; margin: -4px; border: 4px solid transparent; background-clip: padding-box; outline: var(--frame-w) solid var(--tone); outline-offset: calc(-1 * var(--frame-w)); }
-.theme-toggle .icon-sun { display: none; }
-:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
-:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
-  :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
-}
 /* What only works with JavaScript (ui::JsOnly): hidden until the script in the head has run. */
 html:not(.js) .js-only { display: none !important; }
 span.js-only { display: contents; }

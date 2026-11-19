@@ -424,16 +424,13 @@ pub fn Rail() -> impl IntoView {
             <div class="rail-end">
                 <crate::keys::KeysButton/>
                 <ProfileButton/>
-                <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
-                    <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
-                </button>
             </div>
         </aside>
     }
 }
 
-/// The way to the profile page (owner, 2026-10-14; `folia_profile`): at the end of the rail above
-/// the switch between light and dark, and on a phone, which has no rail, a box at the right of the
+/// The way to the profile page (owner, 2026-10-14; `folia_profile`): at the end of the rail, and on
+/// a phone, which has no rail, a box at the right of the
 /// search at the head of every page (`top`; owner, 2026-10-14: „für die mobile Version noch ein
 /// Konzept wie man an sein Profil rankommt"), as the way back of a page's step is a box at its left
 /// (`TopBack`). It shows the active profile's badge (`Avatar`) where there is more than one
@@ -980,8 +977,9 @@ impl Theme {
 /// can vibrate (a phone, `html.haptics`, app.css), a row under them with the switch for vibrations
 /// (`folia_design::haptic`; owner, 2026-11-17), whose switching on is felt. Light and dark
 /// and the vibrations are set by `enhance.js` (`data-action="theme-set"`, `"haptics-set"`), which
-/// keeps them as the switch in the rail does and says so (`betula:theme`, `betula:haptics`); the
-/// menu stays open. Another language is another address, and so a page load (`languages`).
+/// keeps them and says so (`betula:theme`, `betula:haptics`); the menu stays open. Light or dark
+/// is chosen here and by „Befehle“: the rail has no switch of its own any more (owner, 2026-11-19:
+/// „den theme switcher aus der sidebar raus nehmen, den gibts jetzt ja im profile“). Another language is another address, and so a page load (`languages`).
 #[component]
 fn Preferences() -> impl IntoView {
     let t = i18n::t();
