@@ -130,10 +130,11 @@ macro_rules! ask {
 
 ask!(
     /// What „Mein Studium" takes over of a Notenübersicht: its program and the catalog's module of
-    /// each of its rows (`transcript`), from the rows' titles and credits alone. Asked with
-    /// `DataClient::ask_once` and so never kept: the question carries what was read of the
-    /// visitor's file.
-    TranscriptAsk { mine: Option<String>, degree: Option<String>, program: Option<String>, rows: Vec<TranscriptRow> } -> TranscriptMatch, Lane::Page, |q, db, kept| crate::transcript::transcript(db, q.mine.as_deref(), q.degree.as_deref(), q.program.as_deref(), &q.rows)
+    /// each of its rows (`transcript`), from what its sentence names of the study (the program,
+    /// its degree and profile, the semester it began in) and the rows' titles and credits alone.
+    /// Asked with `DataClient::ask_once` and so never kept: the question carries what was read of
+    /// the visitor's file.
+    TranscriptAsk { mine: Option<String>, degree: Option<String>, program: Option<String>, profile: Option<String>, since: Option<String>, rows: Vec<TranscriptRow> } -> TranscriptMatch, Lane::Page, |q, db, kept| crate::transcript::transcript(db, q.mine.as_deref(), q.degree.as_deref(), q.program.as_deref(), q.profile.as_deref(), q.since.as_deref(), &q.rows)
 );
 
 ask!(
@@ -362,8 +363,15 @@ mod tests {
         same(StudyDocumentsAsk { program_id: "079-82-2008".into() });
         same(StudyDocumentsAsk { program_id: "no-such-program".into() });
         let rows = |titles: &[(&str, &str)]| titles.iter().map(|(title, other)| crate::transcript::TranscriptRow { title: title.to_string(), other: Some(other.to_string()), credits: None }).collect();
-        same(TranscriptAsk { mine: None, degree: Some("Bachelor".into()), program: Some("Informatik".into()), rows: rows(&[("Datenbanken", "Database Systems"), ("Proseminar", "Introductory Seminar")]) });
-        same(TranscriptAsk { mine: Some("079-82-2008".into()), degree: None, program: None, rows: rows(&[("Kein Modul", "No module")]) });
+        same(TranscriptAsk {
+            mine: None,
+            degree: Some("Bachelor".into()),
+            program: Some("Informatik".into()),
+            profile: Some("universitäres Profil".into()),
+            since: Some("2022W".into()),
+            rows: rows(&[("Datenbanken", "Database Systems"), ("Proseminar", "Introductory Seminar")]),
+        });
+        same(TranscriptAsk { mine: Some("079-82-2008".into()), degree: None, program: None, profile: None, since: None, rows: rows(&[("Kein Modul", "No module")]) });
         same(BtuDocumentsAsk {});
         same(BtuPagesAsk { locale: Locale::De });
         same(BtuPagesAsk { locale: Locale::En });

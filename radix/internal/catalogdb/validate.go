@@ -3,12 +3,14 @@ package catalogdb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/leonieziechmann/betula/radix/internal/abbrev"
 	"github.com/leonieziechmann/betula/radix/internal/normalize"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
+	"github.com/leonieziechmann/betula/radix/internal/privacy"
 )
 
 // Check severities.
@@ -273,10 +275,53 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		"SELECT COUNT(*) FROM "+studyPages, "SELECT lang FROM "+studyPages+" ORDER BY 1")
 	v.count("pages the BTU's pages of Studienorganisation list", StatusInfo, "SELECT COUNT(*) FROM study_page", "")
 
+	v.privacyRegister()
+
 	for _, b := range baselines {
 		v.baseline(b)
 	}
 	return v.checks, v.err
+}
+
+// privacyRegister fails while anything the privacy register takes out is left in the catalog
+// (docs/radix/privacy.md): the build takes the register's persons out last, so a hit means a
+// step wrote after it, or a database that was not built again since a person was added. The
+// samples name where, never the person: the log is no place for the names it keeps out.
+func (v *validator) privacyRegister() {
+	const name = "no person of the privacy register is left in the catalog"
+	if v.err != nil {
+		return
+	}
+	people, err := privacy.Load(v.ctx, v.db)
+	if errors.Is(err, privacy.ErrNoRegister) {
+		return // a snapshot, which has no register
+	}
+	if err != nil {
+		v.err = fmt.Errorf("check %q: %w", name, err)
+		return
+	}
+	v.checks = append(v.checks, Check{Name: "persons in the privacy register", Status: StatusInfo, Value: int64(len(people))})
+	c := Check{Name: name, Status: StatusOK}
+	if len(people) > 0 {
+		tables, err := privacy.CatalogTables(v.ctx, v.db)
+		if err != nil {
+			v.err = fmt.Errorf("check %q: %w", name, err)
+			return
+		}
+		hits, n, err := privacy.Find(v.ctx, v.db, tables, people, 5)
+		if err != nil {
+			v.err = fmt.Errorf("check %q: %w", name, err)
+			return
+		}
+		c.Value = int64(n)
+		if n > 0 {
+			c.Status = StatusFail
+			for _, h := range hits {
+				c.Samples = append(c.Samples, fmt.Sprintf("register id %d: %s.%s (%s)", h.Person, h.Table, h.Column, h.Key))
+			}
+		}
+	}
+	v.checks = append(v.checks, c)
 }
 
 // LogChecks writes the outcome of Validate to the operational log: one ERROR per

@@ -72,6 +72,7 @@ func runService(ctx context.Context, args []string) {
 	retention := fs.Duration("event-retention", envDuration("RADIX_EVENT_RETENTION", def.EventRetention), "Remove an event this long after its last date, 0 keeps all (env RADIX_EVENT_RETENTION)")
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
 	staleAfter := fs.Duration("stale-after", envDuration("RADIX_STALE_AFTER", def.StaleAfter), "Report unhealthy without a successful cycle for this long (env RADIX_STALE_AFTER)")
+	historyPath := fs.String("history", envOr("RADIX_HISTORY_DB", ""), "Record every published snapshot in this history (docs/radix/history.md); empty: none (env RADIX_HISTORY_DB)")
 	once := fs.Bool("once", false, "Run a single cycle and exit (exit code 1 if it failed)")
 	cortex := addCortexFlags(fs)
 	semanticOpts := addSemanticFlags(fs)
@@ -115,6 +116,7 @@ func runService(ctx context.Context, args []string) {
 	cfg.EventRetention = *retention
 	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
+	cfg.History = *historyPath
 	cfg.Endpoints.Client = cortex.client(cortexclient.ModeCache)
 	cfg.Endpoints.LiveClient = cortex.liveClient(min(cfg.GeneralDocuments.MaxAge, cfg.StudyOrganisation.MaxAge, cfg.FUESCatalogs.MaxAge))
 	declareFetchPath(cfg.Endpoints.Client != nil, offline)
