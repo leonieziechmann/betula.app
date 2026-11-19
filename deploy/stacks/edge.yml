@@ -53,7 +53,8 @@
 #               defined in /opt/betula/config/traefik/dynamic/, reloaded by Traefik without a restart
 # crawlers      one router above every site (config/traefik/dynamic/crawlers.yml, priority 10000): a user
 #               agent that names a crawler other than a search engine or a link preview gets 403 before
-#               any site sees it; robots.txt, the calendar feeds, /healthz and /livez excepted. Two more,
+#               any site sees it; robots.txt, the calendar feeds, /healthz and /livez excepted. fleets.yml
+#               does the same for the very user agents of fleets that pass for browsers. Two more,
 #               written by deploy/edge-networks.py: crawler-networks.yml does the same for every request
 #               from the clouds whose crawlers pass for browsers, europe.yml (priority 9000) for every
 #               request from outside Europe but the search engines' and link previews'. Test:
