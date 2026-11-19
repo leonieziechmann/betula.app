@@ -5315,7 +5315,12 @@ paper or take-home exam is due. The first idea, shifting by twelve hours, would 
 - A deadline reads „So bis 24:00", unmarked (it is a reading, not a doubt); the original is the
   row's tooltip.
 - Anything else outside 06:00–22:00, an end before the start, or a date outside the semester keeps
-  the source's value and is only marked (none in the snapshot of 2026-09-21).
+  the source's value and is only marked (none in the snapshot of 2026-09-21; the first in canary's
+  of 2026-11-19: Allgemeine Physik I, 11865, „Mi 01:00–02:30, 17.02.2027" with a room, the
+  placeholder's times on a day of the week in the exam period. `pages`'
+  `exam_readings_never_state_what_the_source_does_not` had asked for a changed slot with every
+  reason, which held only while there was none; it asks now that a slot is changed only where the
+  page reads the entry, the placeholder or a deadline).
 - A marked row carries a line with the info icon: what QIS says where the row shows something
   else („In QIS: So 01:00–02:30 · 27.12.2015"), else what is odd. One note under the list explains
   the marks. Radix and the snapshot keep the entry as read (provenance names what was read); the
