@@ -17,6 +17,9 @@
 #   FOLIA_SYNC         on: the pages offer Betula Sync, whose service Phloem answers on the same
 #                      host under /sync/v1/ (stacks/phloem.yml, docs/phloem/phloem.md); 50-app.sh
 #                      deploys it off while no Phloem serves the host. Default: off.
+#   FOLIA_PUSH         on: the pages offer notifications, whose service Xylem answers on the same
+#                      host under /push/v1/ (stacks/xylem.yml, docs/xylem/xylem.md); 50-app.sh
+#                      deploys it off while no Xylem serves the host. Default: off.
 #   FOLIA_SYNC_PARTS   where Folia fetches the part of a calendar subscription that stays current:
 #                      Traefik's entrypoint parts (http://edge_traefik:8083/sync/v1/), set by
 #                      50-app.sh while FOLIA_SYNC is on; empty: such subscriptions answer 404.
@@ -163,6 +166,9 @@ services:
       # Betula Sync (folia_stores::sync): the browser reaches Phloem at /sync/v1/ of this host,
       # through Traefik like any outside client.
       FOLIA_SYNC: "${FOLIA_SYNC:-off}"
+      # Notifications (folia_stores::push): the browser reaches Xylem at /push/v1/ of this host,
+      # through Traefik like any outside client; Folia itself never speaks to Xylem.
+      FOLIA_PUSH: "${FOLIA_PUSH:-off}"
       # Folia itself asks Phloem for one thing only, and through Traefik as well: the sealed part of
       # a calendar subscription that stays current (/calendar/s/…, folia/crates/server/src/parts.rs),
       # at Traefik's entrypoint parts on edge_<stack>, naming this host. Empty: none.

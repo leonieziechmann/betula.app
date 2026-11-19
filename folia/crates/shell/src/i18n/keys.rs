@@ -38,6 +38,12 @@ pub struct Texts {
     pub study_side_rows: &'static [Row],
     pub grid: &'static str,
     pub grid_rows: &'static [Row],
+    /// The Stundenplan: its week and its modules, and its sidebar (the calendars, the export,
+    /// „Teilen …").
+    pub plan: &'static str,
+    pub plan_rows: &'static [Row],
+    pub plan_side: &'static str,
+    pub plan_side_rows: &'static [Row],
 }
 
 pub const DE: Texts = Texts {
@@ -143,6 +149,23 @@ pub const DE: Texts = Texts {
         (&["Shift+F10"], "das Menü eines Moduls"),
         (&["Del"], "ein Modul herausnehmen, mit „Rückgängig“"),
     ],
+    plan: "Im Stundenplan",
+    plan_rows: &[
+        (&["↑", "↓", "←", "→"], "von Termin zu Termin, wie die Woche sie zeigt; ← → zum Tag daneben"),
+        (&["Enter"], "die Karte des Termins"),
+        (&["←", "→"], "an A-Woche, B-Woche, A/B: wählen"),
+        (&["Tab"], "Woche, Module, rundherum"),
+        (&["Esc"], "Bearbeiten beenden"),
+        (&["F"], "in Kalender und Export"),
+    ],
+    plan_side: "In Kalender und Export",
+    plan_side_rows: &[
+        (&["Tab"], "nächster Abschnitt; oben und unten ist Schluss"),
+        (&["↑", "↓"], "von Eintrag zu Eintrag"),
+        (&["Enter"], "ausführen"),
+        (&["a–z"], "Einträge finden"),
+        (&["Esc"], "zurück zur Woche"),
+    ],
 };
 
 pub const EN: Texts = Texts {
@@ -247,5 +270,22 @@ pub const EN: Texts = Texts {
         (&["Enter"], "at a module its menu with “Move to”, at + plan, at an area fold and unfold"),
         (&["Shift+F10"], "a module's menu"),
         (&["Del"], "take a module out, with “Undo”"),
+    ],
+    plan: "In the timetable",
+    plan_rows: &[
+        (&["↑", "↓", "←", "→"], "from event to event as the week shows them; ← → to the day beside"),
+        (&["Enter"], "the event's card"),
+        (&["←", "→"], "at A week, B week, A/B: choose"),
+        (&["Tab"], "week, modules, and round"),
+        (&["Esc"], "stop editing"),
+        (&["F"], "into calendars and export"),
+    ],
+    plan_side: "In calendars and export",
+    plan_side_rows: &[
+        (&["Tab"], "next section; it stops at the top and the bottom"),
+        (&["↑", "↓"], "from entry to entry"),
+        (&["Enter"], "run it"),
+        (&["a–z"], "find entries"),
+        (&["Esc"], "back to the week"),
     ],
 };

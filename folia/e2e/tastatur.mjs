@@ -19,7 +19,9 @@
 // stop whose ← → Enter and Entf choose and take it out, the picker's list stays whole in the area;
 // on „Mein Studium" the rows of a semester are a stop, F leads into its views, ← → at the
 // semester's name turn it, Entf takes a row out, Shift + F10 opens its menu, „Befehle" offers what
-// it does, and the Gesamtplan and the Regelstudienplan are tables the arrows go through.
+// it does, and the Gesamtplan and the Regelstudienplan are tables the arrows go through; on the
+// Stundenplan the week is a table of Termine whose Enter opens a Termin's card, A, B and A/B an
+// option group, F leads into the calendars and the export, and „Befehle" offers the page's own.
 // On the synthetic catalog
 // (docs/folia/frontend.md §4) as on the real one.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tastatur.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
@@ -533,6 +535,105 @@ const url = (page, test, timeout = 5000) => page.waitForFunction(test, null, { t
   now = await where();
   const row = await page.evaluate(() => document.activeElement?.closest("tr")?.querySelector(".st-rsp-name")?.textContent.trim() || "");
   check(/st-addb/.test(now.cls) && row === rsp.name, `„Mein Studium“: → in the Regelstudienplan did not go to „Einplanen“ in the row (${JSON.stringify({ now, row, rsp })})`);
+  await context.close();
+}
+
+// ---------- the Stundenplan ----------
+// The same regions on the Stundenplan (folia/design/tastatur/konzept.html, „Die anderen Seiten"):
+// the week a table of Termine that ↓ from nowhere leads into, whose arrows go from Termin to
+// Termin as the eye sees them (← → to the day beside), Enter a Termin's card and Esc back to it;
+// the modules beside it a stop of their own; A, B and A/B an option group whose ← → choose; F into
+// the calendars, the export and „Teilen …" as a mode, typing finding „Abonnieren", Esc back to the
+// week; ? marks „Im Stundenplan"; „Befehle" has the page's own and the sidebar under „Gehe zu".
+{
+  const { context, page } = await open("/catalog");
+  // Modules with Termine in the semester shown, from the catalog's rows (the synthetic catalog's
+  // and the real one's alike).
+  await page.waitForFunction(() => allOnPage(".rows a.row").length >= 6, null, { timeout: 20000 });
+  let ids = [];
+  for (let i = 0; i < 12 && ids.length < 6; i++) {
+    ids = await page.evaluate(() => [...new Set(allOnPage(".rows .row-wrap").filter((wrap) => wrap.querySelector(".events:not(.none)")).map((wrap) => wrap.querySelector("a.row")?.dataset.id).filter(Boolean))].slice(0, 6));
+    if (ids.length < 6) { await page.mouse.move(900, 600); await page.mouse.wheel(0, 1500); await page.waitForTimeout(400); }
+  }
+  check(ids.length >= 2, `the Stundenplan: the catalog shows too few modules with Termine (${ids})`);
+  await page.evaluate((ids) => {
+    localStorage.setItem("betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n");
+    localStorage.setItem("betula.studyplan.v1", ids.map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n");
+  }, ids);
+  await page.goto(base + "/studyplan", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true && allOnPage(".sp-week .slot").length >= 2, null, { timeout: 60000 }).catch(() => problems.push("the Stundenplan: the week shows too few Termine"));
+  await page.waitForTimeout(500);
+  const slot = () => page.evaluate(() => {
+    const a = document.activeElement;
+    const r = a?.getBoundingClientRect();
+    return { slot: !!a?.matches?.(".sp-week .slot"), region: a?.closest?.("[data-region]")?.dataset.region || "", x: r ? r.left + r.width / 2 : 0, y: r ? r.top + r.height / 2 : 0, label: (a?.textContent || "").trim().slice(0, 40) };
+  });
+  // ↓ from nowhere: into the week, at a Termin.
+  await press(page, "ArrowDown", 150);
+  let now = await slot();
+  check(now.slot && now.region === "content", `the Stundenplan: ↓ from nowhere is not at a Termin of the week (${JSON.stringify(now)})`);
+  // → to a Termin right of it where there is one, ← back left.
+  const right = await page.evaluate((x) => allOnPage(".sp-week .slot").some((s) => { const r = s.getBoundingClientRect(); return r.left + r.width / 2 > x + 1; }), now.x);
+  if (right) {
+    await press(page, "ArrowRight", 150);
+    const moved = await slot();
+    check(moved.slot && moved.x > now.x, `the Stundenplan: → did not go to a Termin right of it (${JSON.stringify({ now, moved })})`);
+    await press(page, "ArrowLeft", 150);
+    const back = await slot();
+    check(back.slot && back.x < moved.x, `the Stundenplan: ← did not go back left (${JSON.stringify({ moved, back })})`);
+    now = back;
+  }
+  // Enter: the Termin's card; Esc: closed, the keyboard back on the Termin.
+  await press(page, "Enter", 700);
+  const card = await page.evaluate(() => !!document.querySelector("dialog[open]"));
+  await press(page, "Escape", 500);
+  const after = await slot();
+  check(card && after.slot && after.label === now.label && !(await page.evaluate(() => !!document.querySelector("dialog[open]"))), `the Stundenplan: Enter did not open the Termin's card, or Esc did not give the keyboard back to it (${JSON.stringify({ card, now, after })})`);
+  // Tab: the modules beside the week, one stop; Shift + Tab back to the week.
+  await press(page, "Tab", 150);
+  const list = await page.evaluate(() => ({ list: !!document.activeElement?.closest?.(".sp-list"), stop: document.activeElement?.closest?.("[data-stop]")?.dataset.stop || "" }));
+  await press(page, "Shift+Tab", 150);
+  check(list.list && list.stop === "y" && (await slot()).slot, `the Stundenplan: Tab did not go to the modules as one stop and back (${JSON.stringify(list)})`);
+  // A, B and A/B, where the plan has weeks of A and B: one stop at the week shown, ← → choose.
+  const weeks = await page.evaluate(() => !!onPage(".sp-weeks [aria-checked=\"true\"]"));
+  if (weeks) {
+    await page.focus(".sp-weeks [aria-checked=\"true\"]");
+    const chosen = () => page.evaluate(() => ({ focus: document.activeElement?.getAttribute("aria-label") || "", checked: document.querySelector(".sp-weeks [aria-checked=\"true\"]")?.getAttribute("aria-label") || "" }));
+    const was = await chosen();
+    // ← to the one before, → back; from the first, → and ←.
+    const first = await page.evaluate(() => document.querySelector(".sp-weeks [role=\"radio\"]")?.getAttribute("aria-checked") === "true");
+    const [there, back] = first ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];
+    await press(page, there, 300);
+    const other = await chosen();
+    check(other.checked !== was.checked && other.focus === other.checked, `the Stundenplan: ${there} at A, B and A/B did not choose the one beside (${JSON.stringify({ was, other })})`);
+    await press(page, back, 300);
+    check((await chosen()).checked === was.checked, `the Stundenplan: ${back} did not choose the week again`);
+  }
+  // F: the sidebar as a mode; typing finds „Abonnieren"; Esc back to the week.
+  await page.focus(".sp-week .slot >> nth=0");
+  await press(page, "f", 300);
+  now = await at(page);
+  const tag = await page.evaluate(() => document.querySelector(".mode-tag[data-on]")?.textContent || "");
+  check(now.region === "side" && /Esc/.test(tag), `the Stundenplan: F did not lead into the sidebar as a mode (${JSON.stringify({ now, tag })})`);
+  for (const key of "abon") await press(page, key, 40);
+  await page.waitForTimeout(200);
+  const found = await page.evaluate(() => ({ target: document.querySelector("[data-find-target]")?.textContent.trim() || "", bar: onPage("#sidebar > .key-bar[data-on]")?.textContent || "" }));
+  check(/Abonnieren/.test(found.target) && /öffnen/.test(found.bar), `the Stundenplan: typing in the sidebar did not find „Abonnieren“ (${JSON.stringify(found)})`);
+  await press(page, "Escape", 200);
+  await press(page, "Escape", 300);
+  check((await slot()).slot, `the Stundenplan: Esc did not lead back to the week (${JSON.stringify(await slot())})`);
+  // ?: „Im Stundenplan" marked where the keyboard was.
+  await press(page, "?", 300);
+  const overview = await page.evaluate(() => document.querySelector("dialog.keys-dialog[open] .keys-group.here h3")?.textContent || "");
+  check(/Im Stundenplan/.test(overview), `the Stundenplan: ? did not mark „Im Stundenplan“ (${overview})`);
+  await press(page, "Escape", 250);
+  // „Befehle": the page's own in one group, the sidebar under „Gehe zu".
+  await press(page, "Control+k", 500);
+  const offered = await page.evaluate(() => [...document.querySelectorAll(".cmd-dialog[open] .cmd-group")].map((g) => `${g.querySelector(".cmd-heading")?.textContent.trim()}: ${[...g.querySelectorAll(".cmd-opt")].map((o) => o.querySelector(".cmd-label")?.textContent.trim() + (o.querySelector(".cmd-sub") ? ` (${o.querySelector(".cmd-sub").textContent.trim()})` : "")).join(" | ")}`));
+  const own = offered.find((g) => g.startsWith("Stundenplan:")) || "";
+  const go = offered.find((g) => g.startsWith("Gehe zu")) || "";
+  check(/\.ics herunterladen/.test(own) && /Abonnieren/.test(own) && /Teilen/.test(own) && (!weeks || /\(gezeigt\)/.test(own)) && /Stundenplan bearbeiten/.test(own) && /Kalender und Export/.test(go), `the Stundenplan: „Befehle“ does not offer what it should (${JSON.stringify(offered)})`);
+  await press(page, "Escape", 250);
   await context.close();
 }
 

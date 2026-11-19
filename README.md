@@ -41,7 +41,7 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 | [docs/folia/folia-refactor.md](docs/folia/folia-refactor.md) | Folia's restructuring: site and app, shell, workers, crates |
 | [docs/folia/sync.md](docs/folia/sync.md) | Betula Sync in Folia: the records and their merge, the browser's part, the actions, the checks |
 | [docs/phloem/phloem.md](docs/phloem/phloem.md) | Phloem: development, commands, settings, limits, the firewall, numbers and logs, deploy |
-| [docs/xylem/xylem.md](docs/xylem/xylem.md) | Xylem: development, commands, announcements, settings, the push services, the sender, limits, storage, numbers and logs, checks |
+| [docs/xylem/xylem.md](docs/xylem/xylem.md) | Xylem: development, commands, announcements, settings, the push services, the sender, limits, storage, numbers and logs, its place on the server (its firewall, `xylem start`), checks |
 | [docs/xylem/protocol.md](docs/xylem/protocol.md) | the notifications' protocol: what Xylem holds, the browser's requests, the push message, what Folia's part does, the feed of what Betula announces by itself |
 | [docs/phloem/protocol.md](docs/phloem/protocol.md) | Betula Sync's protocol: names, what may reach what, HTTP, the WebSocket, what the browser seals |
 
@@ -52,7 +52,7 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 | `radix/` | Radix, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `internal/` |
 | `cortex/` | Cortex, one Go module (`github.com/leonieziechmann/betula/cortex`): `cmd/cortex`, `internal/`, and `client/`, the client Radix imports (`radix/go.mod` replaces the module with `../cortex`) |
 | `phloem/` | Phloem, one Go module (`github.com/leonieziechmann/betula/phloem`): `cmd/phloem`, `internal/`, `deploy/firewall.nft` |
-| `xylem/` | Xylem, one Go module (`github.com/leonieziechmann/betula/xylem`): `cmd/xylem`, `internal/`, `live/` (its check against a real push service) |
+| `xylem/` | Xylem, one Go module (`github.com/leonieziechmann/betula/xylem`): `cmd/xylem`, `internal/`, `deploy/` (its firewall), `live/` (its check against a real push service) |
 | `folia/` | Folia, one Cargo workspace: `crates/<crate>` (package `folia-<crate>`), `assets/` (stylesheet, scripts, icons the server embeds), `e2e/` (browser checks), `design/` (sources of drawings and icons), `scripts/` (builds, the dev server) |
 | `docs/` | `radix/`, `folia/`, `cortex/`, `phloem/`, `xylem/`, and `history/` for the briefs and plans that are done |
 | `deploy/` | the stacks, the server set-up, `ship.sh` |

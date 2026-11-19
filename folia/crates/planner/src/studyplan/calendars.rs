@@ -631,7 +631,8 @@ pub(super) fn CalendarsGroup(ctx: PlanCtx) -> impl IntoView {
         ctx.calendars.get().into_iter().map(|calendar| calendar_row(ctx, calendar, semester.clone(), false, manage, open, removed, t)).collect_view()
     };
     view! {
-        <div class="fgroup sp-cals">
+        // A section of the keyboard's mode (`FrameKeys`), whose rows typing finds (`data-find`).
+        <div class="fgroup sp-cals" data-section="" data-find="" role="group" aria-label=c.heading>
             <div class="sp-cals-head">
                 <p class="flabel label">{c.heading}</p>
                 {move || ctx.edit.get().then(|| view! { <NewCalendarButton ctx open=adding/> })}
@@ -1033,7 +1034,7 @@ fn CalendarPart(ctx: PlanCtx, id: u8, marked: Memo<Vec<MarkedModule>>) -> impl I
     };
     let add_label = move || (t.studyplan_modules.add_named)(&name.get());
     view! {
-        <section class=move || format!("sp-cal-mods {}", hue.get()) aria-label=move || name.get()>
+        <section class=move || format!("sp-cal-mods {}", hue.get()) aria-label=move || name.get() data-stop="y">
             <div class="sp-list-head">
                 <h2 class="label"><i class="sw" aria-hidden="true"></i>{move || name.get()}</h2>
                 {move || ctx.edit.get().then(|| view! {
