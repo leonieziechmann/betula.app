@@ -63,6 +63,13 @@
 //!   (`access_log` in `folia/crates/server/src/main.rs`); the traps and what they keep of an
 //!   address they turn away (`folia/crates/server/src/trap.rs`: the hour is `DEFAULT_MINUTES`, the
 //!   fingerprint in memory alone, the button of the page);
+//! - the host's backup, in „Wo Betula läuft" and wherever a part says what is deleted when (owner,
+//!   2026-11-19: „ich habe auto backup bei meinem hosting anbieter enabled", then „pass den
+//!   Sync-Abschnitt an, Backups werden 7 Tage aufgehoben"): the provider backs up the whole server
+//!   once a day and keeps each backup 7 days, so what the server holds is in it (the logs, Phloem's
+//!   sealed data, Xylem's subscriptions) and what is deleted there is gone from the backups 7 days
+//!   later at the latest. Until then „Betula Sync" said that there is no backup at the service;
+//!   Phloem still makes none of its own (docs/phloem/phloem.md, „No backup");
 //! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`) and the pass in front of
 //!   the catalog (`folia/crates/server/src/pass.rs`: its 7 days, its network, the path `/api/`), the
 //!   only two;
@@ -567,6 +574,10 @@ mod tests {
         // Betula Sync: what its service keeps of a profile, and that it can open none of it.
         assert!(de.contains("id=\"sync\"") && de.contains("öffnen kann er sie nicht") && de.contains("13 Monate"), "{de}");
         assert!(en.contains("id=\"sync\"") && en.contains("it cannot open them"), "{en}");
+        // The host's backup: said where Betula runs, and where a part says what is deleted when;
+        // no part says any more that there is none.
+        assert!(de.contains("bewahrt jede Sicherung 7 Tage auf") && de.contains("in der täglichen Sicherung des Servers enthalten, die 7 Tage aufbewahrt wird") && !de.contains("Eine Sicherung beim Dienst gibt es nicht"), "{de}");
+        assert!(en.contains("keeps each backup for 7 days") && !en.contains("The service keeps no backup"), "{en}");
         // Notifications: what Betula's service keeps of a browser, that it does not know whose it
         // is, and whose push service carries a message.
         assert!(de.contains("id=\"notifications\"") && de.contains("Wem ein Browser gehört, weiß der Dienst nicht") && de.contains("Google, Mozilla, Apple oder Microsoft"), "{de}");

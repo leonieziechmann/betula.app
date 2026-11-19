@@ -1438,8 +1438,14 @@ before. Each relay port is a `docker-proxy` of the host (Docker's userland proxy
   back. Of Phloem: `bash /opt/betula/vps/49-phloem.sh <stack> <previous tag>`.
 - **Its data** is sealed by the devices (Phloem can open none of it): sizes, times and random ids
   are all it knows. A space untouched for 395 days goes by itself; „Sync beenden" deletes one at
-  once. There is no backup of `phloem.db`: lost, it comes back empty, and the devices make their
-  spaces anew from what they hold (`docs/phloem/phloem.md`, „No backup"; protocol section 7).
+  once. Phloem makes no backup of `phloem.db`: lost, it comes back empty, and the devices make
+  their spaces anew from what they hold (`docs/phloem/phloem.md`, „No backup"; protocol section 7).
+  The host's own daily backup (the provider's, of the whole disk, kept 7 days; owner, 2026-11-19)
+  holds the file all the same, and the privacy notice says so. A Phloem brought back from it would
+  be up to a day behind its devices with the epoch it had, which the protocol does not provide
+  for: **after the server was brought back from a backup, remove `phloem.db` (with `-wal` and
+  `-shm`) from `/var/lib/betula/phloem/<stack>/data` before Phloem starts**, so that it comes back
+  empty and the devices rebuild („No backup").
 - **Shared calendars** (step 3, Phloem 0.2.0, `folia/design/teilen/teilen.html`): the parts and the
   one-time links go through `/sync/v1/` like everything else; a calendar app's subscription that
   stays current (`/calendar/s/…`) is answered by Folia, which fetches its part at Traefik's
@@ -1512,8 +1518,8 @@ For https://betula.app the same with `xylem` (steps 4 and 5), then `FOLIA_PUSH=o
   out of its time meanwhile is not told late.
 - **Its data**: `xylem.db` holds the subscriptions (an endpoint at a push service, two keys, a
   language, topics; nothing that says whose browser it is) and the VAPID key every one of them
-  was made with. It is part of the host's daily backup (the provider's, of the whole disk; owner,
-  2026-11-19: „24h datenverlust ist verkraftbar"). Brought back from a day ago, it has its key and
+  was made with. It is part of the host's daily backup (the provider's, of the whole disk, kept 7
+  days; owner, 2026-11-19: „24h datenverlust ist verkraftbar"). Brought back from a day ago, it has its key and
   all but the last day's subscriptions, which come back with their browsers' next visit; look at
   `x announcements` then and cancel what was told already (`docs/xylem/xylem.md`, „Backup"). Lost
   altogether, it starts with a new key, and every browser subscribes anew at its next visit by

@@ -271,9 +271,11 @@ Pion's TURN (`github.com/pion/turn/v5`) inside Phloem, its rules Phloem's own
 
 ## 7. When Phloem lost what it held (since Phloem 0.5.0)
 
-There is no backup of `phloem.db` (owner, 2026-11-11: „mach es im zweifelsfall so, dass es aus
+Phloem makes no backup of `phloem.db` (owner, 2026-11-11: „mach es im zweifelsfall so, dass es aus
 den clients rekonstruiert wird, falls es mal verloren geht"): every device of a profile holds all
-of it, and the devices make the space anew.
+of it, and the devices make the space anew. (The host's own backup of the whole disk holds the
+file since 2026-11-19; a database brought back from it is none this section provides for, and
+Phloem is started empty instead: phloem.md, „No backup".)
 
 - Every database gets an epoch once, 16 random bytes (migration 0003, the table `meta`): a new
   database, or one lost and made empty again, has another. The welcome names it, and so does the

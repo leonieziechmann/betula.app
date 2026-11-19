@@ -296,7 +296,8 @@ but a phone that is not opened hears nothing until it is.
 
 **Backup.** `xylem.db` lies on the server's disk and is part of the host's own daily backup
 (owner, 2026-11-19: „ich habe auto backup bei meinem hosting anbieter enabled … 24h datenverlust
-ist verkraftbar"); Xylem makes none of its own. The database is written with `synchronous FULL`,
+ist verkraftbar", kept 7 days); Xylem makes none of its own. A subscription deleted at Xylem is
+in a backup for up to 7 days more, which the privacy notice says („Benachrichtigungen"). The database is written with `synchronous FULL`,
 so a copy of the disk at any moment opens like one after a power cut. Brought back from a day
 ago, it holds the key and every subscription but the last day's: those browsers put theirs
 again with their next visit (the same step of Folia's part), and the announcements made since
