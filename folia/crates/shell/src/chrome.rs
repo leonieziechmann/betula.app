@@ -424,16 +424,13 @@ pub fn Rail() -> impl IntoView {
             <div class="rail-end">
                 <crate::keys::KeysButton/>
                 <ProfileButton/>
-                <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
-                    <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
-                </button>
             </div>
         </aside>
     }
 }
 
-/// The way to the profile page (owner, 2026-10-14; `folia_profile`): at the end of the rail above
-/// the switch between light and dark, and on a phone, which has no rail, a box at the right of the
+/// The way to the profile page (owner, 2026-10-14; `folia_profile`): at the end of the rail, and on
+/// a phone, which has no rail, a box at the right of the
 /// search at the head of every page (`top`; owner, 2026-10-14: „für die mobile Version noch ein
 /// Konzept wie man an sein Profil rankommt"), as the way back of a page's step is a box at its left
 /// (`TopBack`). It shows the active profile's badge (`Avatar`) where there is more than one
@@ -980,8 +977,9 @@ impl Theme {
 /// can vibrate (a phone, `html.haptics`, app.css), a row under them with the switch for vibrations
 /// (`folia_design::haptic`; owner, 2026-11-17), whose switching on is felt. Light and dark
 /// and the vibrations are set by `enhance.js` (`data-action="theme-set"`, `"haptics-set"`), which
-/// keeps them as the switch in the rail does and says so (`betula:theme`, `betula:haptics`); the
-/// menu stays open. Another language is another address, and so a page load (`languages`).
+/// keeps them and says so (`betula:theme`, `betula:haptics`); the menu stays open. Light or dark
+/// is chosen here and by „Befehle“: the rail has no switch of its own any more (owner, 2026-11-19:
+/// „den theme switcher aus der sidebar raus nehmen, den gibts jetzt ja im profile“). Another language is another address, and so a page load (`languages`).
 #[component]
 fn Preferences() -> impl IntoView {
     let t = i18n::t();
@@ -1012,8 +1010,159 @@ fn Preferences() -> impl IntoView {
             <span class="collect-switch" aria-hidden="true"></span>
             <haptic::TapTick/>
         </button>
+        <PushRow/>
     }
 }
+
+/// The topics a browser can listen to, as Xylem names them (docs/xylem/protocol.md section 1) and
+/// `enhance.js` keeps them (`PUSH_TOPICS`), with the name and the title of each.
+fn push_topics(t: &crate::i18n::Texts) -> [(&'static str, &'static str, &'static str); 3] {
+    [
+        ("exams", t.app.push_exams, t.app.push_exams_title),
+        ("semester", t.app.push_semester, t.app.push_semester_title),
+        ("breaks", t.app.push_breaks, t.app.push_breaks_title),
+    ]
+}
+
+/// What `enhance.js` says of this browser's notifications in one line (`window.betulaPush.state()`:
+/// `<support>;<permission>;<topics>;<busy>;<error>`, empty where the site offers none).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct PushState {
+    /// The site offers notifications (the server's `--push`).
+    offered: bool,
+    /// `yes`, `install` (an iPhone or iPad outside the app on the home screen) or `no`.
+    support: String,
+    /// The browser's permission: `default`, `granted` or `denied`.
+    permission: String,
+    /// The topics this browser listens to; none: off.
+    topics: Vec<String>,
+    /// A choice is on its way.
+    busy: bool,
+    /// Why the last choice did not go through, as `enhance.js` names it; empty: it did.
+    error: String,
+}
+
+impl PushState {
+    /// (The server's build reads nothing: only the browser app and the tests parse a line.)
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    fn parse(line: &str) -> Self {
+        let mut parts = line.split(';');
+        let Some(support) = parts.next().filter(|support| !support.is_empty()) else { return Self::default() };
+        let mut next = || parts.next().unwrap_or_default();
+        let permission = next().to_string();
+        let topics = next().split(',').filter(|topic| !topic.is_empty()).map(str::to_string).collect();
+        let busy = next() == "1";
+        Self { offered: true, support: support.to_string(), permission, topics, busy, error: next().to_string() }
+    }
+
+    /// As the page's script has it now; nothing offered on the server and without the script.
+    fn read() -> Self {
+        #[cfg(feature = "csr")]
+        {
+            use leptos::wasm_bindgen::JsCast;
+            use leptos::web_sys::js_sys::{Function, Reflect};
+            let line = (|| {
+                let window = leptos::web_sys::window()?;
+                let bridge = Reflect::get(&window, &"betulaPush".into()).ok().filter(|bridge| bridge.is_object())?;
+                let state = Reflect::get(&bridge, &"state".into()).ok()?.dyn_into::<Function>().ok()?;
+                state.call0(&bridge).ok()?.as_string()
+            })();
+            Self::parse(&line.unwrap_or_default())
+        }
+        #[cfg(not(feature = "csr"))]
+        Self::default()
+    }
+
+    /// Switched on: this browser listens to something, and may be told.
+    fn on(&self) -> bool {
+        !self.topics.is_empty() && self.permission == "granted"
+    }
+
+    /// What stands under the row: why the last choice did not go through, or that the browser
+    /// blocks what was switched on here before.
+    fn note(&self, t: &crate::i18n::Texts) -> Option<&'static str> {
+        match self.error.as_str() {
+            "" if !self.topics.is_empty() && self.permission == "denied" => Some(t.app.push_denied),
+            "" => None,
+            "install" => Some(t.app.push_install),
+            "unsupported" => Some(t.app.push_unsupported),
+            "denied" => Some(t.app.push_denied),
+            "dismissed" => Some(t.app.push_dismissed),
+            "service" => Some(t.app.push_service),
+            "network" => Some(t.app.push_network),
+            _ => Some(t.app.push_failed),
+        }
+    }
+}
+
+/// Notifications, a row of the menu under the vibrations, where the site offers them (the server's
+/// `--push`, `document::PushOffer`; owner, 2026-11-19: „mach beides und dann Folias Teil"): a
+/// switch as the vibrations have it, since it is this browser's and the same in every profile (a
+/// push subscription belongs to a browser, and Xylem knows no profile). Off, it says what Betula
+/// would tell of. On, the topics stand under it as a segment, each part on or off by itself
+/// (all of them on at first, which shows that more than one can be); the last one switched off
+/// switches the notifications off. `enhance.js` does all of it (`data-action="push-set"`, `"push-topic"`:
+/// asking for the permission is a tap's, there) and says each change (`betula:push`); the menu
+/// stays open.
+///
+/// The switch is never disabled (CLAUDE.md, „Betula does not say no"): where it cannot be
+/// switched on, a tap says why and what helps under the row — an iPhone outside the app on the
+/// home screen, a browser without push messages, the permission refused. Switching off always
+/// works.
+#[component]
+fn PushRow() -> impl IntoView {
+    let t = i18n::t();
+    let state = RwSignal::new(PushState::read());
+    // Effects run in the browser only.
+    Effect::new(move |_| {
+        state.set(PushState::read());
+        let handle = window_event_listener_untyped("betula:push", move |_| state.set(PushState::read()));
+        on_cleanup(move || handle.remove());
+    });
+    let offered = Memo::new(move |_| state.with(|state| state.offered));
+    let on = Memo::new(move |_| state.with(PushState::on));
+    let busy = Memo::new(move |_| state.with(|state| state.busy));
+    let note = Memo::new(move |_| state.with(|state| state.note(t)));
+    let checked = move |on: bool| if on { "true" } else { "false" };
+    move || {
+        offered.get().then(|| {
+            view! {
+                <button
+                    class="tab-menu-way pm-push tap-host"
+                    type="button"
+                    role="switch"
+                    data-action="push-set"
+                    data-push-value=move || if on.get() { "off" } else { "on" }
+                    aria-checked=move || checked(on.get())
+                    aria-busy=move || busy.get().then_some("true")
+                    aria-describedby=move || note.get().map(|_| PUSH_NOTE_ID)
+                >
+                    {move || if on.get() { view! { <Icon name="bell"/> } } else { view! { <Icon name="bell-off"/> } }}
+                    <span class="pm-push-text"><b>{t.app.push}</b>{move || (!on.get()).then(|| view! { <small>{t.app.push_hint}</small> })}</span>
+                    <span class="collect-switch" aria-hidden="true"></span>
+                    <haptic::TapTick/>
+                </button>
+                {move || on.get().then(|| view! {
+                    <div class="seg pm-push-topics" role="group" aria-label=t.app.push_topics aria-busy=move || busy.get().then_some("true")>
+                        {push_topics(t).into_iter().map(|(code, name, title)| {
+                            let ticked = Memo::new(move |_| state.with(|state| state.topics.iter().any(|topic| topic == code)));
+                            view! {
+                                <button class="pm-topic tap-host" type="button" role="checkbox" data-action="push-topic" data-push-topic=code title=title aria-checked=move || checked(ticked.get())>
+                                    <span>{name}</span>
+                                    <haptic::TapTick/>
+                                </button>
+                            }
+                        }).collect_view()}
+                    </div>
+                })}
+                {move || note.get().map(|note| view! { <p class="pm-push-note" id=PUSH_NOTE_ID role="status">{note}</p> })}
+            }
+        })
+    }
+}
+
+/// The note under the notifications' row, which the switch is described by.
+const PUSH_NOTE_ID: &str = "pm-push-note";
 
 /// A way back at the head of a phone's page, left of the search (owner, 2026-10-05: „wenn man in
 /// der semester ansicht ist, soll es oben links neben der search bar im gleichen style eine
@@ -1369,6 +1518,47 @@ pub fn TopBar() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What `enhance.js` says in one line is read as it writes it (`window.betulaPush.state()`),
+    /// and the topics are the ones it keeps (`PUSH_TOPICS`) and its buttons the ones it handles.
+    #[test]
+    fn the_notifications_are_read_as_the_script_says_them() {
+        let t = &crate::i18n::DE;
+        assert_eq!(PushState::parse(""), PushState::default(), "a site that offers none");
+        let off = PushState::parse("yes;default;;0;");
+        assert!(off.offered && !off.on() && off.note(t).is_none(), "{off:?}");
+        let on = PushState::parse("yes;granted;exams,breaks;0;");
+        assert!(on.on() && on.topics == ["exams", "breaks"] && !on.busy && on.note(t).is_none(), "{on:?}");
+        assert!(PushState::parse("yes;granted;exams;1;").busy);
+        // Chosen here before, and the browser blocks it now: said without a tap.
+        let blocked = PushState::parse("yes;denied;exams;0;");
+        assert!(!blocked.on() && blocked.note(t) == Some(t.app.push_denied), "{blocked:?}");
+        for (error, note) in [
+            ("install", t.app.push_install),
+            ("unsupported", t.app.push_unsupported),
+            ("denied", t.app.push_denied),
+            ("dismissed", t.app.push_dismissed),
+            ("service", t.app.push_service),
+            ("network", t.app.push_network),
+            ("later", t.app.push_failed),
+            ("full", t.app.push_failed),
+            ("failed", t.app.push_failed),
+        ] {
+            assert_eq!(PushState::parse(&format!("install;default;;0;{error}")).note(t), Some(note), "{error}");
+        }
+        let script = include_str!("../../../assets/enhance.js");
+        let topics: Vec<&str> = push_topics(t).iter().map(|(code, ..)| *code).collect();
+        assert!(script.contains(&format!("const PUSH_TOPICS = [{}];", topics.iter().map(|topic| format!("\"{topic}\"")).collect::<Vec<_>>().join(", "))), "{topics:?}");
+        for word in ["case \"push-set\":", "case \"push-topic\":", "window.betulaPush = {", "new Event(\"betula:push\")", &format!("meta[name=\"{}\"]", crate::document::PUSH_META)] {
+            assert!(script.contains(word), "enhance.js: {word}");
+        }
+        // The worker shows what Xylem sends, and keeps the cache the page writes its choice to.
+        let worker = include_str!("../../../assets/sw.js");
+        for word in ["addEventListener(\"push\"", "addEventListener(\"notificationclick\"", "addEventListener(\"pushsubscriptionchange\"", "web_push === 8030", "name !== PUSH)"] {
+            assert!(worker.contains(word), "sw.js: {word}");
+        }
+        assert!(worker.contains("const PUSH = \"betula-push\";") && script.contains("const PUSH_CACHE = \"betula-push\";"));
+    }
 
     /// A program's page and a module's own page have their way back at the head from their first
     /// paint, by their address, up to their area's list, the program overview up to „Mein

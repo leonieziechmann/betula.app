@@ -259,9 +259,10 @@ groups:
 
       # (1c) Canary follows master (vps/canary-agent.sh, run by betula-canary.service): a build of
       # master that does not reach canary. Its scripts log "FATAL" when they give up (lib.sh die),
-      # the agent's own and the ones it runs (45-seed, 50-app, 55-switch). Canary then stays on the
-      # release it had; the agent tries a release three times, 10 and 20 minutes apart, so a failing
-      # build keeps this firing for about an hour. A warning: canary may be down for a while.
+      # the agent's own and the ones it runs (45-seed, 50-app, 55-switch; for canary's Phloem
+      # 49-phloem.sh). Canary then stays on the release it had; the agent tries a release three
+      # times, 10 and 20 minutes apart, so a failing build keeps this firing for about an hour. A
+      # warning: canary may be down for a while.
       - uid: betula-canary-deploy-failed
         title: "canary: a build of master did not reach canary"
         condition: C
@@ -330,7 +331,7 @@ groups:
           severity: warning
         annotations:
           summary: "canary: the automatic deploy of a build of master failed"
-          description: "journalctl -u betula-canary.service -n 100 says which step (the FATAL line): the download from GitHub (401: the token has expired, README.md section 12), the copy of the public site's database, the build or validation of the new release on that data (50-app.sh), or the switch (55-switch.sh). Canary keeps the release it had. What runs and what failed: bash /opt/betula/vps/canary-agent.sh status."
+          description: "journalctl -u betula-canary.service -n 100 says which step (the FATAL line): the download from GitHub (401: the token has expired, README.md section 12), the copy of the public site's database, the build or validation of the new release on that data (50-app.sh), or the switch (55-switch.sh). Canary keeps the release it had. For canary's Phloem (a build of phloem.yml): 49-phloem.sh, whose deploy or whose checks afterwards failed; a release that failed its checks keeps running (README.md section 16 says how to go back). What runs and what failed: bash /opt/betula/vps/canary-agent.sh status."
   - orgId: 1
     name: betula-containers
     folder: Betula alerts

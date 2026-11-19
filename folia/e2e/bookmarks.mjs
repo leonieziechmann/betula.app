@@ -97,7 +97,10 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // of the list), and the column labels still stand over their columns.
   const geometry = await page.evaluate(() => {
     const rows = [...allOnPage(".rows .row-wrap")].slice(0, 12);
-    const label = onPage(".cols .c-events").getBoundingClientRect();
+    // The label's words, not its box: a label's link has 4 px of room round its words since Folia
+    // 1.113.0 (every frame inside its element), its box 4 px out of the column.
+    const labelled = onPage(".cols .c-events");
+    const label = labelled.getBoundingClientRect().left + parseFloat(getComputedStyle(labelled).paddingLeft);
     const head = onPage(".list-tools").getBoundingClientRect();
     return rows.map((wrap) => {
       const [row, mark, glyph, events] = [wrap.querySelector("a.row"), wrap.querySelector(":scope > .mark-toggle"), wrap.querySelector(":scope > .mark-toggle .icon"), wrap.querySelector(".events")].map((el) => el?.getBoundingClientRect());
@@ -108,7 +111,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
         clear: mark.left - events.right,
         edge: row.right - glyph.right,
         head: Math.abs(glyph.right - head.right),
-        labelled: Math.abs(events.left - label.left),
+        labelled: Math.abs(events.left - label),
         visible: getComputedStyle(wrap.querySelector(":scope > .mark-toggle")).visibility,
       };
     });
@@ -172,14 +175,15 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[8]}"]) > .mark-toggle`)) === "true" && (await pressed(page, ".detail .mark-toggle.mark-switch")) === "true", "M did not act on the focused row");
   await page.keyboard.press("m");
 
-  // On the module's page: under the heading and among the actions of the sidebar, one state.
+  // On the module's page on a wide screen: at the top of the sidebar (folia/design/modulseite,
+  // owner 2026-11-19: „nur mit den Buttons von A"), the head's and the phone's actions knowing the
+  // same state.
   await page.evaluate(() => document.activeElement?.blur());
-  await step("full page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/catalog/module/") && Boolean(onPage(".module-page .mark-toggle.mark-switch")));
-  check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
-  const onPage = await placement(page, ".module-page", ".module-grid > aside .section");
-  check((onPage.beside || onPage.below) && onPage.edge <= 0.5, `on the module's page the switch is not at the right end of the line of the credits nor under it: ${JSON.stringify(onPage)}`);
-  await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle >> visible=true"), () => onPage(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && onPage(".sidebar .action.mark-toggle").textContent.includes("Merken"));
-  await step("and M gives it back", () => page.keyboard.press("m"), () => onPage(".sidebar .action.mark-toggle").getAttribute("aria-pressed") === "true");
+  await step("full page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/catalog/module/") && Boolean(onPage("#sidebar .module-acts .mark-toggle.mark-switch")));
+  check((await pressed(page, "#sidebar .module-acts .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
+  check(await page.evaluate(() => Boolean(onPage("#sidebar .module-acts .mark-pair")?.getClientRects().length) && !onPage(".module-page .mark-pair")?.getClientRects().length), "on the module's page the switch is not at the top of the sidebar alone");
+  await step("the sidebar's switch takes the mark away", () => page.click("#sidebar .module-acts .mark-toggle >> visible=true"), () => onPage(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && onPage("#sidebar .module-acts .mark-toggle").textContent.includes("Merken"));
+  await step("and M gives it back", () => page.keyboard.press("m"), () => onPage("#sidebar .module-acts .mark-toggle").getAttribute("aria-pressed") === "true");
 
   // A reload keeps the marks; server HTML knows nothing of them.
   const html = await (await context.request.get(page.url())).text();
@@ -449,7 +453,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // module beside it, through the history.
   const catalogTab = () => page.getAttribute('.rail .nav[data-area="catalog"] >> visible=true', "href");
   const catalogBefore = await catalogTab();
-  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"] >> visible=true`); await page.waitForSelector(".detail h2 >> visible=true"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("v"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(onPage(".module-page h2")) && Boolean(onPage("#sidebar .toc.jumps")), marked[0]);
+  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"] >> visible=true`); await page.waitForSelector(".detail h2 >> visible=true"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("v"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(onPage(".module-page h2")) && Boolean(onPage("#sidebar .module-acts")), marked[0]);
   check(await page.evaluate(() => onPage('.rail .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page"), "full page: the tab of the marked modules is not the current one");
   check((await catalogTab()) === catalogBefore, `full page: the catalog's tab leads to ${await catalogTab()} instead of ${catalogBefore}`);
   check(await page.evaluate(() => { const back = onPage('[data-action="back"]').getAttribute("href"); return back.startsWith("/bookmarks?") && back.includes("open=") && !back.includes("full="); }), "„Zurück“ of a module opened from the marked modules leads elsewhere");
@@ -667,7 +671,9 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await blocked.close();
   const { page: running, context: runs } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog/module/11101");
   const hero = await running.evaluate(() => document.querySelector(".module-page > .hero").getBoundingClientRect().height);
-  check(before.marks === 2 && before.shown === 0 && Math.abs(before.hero - hero) < 0.5, `before the takeover: ${JSON.stringify(before)}, the heading is ${hero}px once the app runs`);
+  // Three places of the switch, each kept: the head's (a phone's), the sidebar's at its top (a wide
+  // screen's, since Folia 1.114.0) and the actions under the module (a phone's).
+  check(before.marks === 3 && before.shown === 0 && Math.abs(before.hero - hero) < 0.5, `before the takeover: ${JSON.stringify(before)}, the heading is ${hero}px once the app runs`);
   await runs.close();
 }
 

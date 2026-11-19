@@ -2,7 +2,8 @@
 # 49-phloem.sh - deploy an instance of Phloem, the service of Betula Sync (stacks/phloem.yml,
 # docs/phloem/phloem.md), from an image that is loaded on this server already, and then try what
 # it must not be able to do. Run on the server as the deploy user, WITHOUT sudo;
-# deploy/ship-phloem.sh does that after it has built and loaded the image:
+# deploy/ship-phloem.sh does that after it has built and loaded the image, and so does the canary
+# agent for phloem-canary with a build of master (vps/canary-agent.sh, README.md section 12):
 #
 #   bash /opt/betula/vps/49-phloem.sh phloem-canary 2026-11-05-ab12cd3   # this release
 #   bash /opt/betula/vps/49-phloem.sh phloem                             # the release that runs

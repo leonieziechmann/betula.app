@@ -70,7 +70,7 @@ pub(super) struct CardPart {
     /// The student's note.
     pub note: Option<String>,
     /// Of a group of a choice the plan shows: its state („Eine von 4 Übungsgruppen · noch keine
-    /// angehakt", „Angehakt · 1 von 4 Übungsgruppen") and, of one ticked, what takes its tick away.
+    /// ausgewählt", „Ausgewählt · 1 von 4 Übungsgruppen") and, of one ticked, what takes its tick away.
     pub group: Option<(String, Option<CardAct>)>,
     /// The one large action, and the one beside it („Auch diese").
     pub big: Option<BigAct>,
@@ -137,7 +137,7 @@ pub(super) enum CardAct {
     Leave(u32),
     /// Shown again: its event where that is hidden, a kind, its Termine.
     Show { event: Option<u32>, kind: Option<EventKind>, rows: Vec<RowKey> },
-    /// Its group ticked instead of what was („Diese Gruppe anhaken" of an open choice, „Nur diese
+    /// Its group ticked instead of what was („Diese Gruppe auswählen" of an open choice, „Nur diese
     /// Gruppe"), or beside those ticked („Auch diese"); either way shown again where it was hidden.
     Only { event: u32, row: RowKey, rows: Vec<RowKey> },
     Tick { event: u32, row: RowKey, rows: Vec<RowKey> },
@@ -718,7 +718,7 @@ pub(super) fn TerminCard(ctx: TerminCtx, closing: Callback<()>, state: CardState
     });
     // The keyboard never falls out of the card: once a layer closed (Esc, „Abbrechen",
     // „Speichern") it goes back to the tool that opened it, and once the card changed under it
-    // („Haken wegnehmen", „Einblenden", „Zurücksetzen") to what stands in place of what had it.
+    // („Auswahl aufheben", „Einblenden", „Zurücksetzen") to what stands in place of what had it.
     let layer = Memo::new(move |_| state.editing.with(Option::is_some) || state.inner.get() != Inner::None || state.more.get());
     Effect::new(move |before: Option<bool>| {
         let open = layer.get();
@@ -1114,17 +1114,17 @@ fn CardPeople(card: Memo<Option<CardPart>>, change: Memo<Option<ChangePart>>, se
     }
 }
 
-/// Of a group its state and the one large action („Diese Gruppe anhaken", „Nur diese Gruppe" ·
-/// „Auch diese", „Einblenden" …), „Vergleichen ›"; of a group ticked, under its line, „Haken
-/// wegnehmen" at the left and „Vergleichen ›" at the right, where the large action and „Vergleichen
+/// Of a group its state and the one large action („Diese Gruppe auswählen", „Nur diese Gruppe" ·
+/// „Auch diese", „Einblenden" …), „Vergleichen ›"; of a group ticked, under its line, „Auswahl
+/// aufheben" at the left and „Vergleichen ›" at the right, where the large action and „Vergleichen
 /// ›" stand of one not ticked.
 #[component]
 fn CardAction(ctx: TerminCtx, card: Memo<Option<CardPart>>, state: CardState, run: Callback<(CardAct, Option<String>)>, stay: Callback<CardAct>) -> impl IntoView {
     let t = i18n::t();
     let words = &t.termin;
     let parts = Memo::new(move |_| card.with(|card| card.as_ref().map(|card| (card.group.clone(), card.big.clone(), card.also.clone(), card.compare.clone()))));
-    // What a click of the large action or of „Haken wegnehmen" puts in its place („Diese Gruppe
-    // anhaken" where „Haken wegnehmen" was) takes no click of the pointer for a moment: the second
+    // What a click of the large action or of „Auswahl aufheben" puts in its place („Diese Gruppe
+    // auswählen" where „Auswahl aufheben" was) takes no click of the pointer for a moment: the second
     // click of a slow double click ticked the group again (folia_design::nav::Newborn). The card
     // opening starts no such moment: nothing stood where its actions come.
     let born = Newborn::grown();
@@ -1355,10 +1355,10 @@ mod tests {
         ];
         let t = table(&rows, &["12104"], &[], &Selection::default());
         let card = card_of(&t, rows[0].key(), None);
-        assert_eq!(card.group, Some(("Eine von 3 Übungsgruppen · noch keine angehakt".to_string(), None)));
+        assert_eq!(card.group, Some(("Eine von 3 Übungsgruppen · noch keine ausgewählt".to_string(), None)));
         let big = card.big.clone().unwrap();
-        assert!(big.name == "tick" && big.label == "Diese Gruppe anhaken" && matches!(big.act, CardAct::Only { event: 200, .. }));
-        assert_eq!(big.said.as_deref(), Some("Ü EvS Mo 11:30 angehakt"));
+        assert!(big.name == "tick" && big.label == "Diese Gruppe auswählen" && matches!(big.act, CardAct::Only { event: 200, .. }));
+        assert_eq!(big.said.as_deref(), Some("Ü EvS Mo 11:30 ausgewählt"));
         assert_eq!(card.compare.as_deref(), Some("e200"));
         assert_eq!(names(&card), ["hide-termin", "hide-event"]);
         assert_eq!(card.hide[0].sub, "die anderen 2 bleiben zur Wahl");
@@ -1371,7 +1371,7 @@ mod tests {
         let rows = vec![teaching("12104", "200", 1, "Übung", 1, "11:30", "13:00").group("1-Gruppe"), teaching("12104", "200", 2, "Übung", 2, "09:15", "10:45").group("2-Gruppe"), teaching("12104", "200", 3, "Übung", 3, "11:30", "13:00").group("3-Gruppe")];
         let t = table(&rows, &["12104"], &[], &Selection { chosen_rows: [rows[0].key()].into_iter().collect(), ..Selection::default() });
         let card = card_of(&t, rows[0].key(), None);
-        assert!(matches!(&card.group, Some((said, Some(CardAct::Untick(_)))) if said == "Angehakt · 1 von 3 Übungsgruppen"), "{:?}", card.group);
+        assert!(matches!(&card.group, Some((said, Some(CardAct::Untick(_)))) if said == "Ausgewählt · 1 von 3 Übungsgruppen"), "{:?}", card.group);
         assert!(card.big.is_none());
         assert_eq!(names(&card), ["hide-date", "hide-termin", "hide-event"]);
         assert!(matches!(card.hide[1].act, CardAct::Drop { .. }) && card.hide[1].sub == "die anderen 2 stehen wieder zur Wahl");
@@ -1499,7 +1499,7 @@ mod tests {
         let groups = vec![teaching("12104", "200", 1, "Übung", 1, "11:30", "13:00").group("1-Gruppe"), teaching("12104", "200", 2, "Übung", 2, "09:15", "10:45").group("2-Gruppe"), teaching("12104", "200", 3, "Übung", 3, "11:30", "13:00").group("3-Gruppe")];
         let t = table(&groups, &["12104"], &[], &Selection { chosen_rows: [groups[0].key(), groups[1].key()].into_iter().collect(), ..Selection::default() });
         let card = card_of(&t, groups[0].key(), None);
-        assert_eq!(card.hide[1].sub, "die andere angehakte bleibt");
+        assert_eq!(card.hide[1].sub, "die andere ausgewählte bleibt");
         assert!(card.compare.is_some());
     }
 

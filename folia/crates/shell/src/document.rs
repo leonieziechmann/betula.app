@@ -187,6 +187,17 @@ pub const SERVICE_WORKER: &str = "/sw.js";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyncOffer(pub std::sync::Arc<str>);
 
+/// Notifications offered by this site (the server's `--push`): where the browser reaches Xylem,
+/// empty for `/push/v1/` on the page's own host. The server provides it to every page it renders
+/// while they are on, and the document says so in its head (`<meta name="betula-push">`), where
+/// `enhance.js` reads it; without it the browser asks nobody for anything, and the menu of the
+/// profiles has no row for them (`chrome::Preferences`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PushOffer(pub std::sync::Arc<str>);
+
+/// The name of that meta tag.
+pub const PUSH_META: &str = "betula-push";
+
 /// Runs before the first paint: marks the document as scripted, names the season the birch is
 /// drawn in (`data-season`: March–May spring, June–August summer, September–November autumn,
 /// December–February winter; the server's page is the same all year, R9), and applies what this browser

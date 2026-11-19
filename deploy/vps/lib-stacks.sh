@@ -486,6 +486,11 @@ CANARY_COLOURS=(canary canary-green)
 CANARY_REPO="leonieziechmann/betula.app"
 CANARY_WORKFLOW="images.yml"
 CANARY_BRANCH="master"
+# Canary's Phloem follows master as well (README.md sections 12 and 16): the workflow
+# .github/workflows/phloem.yml builds its image, and canary-agent.sh brings this instance to it with
+# vps/49-phloem.sh. The Phloem of https://betula.app never takes anything from there.
+CANARY_PHLOEM_WORKFLOW="phloem.yml"
+CANARY_PHLOEM_STACK="phloem-canary"
 
 # is_canary_colour NAME - true for the instances in CANARY_COLOURS.
 is_canary_colour() {

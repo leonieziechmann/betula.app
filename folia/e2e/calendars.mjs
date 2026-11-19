@@ -17,7 +17,7 @@
 //   weiterer") opens a sheet, in both states, its line saying what a calendar is for, with the rows,
 //   „Gemeinsam frei", each calendar's menu and „+ Kalender", a finger's 44 px each; Esc closes the menu
 //   first; a link that cannot be read makes an empty calendar and says so.
-// History: 2026-11-17, the edit mode. Lena ticks her group in its card („Diese Gruppe anhaken"), not by
+// History: 2026-11-17, the edit mode. Lena ticks her group in its card („Diese Gruppe auswählen"), not by
 // the click on the hatched slot that took it into focus with the group ticked (that preselection went);
 // „+ Kalender" and the calendars' menus are the mode's; „Neuer Kalender" takes a name alone.
 // 2026-11-18: on a phone the line over the week became the sheet of the head's „Kalender" (owner: „Dann

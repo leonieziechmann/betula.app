@@ -713,8 +713,8 @@ pub fn fragment() -> String {
 
 /// How long (ms) a control that came where the pointer just clicked takes no click of a pointer:
 /// the second click of a slow double click, or one a moment late, was meant for what stood there
-/// before — „3 Wahlen offen ›" and „Fertig" in one place, „Haken wegnehmen" and „Diese Gruppe
-/// anhaken", „+ Termin" and the form that opens over it (review of 2026-11-18: the mode entered and
+/// before — „3 Wahlen offen ›" and „Fertig" in one place, „Auswahl aufheben" and „Diese Gruppe
+/// auswählen", „+ Termin" and the form that opens over it (review of 2026-11-18: the mode entered and
 /// left again, a group ticked and unticked, the form opened and closed by one double click).
 const NEWBORN_MS: f64 = 400.0;
 

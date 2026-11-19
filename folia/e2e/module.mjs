@@ -1,8 +1,11 @@
 // Checks a module in its two sizes, on the desktop and on a phone.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node module.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// Desktop: preview → full page keeps the frame (sidebar exactly where the filter panel was), the
-// sidebar jumps to sections without history entries, Esc goes back to the list at the row. The
-// page's two halves end on one line, the times and facts going along with the text.
+// Desktop: preview → full page keeps the frame (sidebar exactly where the filter panel was), Esc
+// goes back to the list at the row. The page (folia/design/modulseite/konzepte.html, B with the
+// switches of A; owner, 2026-11-19): no jumps to its sections in the sidebar, but „Einplanen" and
+// „Merken" at its top, one over the other, which M presses there, and not in the head; the head
+// with the facts in a row and without „Auf einen Blick"; the list of the Termine and the
+// literature open. The page's two halves end on one line, the times going along with the text.
 // Phone: a tap opens the module's page directly (never the preview), the page has the order of the
 // preview (times and facts, then the description), back returns to the tapped row, and a shared
 // link with a preview becomes the page.
@@ -12,7 +15,9 @@
 // „Einplanen" and „Merken": one pair at the right end of the line of the badges, in the order of
 // the Tab key, side by side or, where the line has no room for that, one over the other beside
 // the badges (a line of their own only on a phone); „Einplanen" keeps its width when pressed; what
-// the plan adds to it shows, and on the module's page the heading is as tall as the server's.
+// the plan adds to it shows, and on the module's page the heading is as tall as the server's. On
+// the module's page on a wide screen they stand at the top of the sidebar instead, one over the
+// other, as wide as it.
 // On a phone (owner, 2026-10-17): the Termine under the week folded, a slot tapped unfolds them and
 // marks its line in sight (the sheet half up going all up), the facts two side by side,
 // „Studiengänge" last with five curricula and „Alle … anzeigen".
@@ -72,18 +77,38 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   await step("full page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/catalog/module/") && onPage(".module-page h2") && onPage("#sidebar"));
   const sidebar = await page.evaluate(() => { const r = onPage("#sidebar").getBoundingClientRect(); return [r.left, r.width, r.top]; });
   check(JSON.stringify(sidebar) === JSON.stringify(filters), `the sidebar is not where the filter panel was: ${sidebar} instead of ${filters}`);
-  check(JSON.stringify(await order(page, ".module-page")) === JSON.stringify(previewOrder), `the page and the preview differ in order: ${await order(page, ".module-page")} / ${previewOrder}`);
+  // The page has the preview's parts in the preview's order; the literature, which the preview
+  // folds, is a section of it.
+  const pageOrder = (await order(page, ".module-page")).filter((label) => label !== "Literatur");
+  check(JSON.stringify(pageOrder) === JSON.stringify(previewOrder), `the page and the preview differ in order: ${pageOrder} / ${previewOrder}`);
   const columns = await page.evaluate(() => { const [side, main] = [onPage(".module-grid > aside"), onPage(".module-grid > div")].map((el) => el.getBoundingClientRect()); return main.left < side.left && Math.abs(main.top - side.top) < 2; });
-  check(columns, "wide page: the description is not on the left of the facts");
+  check(columns, "wide page: the description is not on the left of the Termine");
 
-  // The sidebar lists the sections that exist, and jumps to them without a history entry.
-  const toc = await page.evaluate(() => [...allOnPage(".toc a")].map((a) => [a.textContent, Boolean(onPage(a.getAttribute("href")))]));
-  check(toc.length >= 3 && toc.every(([, exists]) => exists), `the sidebar names sections that are not there: ${JSON.stringify(toc)}`);
-  const entries = await page.evaluate(() => history.length);
-  await page.click('.toc a[href="#studiengaenge"] >> visible=true');
-  await page.waitForTimeout(700);
-  const jumped = await page.evaluate(() => { const top = onPage("#studiengaenge").getBoundingClientRect().top; return top < innerHeight - 40 && location.hash === "" && top >= 0; });
-  check(jumped && (await page.evaluate(() => history.length)) === entries, "the sidebar's jump did not show the section, or left a history entry");
+  // No jumps to the page's sections; „Einplanen" and „Merken" at the top of the sidebar, shown,
+  // and none in the head; the facts in a row under the heading, „Auf einen Blick" not shown; the
+  // list of the Termine open.
+  const shown = (el) => Boolean(el?.getClientRects().length);
+  const seen = await page.evaluate(() => {
+    const shown = (el) => Boolean(el?.getClientRects().length);
+    return {
+      jumps: allOnPage("#sidebar .toc").length,
+      acts: shown(onPage("#sidebar .module-acts .plan-toggle")) && shown(onPage("#sidebar .module-acts .mark-toggle")),
+      first: onPage("#sidebar .body > *")?.classList.contains("module-acts"),
+      head: allOnPage(".module-page > .hero .plan-toggle, .module-page > .hero .mark-toggle").filter(shown).length,
+      facts: allOnPage(".module-page .glance .kz > div").filter(shown).length,
+      glance: shown(onPage(".module-page #blick")),
+      folded: allOnPage(".module-page details.evfold").length,
+      lines: allOnPage(".module-page #termine .ev").filter(shown).length,
+    };
+  });
+  check(seen.jumps === 0 && seen.acts && seen.first && seen.head === 0, `wide page: the sidebar is not „Einplanen" and „Merken" at its top, or the head has them too: ${JSON.stringify(seen)}`);
+  check(seen.facts >= 7 && !seen.glance, `wide page: the facts do not stand in a row in the head: ${JSON.stringify(seen)}`);
+  check(seen.folded === 0 && seen.lines > 0, `wide page: the list of the Termine is folded: ${JSON.stringify(seen)}`);
+  // M marks with the sidebar's switch, and the head's (not shown) says the same.
+  await page.evaluate(() => document.activeElement?.blur());
+  await step("M marks the module", () => page.keyboard.press("m"), () => onPage("#sidebar .module-acts .mark-toggle")?.getAttribute("aria-pressed") === "true" && onPage(".module-page > .hero .mark-toggle")?.getAttribute("aria-pressed") === "true");
+  await step("and M again takes the mark away", () => page.keyboard.press("m"), () => onPage("#sidebar .module-acts .mark-toggle")?.getAttribute("aria-pressed") === "false");
+  void shown;
 
   // The handle of the sidebar is the handle of the filter panel: one width for both.
   const edge = await page.locator('[data-action="resize-filters"] >> visible=true').boundingBox();
@@ -122,11 +147,22 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   const fits = [await along(0), await along(700)];
   check(fits.every((at) => at.even), `wide page: the description and the facts beside it do not end on one line: ${JSON.stringify(fits)}`);
   check(fits[1].room > 700 && fits[1].top === 0, `wide page: the facts do not go along with the text below the bar: ${JSON.stringify(fits)}`);
-  await page.setViewportSize({ width: 1500, height: 480 });
-  await page.waitForTimeout(300);
-  const tall = [await along(0), await along(900)];
-  check(tall[0].top > 100 && tall[1].top < 0 && tall[1].end === 8, `wide page: facts taller than the area do not go up as far as their end shows: ${JSON.stringify(tall)}`);
   await context.close();
+  // Mathematik IT-1 (11112): seven Termine and an exam, a column taller than an area of 480 px.
+  const { page: many, context: manyContext } = await open({ viewport: { width: 1500, height: 480 } }, "/catalog/module/11112");
+  await many.waitForFunction(() => Boolean(onPage(".module-side")), null, { timeout: 15000 }).catch(() => problems.push("wide page: the module's page of 11112 does not show"));
+  const tallAlong = (y) => many.evaluate(async (y) => {
+    const area = document.querySelector("#content > .page-stage.front > .work.flowing");
+    const side = onPage(".module-side");
+    area.scrollTop = y;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const r = (el) => el.getBoundingClientRect();
+    const shows = r(area).top + parseFloat(getComputedStyle(area).paddingTop);
+    return { top: Math.round(r(side).top - shows), end: Math.round(r(area).bottom - r(side).bottom) };
+  }, y);
+  const tall = [await tallAlong(0), await tallAlong(900)];
+  check(tall[0].top > 100 && tall[1].top < 0 && tall[1].end === 8, `wide page: Termine taller than the area do not go up as far as their end shows: ${JSON.stringify(tall)}`);
+  await manyContext.close();
 }
 
 // ---------- exam dates the BTU cannot mean (folia/crates/timetable/src/exam_reading.rs) ----------
@@ -218,6 +254,20 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   const expect = (where, seen, onPhone = false) => check(way(seen) && !(onPhone && way(seen) === "beside") && seen.edge <= 0.5 && seen.tab, `${where}: „Einplanen" and „Merken" stand none of the three ways at the right end${onPhone ? " under the badges" : ""}, in order: ${JSON.stringify(seen)}`);
   const preview = ["#preview", "#preview .dbody .section"];
   const onPage = [".module-page", ".module-grid > aside .section"];
+  // On the module's page on a wide screen: the sidebar's pair, one over the other, 6px apart, each
+  // as wide as the sidebar's group, in the order of the Tab key; the head's not shown.
+  const acts = (page) => page.evaluate(() => {
+    const group = onPage("#sidebar .module-acts .switches");
+    const [plan, mark, box] = [group?.querySelector(".plan-pair"), group?.querySelector(".mark-pair"), group].map((el) => el?.getBoundingClientRect());
+    return plan && mark && {
+      under: mark.top - plan.bottom,
+      wide: Math.abs(plan.width - box.width) + Math.abs(mark.width - box.width),
+      tab: Boolean(group.querySelector(".plan-toggle").compareDocumentPosition(group.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
+      head: [...document.querySelectorAll(".module-page > .hero :is(.plan-toggle, .mark-toggle)")].some((el) => el.getClientRects().length),
+      note: group.querySelector(".plan-toggle > small")?.checkVisibility() ? group.querySelector(".plan-toggle > small").textContent : null,
+    };
+  });
+  const expectActs = (where, seen) => check(seen && Math.abs(seen.under - 6) <= 0.5 && seen.wide <= 0.5 && seen.tab && !seen.head, `${where}: „Einplanen" and „Merken" do not stand one over the other at the top of the sidebar, alone: ${JSON.stringify(seen)}`);
 
   for (const width of [960, 1100, 1500]) {
     const { page, step, context } = await open({ viewport: { width, height: 900 } }, "/catalog?q=datenbanken&open=12330");
@@ -241,8 +291,8 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
       await page.click("#preview .mark-toggle >> visible=true");
       await step("and a second click takes it out", () => page.click("#preview .plan-toggle >> visible=true"), () => onPage("#preview .plan-toggle").getAttribute("aria-pressed") === "false" && !localStorage.getItem("betula.studyplan.v1"));
     }
-    await step("full page", () => page.click('#preview [data-action="fullscreen"] >> visible=true'), () => location.pathname === "/catalog/module/12330" && onPage(".module-page .plan-toggle"));
-    expect(`the module's page at ${width}px`, await pair(page, ...onPage));
+    await step("full page", () => page.click('#preview [data-action="fullscreen"] >> visible=true'), () => location.pathname === "/catalog/module/12330" && onPage("#sidebar .module-acts .plan-toggle"));
+    expectActs(`the module's page at ${width}px`, await acts(page));
     await context.close();
   }
 
@@ -285,14 +335,19 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   for (const [where, options] of [["1000px", { viewport: { width: 1000, height: 900 } }], ["phone", phone]]) {
     const path = "/catalog/module/12330?plan=2026W&fill=p3";
     const { page, context } = await planned(options, path);
-    await page.waitForFunction(() => onPage(".sidebar .plan-toggle small")?.textContent.includes("geplant"), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction(() => onPage(".sidebar .narrow-acts .plan-toggle small")?.textContent.includes("geplant"), null, { timeout: 8000 }).catch(() => {});
     await page.evaluate(() => document.fonts.ready);
-    const seen = await pair(page, ...onPage);
-    expect(`the module's page with a plan (${where})`, seen, where === "phone");
-    const side = await page.evaluate(() => onPage(".sidebar .plan-toggle small")?.textContent);
-    check(side === "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027", `the module's page with a plan (${where}): the sidebar says ${side}`);
-    // The switch's small line, on a phone its second line: where it plans first (the semester the
-    // page means), then the placeholder.
+    const seen = where === "phone" ? await pair(page, ...onPage) : await acts(page);
+    if (where === "phone") {
+      expect(`the module's page with a plan (${where})`, seen, true);
+      // Under the module, the actions as before.
+      const side = await page.evaluate(() => onPage(".sidebar .narrow-acts .plan-toggle small")?.textContent);
+      check(side === "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027", `the module's page with a plan (${where}): the actions under it say ${side}`);
+    } else {
+      expectActs(`the module's page with a plan (${where})`, seen);
+    }
+    // The switch's small line, its second line: where it plans first (the semester the page
+    // means), then the placeholder.
     check((where !== "phone" || seen.below) && seen.note?.startsWith("WiSe 26/27 · für „Fach"), `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);
     const hero = await page.evaluate(() => onPage(".module-page > .hero").getBoundingClientRect().height);
     const before = await server(options, path);
@@ -323,7 +378,7 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   await step("phone: a link to the module's page", () => page.evaluate((id) => { const a = Object.assign(document.createElement("a"), { href: `/catalog/module/${id}` }); document.body.append(a); a.click(); a.remove(); }, id), (id) => location.pathname === `/catalog/module/${id}` && onPage(".module-page h2"), id);
   const phoneOrder = await order(page, ".module-page");
   check(phoneOrder[0] === "Termine" && phoneOrder.indexOf("Auf einen Blick") < phoneOrder.indexOf("Inhalte") , `phone: the page does not start with the times and facts: ${phoneOrder}`);
-  check(await page.evaluate(() => { const side = onPage("#sidebar").getBoundingClientRect(); const article = onPage(".module-page").getBoundingClientRect(); return side.top >= article.bottom - 1 && getComputedStyle(onPage(".toc")).display === "none"; }), "phone: the sidebar is not a block of actions under the module");
+  check(await page.evaluate(() => { const side = onPage("#sidebar").getBoundingClientRect(); const article = onPage(".module-page").getBoundingClientRect(); return side.top >= article.bottom - 1 && Boolean(onPage("#sidebar .narrow-acts")?.getClientRects().length) && !onPage("#sidebar .module-acts")?.getClientRects().length && !onPage(".module-page .glance")?.getClientRects().length; }), "phone: the sidebar is not a block of actions under the module, or the page shows what a wide screen shows");
   // „Zurück" is the box at the head, left of the search (owner, 2026-10-15: „mach den
   // zurückbutton mal überall nach oben neben die suche"); the page's own link steps aside and the
   // way to the profile page gives way.
@@ -433,11 +488,12 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const { page, step, context } = await open(phone, "/catalog?events=yes");
   await page.waitForSelector(".rows a.row >> visible=true", { timeout: 8000 }).catch(() => problems.push("termine: no module with Termine"));
-  // A module whose Termine have a week, as the server's page says.
+  // A module whose Termine have a week, as the server's page says: a slot of it (the module's
+  // whole page shows the list open, since Folia 1.114.0; the sheet folds it).
   const id = await page.evaluate(async () => {
     for (const row of [...allOnPage(".rows a.row")].slice(0, 24)) {
       const html = await (await fetch(`/catalog/module/${row.dataset.id}`)).text();
-      if (html.includes('class="evfold"')) return row.dataset.id;
+      if (html.includes('data-action="termin"')) return row.dataset.id;
     }
     return null;
   });

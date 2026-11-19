@@ -37,6 +37,14 @@
     return [...front.querySelectorAll(selector), ...[...document.querySelectorAll(selector)].filter(offStage)];
   };
   const byId = (id) => find(`[id="${CSS.escape(id)}"]`);
+  // A switch of the module that is open („Merken", „Einplanen", their arrows): on a module's page on
+  // a wide screen the sidebar's, whose head has none there (folia/crates/widgets/src/module.rs
+  // `Sidebar`, app.css „the module's page on a wide screen"), else the one in its head — the
+  // preview's, the page's on a phone. The one shown.
+  const moduleSwitch = (action) => {
+    const selector = `#sidebar .module-acts [data-action="${action}"], .hero [data-action="${action}"]`;
+    return findAll(selector).find((el) => el.getClientRects().length) || find(`.hero [data-action="${action}"]`);
+  };
   const narrow = matchMedia("(max-width: 900px)");
   const phone = () => narrow.matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
@@ -87,6 +95,190 @@
       try { return navigator.clipboard.readText().then((text) => String(text || ""), () => ""); } catch { return Promise.resolve(""); }
     },
   };
+
+  // ---- notifications (docs/folia/frontend.md, „Notifications"; docs/xylem/protocol.md section 5) ----
+  // (owner, 2026-11-19: „mach beides und dann Folias Teil"). Where the site offers them (the
+  // page's `<meta name="betula-push">`: where Xylem answers, empty for `/push/v1/` of this host),
+  // a browser can be told what Betula announces: the exam periods, a semester's turn, the breaks
+  // of the lectures. Switched on in the menu of the profiles (chrome.rs, `Preferences`), kept by
+  // this browser and the same in every profile: a push subscription belongs to a browser, and
+  // Xylem knows no profile.
+  //
+  // - `betula.push.v1` keeps the topics this browser listens to (`exams,semester,breaks`); none:
+  //   off. The subscription itself is the browser's, made with Xylem's key and put to Xylem with
+  //   the page's language and those topics.
+  // - Switching on is a tap's: only then may a page ask for the permission. Switching off always
+  //   works here, with or without a network (a subscription Xylem could not be told of ends at
+  //   the push service, and Xylem forgets it with its next message).
+  // - At a start, at most twice a day and at once after the language changed or where the
+  //   browser has no subscription any more, the subscription is put again: that is how a Xylem
+  //   brought back from a backup, or one that lost its key, has this browser again without
+  //   anybody doing anything.
+  // - `window.betulaPush` for the app: `state()` says it all in one line,
+  //   `<support>;<permission>;<topics>;<busy>;<error>` (support `yes`, `install`: an iPhone or
+  //   iPad, where only the app on the home screen may ask, `no`; empty where the site offers no
+  //   notifications), `set(topics)` puts a choice. Each change is told to the page
+  //   (`betula:push`). The menu's buttons are handled below (`push-set`, `push-topic`).
+  const PUSH_KEY = "betula.push.v1";
+  const PUSH_SEEN_KEY = "betula.push.seen.v1";
+  const PUSH_TOPICS = ["exams", "semester", "breaks"];
+  const PUSH_AGAIN = 12 * 3600 * 1000;
+  // What the service worker reads when the browser replaces the subscription by itself
+  // (`pushsubscriptionchange`, sw.js): a cache no build drops, one small answer in it.
+  const PUSH_CACHE = "betula-push";
+  const PUSH_SETTINGS = "/push-settings";
+  const pushMeta = document.querySelector('meta[name="betula-push"]');
+  const pushBase = pushMeta ? pushMeta.content.trim() || "/push/v1/" : null;
+  const pushCan = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  // `navigator.standalone` exists on iOS alone, and is false in Safari's own tab.
+  const pushNeedsApp = !pushCan && navigator.standalone === false;
+  let pushBusy = false;
+  let pushError = "";
+  const pushKept = () => {
+    try { return (localStorage.getItem(PUSH_KEY) || "").split(",").filter((topic) => PUSH_TOPICS.includes(topic)); } catch { return []; }
+  };
+  const pushKeep = (topics) => {
+    try { if (topics.length) localStorage.setItem(PUSH_KEY, topics.join(",")); else localStorage.removeItem(PUSH_KEY); } catch {}
+  };
+  const pushTell = () => dispatchEvent(new Event("betula:push"));
+  const pushLang = () => (root.lang || "de").toLowerCase();
+  class PushError extends Error {
+    constructor(code) { super(code); this.code = code; }
+  }
+  // One request to Xylem; what it answered, or a PushError: `network` where nothing answered,
+  // `service` for a browser whose push service Xylem does not write to, `full`, `later`, `failed`.
+  const pushCall = async (method, path, body) => {
+    let response;
+    try {
+      response = await fetch(pushBase + path, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+        cache: "no-store",
+        credentials: "omit",
+      });
+    } catch {
+      throw new PushError("network");
+    }
+    if (response.ok) return response.status === 204 ? null : response.json().catch(() => null);
+    const answer = await response.json().catch(() => null);
+    const code = answer && answer.error;
+    throw new PushError(code === "endpoint" ? "service" : code === "full" ? "full" : response.status === 429 ? "later" : response.status >= 500 ? "network" : "failed");
+  };
+  const pushBytes = (text) => {
+    const raw = atob(String(text).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  };
+  const pushSameKey = (buffer, key) => {
+    if (!buffer) return false;
+    const have = new Uint8Array(buffer);
+    return have.length === key.length && have.every((byte, i) => byte === key[i]);
+  };
+  // The service worker in charge; a page whose worker never came (a browser that refused it)
+  // does not wait for ever.
+  const pushRegistration = () => Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) => setTimeout(() => reject(new PushError("failed")), 10000)),
+  ]);
+  // This browser's subscription with Xylem's key: the one it has, or a new one. One made with
+  // another key (a Xylem that lost its database) is given up for a new one.
+  const pushSubscription = async () => {
+    const registration = await pushRegistration();
+    const answer = await pushCall("GET", "key");
+    const key = pushBytes((answer && answer.key) || "");
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription && !pushSameKey(subscription.options && subscription.options.applicationServerKey, key)) {
+      await subscription.unsubscribe().catch(() => {});
+      subscription = null;
+    }
+    return subscription || registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  };
+  const pushRemember = async (topics) => {
+    try { localStorage.setItem(PUSH_SEEN_KEY, JSON.stringify({ at: Date.now(), lang: pushLang() })); } catch {}
+    try {
+      const cache = await caches.open(PUSH_CACHE);
+      if (topics.length) await cache.put(PUSH_SETTINGS, new Response(JSON.stringify({ base: new URL(pushBase, location.href).href, lang: pushLang(), topics })));
+      else await cache.delete(PUSH_SETTINGS);
+    } catch {}
+  };
+  const pushPut = async (topics) => {
+    const subscription = await pushSubscription();
+    await pushCall("PUT", "subscription", { ...subscription.toJSON(), lang: pushLang(), topics });
+    await pushRemember(topics);
+  };
+  const pushOff = async () => {
+    await pushRemember([]);
+    try { localStorage.removeItem(PUSH_SEEN_KEY); } catch {}
+    if (!pushCan) return;
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = registration && (await registration.pushManager.getSubscription());
+    if (!subscription) return;
+    await pushCall("DELETE", "subscription", { endpoint: subscription.endpoint }).catch(() => {});
+    await subscription.unsubscribe().catch(() => {});
+  };
+  // Puts a choice of topics: none switches the notifications off. From a tap where it switches
+  // them on, since the permission is asked for here, before anything is awaited.
+  const pushSet = async (wanted) => {
+    const topics = PUSH_TOPICS.filter((topic) => (wanted || []).includes(topic));
+    if (pushBase === null || pushBusy) return;
+    pushBusy = true;
+    pushError = "";
+    pushTell();
+    try {
+      if (!topics.length) {
+        pushKeep([]);
+        await pushOff();
+      } else {
+        if (!pushCan) throw new PushError(pushNeedsApp ? "install" : "unsupported");
+        const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+        if (permission !== "granted") throw new PushError(permission === "denied" ? "denied" : "dismissed");
+        // Kept first: a choice that could not be sent now (no network) is sent at the next start.
+        pushKeep(topics);
+        await pushPut(topics);
+      }
+    } catch (error) {
+      pushError = (error && error.code) || (error && error.name === "NotAllowedError" ? "denied" : "failed");
+      // What is kept and was not sent is sent at the next start, not half a day later.
+      try { localStorage.removeItem(PUSH_SEEN_KEY); } catch {}
+      // A browser Xylem cannot write to listens to nothing, whatever was chosen.
+      if (pushError === "service") {
+        pushKeep([]);
+        await pushOff().catch(() => {});
+      }
+    }
+    pushBusy = false;
+    pushTell();
+  };
+  window.betulaPush = {
+    state: () => (pushBase === null ? "" : [pushCan ? "yes" : pushNeedsApp ? "install" : "no", pushCan ? Notification.permission : "default", pushKept().join(","), pushBusy ? "1" : "0", pushError].join(";")),
+    set: pushSet,
+  };
+  addEventListener("storage", (e) => {
+    if (e.key === PUSH_KEY || e.key === null) pushTell();
+  });
+  // At a start: the subscription put again where this browser listens (see above), once the page
+  // has had its first seconds to itself.
+  if (pushBase !== null && pushCan) {
+    setTimeout(async () => {
+      const topics = pushKept();
+      if (!topics.length || Notification.permission !== "granted" || pushBusy) return;
+      let seen = null;
+      try { seen = JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || "null"); } catch {}
+      // A browser that lost its subscription (its data cleared in part) gets a new one now.
+      const registration = await navigator.serviceWorker.getRegistration().catch(() => null);
+      const subscribed = registration ? await registration.pushManager.getSubscription().catch(() => null) : null;
+      if (subscribed && seen && seen.lang === pushLang() && Date.now() - seen.at < PUSH_AGAIN) return;
+      try {
+        await pushPut(topics);
+      } catch (error) {
+        if (error && error.code === "service") {
+          pushKeep([]);
+          pushError = "service";
+          pushTell();
+        }
+      }
+    }, 5000);
+  }
 
   // ---- vibrations: what the hand feels (docs/folia/frontend.md, „Vibrations") ----
   // (owner, 2026-11-17: „ich möchte dass in der ganzen app vibrations richtig umgesetzt werden und
@@ -2753,9 +2945,10 @@
       if (href !== link.getAttribute("href")) link.setAttribute("href", href);
     }
   };
-  // Light or dark (`theme`: what the switch in the rail chose), or the system's (`system`): on the
-  // document at once, kept for the next page (the head script applies it before the first paint),
-  // the browser's own chrome with it, and told to the page (`betula:theme`), whose choice shows it.
+  // Light or dark (`theme`: what the menu of the profiles or „Befehle“ chose), or the system's
+  // (`system`): on the document at once, kept for the next page (the head script applies it before
+  // the first paint), the browser's own chrome with it, and told to the page (`betula:theme`), whose
+  // choice shows it.
   const setTheme = (theme) => {
     const chosen = theme === "light" || theme === "dark" ? theme : null;
     if (chosen) root.dataset.theme = chosen;
@@ -2781,13 +2974,8 @@
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
     switch (target?.dataset.action) {
-      case "theme": {
-        const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-        setTheme(dark ? "light" : "dark");
-        break;
-      }
       case "theme-set":
-        // Light, dark or the system's, as the profile page offers them (folia/crates/profile).
+        // Light, dark or the system's, as the menu of the profiles offers them (chrome.rs `Preferences`).
         setTheme(target.dataset.themeValue);
         break;
       case "letters-set":
@@ -2796,6 +2984,19 @@
       case "haptics-set":
         setHaptics(target.dataset.hapticsValue !== "off");
         break;
+      case "push-set": {
+        // The switch: on with what was chosen before, else with every topic; or off.
+        const kept = pushKept();
+        pushSet(target.dataset.pushValue === "off" ? [] : kept.length ? kept : PUSH_TOPICS);
+        break;
+      }
+      case "push-topic": {
+        // One topic ticked or unticked; the last one unticked switches the notifications off.
+        const topic = target.dataset.pushTopic;
+        const kept = pushKept();
+        pushSet(kept.includes(topic) ? kept.filter((other) => other !== topic) : [...kept, topic]);
+        break;
+      }
       case "sheet-open":
         e.preventDefault();
         openSheet();
@@ -4644,12 +4845,12 @@
         if (find('.wait-note [data-action="collect"]')) return;
         const bar = find('.pick-bar [data-action="collect"]');
         const row = el.closest?.(".row-wrap");
-        const more = bar || (row ? row.querySelector('[data-action="collect"]') : find('.hero [data-action="collect"]'));
+        const more = bar || (row ? row.querySelector('[data-action="collect"]') : moduleSwitch("collect"));
         if (more) { e.preventDefault(); more.click(); }
         return;
       }
       const row = el.closest?.(".row-wrap");
-      const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
+      const mark = row ? row.querySelector('[data-action="mark"]') : moduleSwitch("mark");
       if (mark) { e.preventDefault(); mark.click(); }
       return;
     }
@@ -4661,7 +4862,7 @@
       // arrow (folia/design/tasten/konzept.html): planned, the menu of what is planned
       // (planmenu.rs), else „Einplanen in …" (planinto.rs); P as such where there is no arrow.
       const row = el.closest?.(".row-wrap");
-      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
+      const plan = row && !row.querySelector('[aria-current="true"]') ? null : moduleSwitch("plan");
       const more = e.shiftKey && plan?.closest(".plan-pair")?.querySelector('[data-action="plan-more"]');
       // The arrow has the focus, as after a click on it: the menu gives it back there.
       if (more) { e.preventDefault(); more.focus({ preventScroll: true }); more.click(); }

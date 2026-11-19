@@ -10,8 +10,8 @@
 // at the rail's way (a mouse resting on it: the profiles, „Neues Profil“, the way to the page and
 // „Geräte" where the site offers Betula Sync, the other language, the legal pages; a profile chosen;
 // a right click: the focus on the active profile, a choice with the keyboard, Esc; „Neues Profil“'s
-// field holds the menu, Esc leaves the field first); light, dark or the system's in the menu (with
-// the switch of the rail); a profile kept as a file („Daten") and made again of it, and a file that is none; „Mein Studiengang" of the active profile read
+// field holds the menu, Esc leaves the field first); light, dark or the system's in the menu (kept
+// when it opens again; the rail has no switch of its own); a profile kept as a file („Daten") and made again of it, and a file that is none; „Mein Studiengang" of the active profile read
 // by the script in <head>. Privacy: no request carries a profile's name or a mark, and none leaves
 // the site. Phone: the way to the page a box at the right of the search, as high as it, and none on
 // the start page's brand line; a finger held on it opens the menu (the release goes nowhere), a
@@ -217,7 +217,8 @@ const mark = async (page, id) => {
   await page.keyboard.press("Escape");
   check(await page.evaluate(() => !onPage(".profile-menu")), "the second Esc does not close the menu of the profiles");
 
-  // Light, dark, the system's in the menu of the profiles, which stays open; and the switch of the rail.
+  // Light, dark, the system's in the menu of the profiles, which stays open and shows the choice when
+  // it opens again; the rail has no switch of its own any more.
   const theme = () => page.evaluate(() => ({ data: document.documentElement.dataset.theme ?? null, stored: localStorage.getItem("betula.theme"), checked: onPage('.profile-menu .pm-seg [aria-checked="true"][data-theme-value]')?.dataset.themeValue }));
   const openMenu = async () => {
     await page.click(".rail .profile-btn >> visible=true");
@@ -232,9 +233,12 @@ const mark = async (page, id) => {
   const manifest = () => page.evaluate(() => onPage("link[rel=manifest]").getAttribute("href"));
   check((await manifest()) === "/manifest-dark.webmanifest", `the page names ${await manifest()} in the dark`);
   await page.keyboard.press("Escape");
-  await page.click(".rail .theme-toggle >> visible=true");
+  check(await page.evaluate(() => !document.querySelector('.rail .theme-toggle, .rail [data-action="theme"], .rail [data-action="theme-set"]')), "the rail still has a switch between light and dark");
   await openMenu();
-  check(JSON.stringify(await theme()) === JSON.stringify({ data: "light", stored: "light", checked: "light" }), `the switch of the rail: ${JSON.stringify(await theme())}`);
+  check(JSON.stringify(await theme()) === JSON.stringify({ data: "dark", stored: "dark", checked: "dark" }), `the menu opened again: ${JSON.stringify(await theme())}`);
+  await page.click('.profile-menu [data-theme-value="light"] >> visible=true');
+  await page.waitForTimeout(100);
+  check(JSON.stringify(await theme()) === JSON.stringify({ data: "light", stored: "light", checked: "light" }), `„Hell“: ${JSON.stringify(await theme())}`);
   check((await manifest()) === "/manifest.webmanifest", `the page names ${await manifest()} in the light`);
   await page.click('.profile-menu [data-theme-value="system"] >> visible=true');
   await page.waitForTimeout(100);

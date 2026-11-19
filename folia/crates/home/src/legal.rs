@@ -44,6 +44,17 @@
 //!   the address that stays current (`folia/crates/server/src/parts.rs`, no line of the access log:
 //!   deploy/README.md section 15), what the file holds beyond the feed (the notes at Termine,
 //!   `folia_timetable::export`);
+//! - „Benachrichtigungen" (2026-11-19, with Folia's part of them): what Xylem keeps of a browser
+//!   that switched them on (its endpoint at the browser's push service, its two keys, a language,
+//!   topics, when it came; docs/xylem/protocol.md section 2, `xylem/internal/store/migrations`),
+//!   that a message is sealed for the browser and carried by the browser's own push service
+//!   (Google's, Mozilla's, Apple's or Microsoft's: the ones Xylem writes to,
+//!   `xylem/internal/server/endpoint.go`), that Xylem holds no address beyond its hourly counts
+//!   per address and logs nothing of a subscription (docs/xylem/xylem.md, „Limits", „Numbers and
+//!   logs"), that the browser puts its subscription again at most twice a day
+//!   (`assets/enhance.js`, `PUSH_AGAIN`), what ends a subscription, and that `xylem.db` is part of
+//!   the host's daily backup (deploy/README.md section 17); the menu's row is where they are
+//!   switched (`folia_shell::chrome`, `PushRow`);
 //! - „Wo Betula läuft", „Zugriffsprotokoll": the edge's access log (`deploy/stacks/edge.yml`,
 //!   „privacy"), 7 days in Loki (`deploy/config/monitoring/loki.yml`) and 7 days in the host
 //!   journal, where Traefik logs through the journald driver (`logging` in `edge.yml`,
@@ -91,7 +102,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (18, 11, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (19, 11, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).
@@ -171,13 +182,14 @@ static IMPRINT: [Part; 3] = [
 
 /// The parts of the privacy notice, in the order of the page: what stays on the device, what
 /// leaves it where the student says so, what the server keeps to run, and the rest.
-pub static PRIVACY: [Part; 13] = [
+pub static PRIVACY: [Part; 14] = [
     Part { id: "summary", was: &["kurz"], heading: |t| t.summary.heading, body: privacy_summary },
     Part { id: "controller", was: &["verantwortlich"], heading: |t| t.controller.heading, body: privacy_controller },
     Part { id: "local-data", was: &["browser"], heading: |t| t.local.heading, body: privacy_local },
     Part { id: "sync", was: &["abgleich"], heading: |t| t.sync.heading, body: privacy_sync },
     Part { id: "sharing", was: &["teilen"], heading: |t| t.share.heading, body: privacy_share },
     Part { id: "calendar", was: &["kalender"], heading: |t| t.calendar.heading, body: privacy_calendar },
+    Part { id: "notifications", was: &[], heading: |t| t.push.heading, body: privacy_push },
     Part { id: "hosting", was: &["server"], heading: |t| t.hosting.heading, body: privacy_hosting },
     Part { id: "access-log", was: &["protokoll"], heading: |t| t.access_log.heading, body: privacy_access_log },
     Part { id: "cookies", was: &[], heading: |t| t.cookies.heading, body: privacy_cookies },
@@ -415,6 +427,29 @@ fn privacy_calendar(t: &'static Texts) -> AnyView {
     .into_any()
 }
 
+fn privacy_push(t: &'static Texts) -> AnyView {
+    let (facts, push) = (&t.facts, &t.push);
+    view! {
+        <p>{push.intro}</p>
+        <dl class="legal-facts">
+            <div>
+                <dt>{facts.data}</dt>
+                <dd>
+                    {points(push.data)}
+                    <p>{push.not_known}</p>
+                </dd>
+            </div>
+            {fact(facts.course, push.course)}
+            {fact(facts.logs, push.logs)}
+            {fact(facts.legal_basis, push.legal_basis)}
+            {fact(facts.disclosure, push.disclosure)}
+            {fact(facts.retention, push.retention)}
+            {fact(facts.ending, push.ending)}
+        </dl>
+    }
+    .into_any()
+}
+
 fn privacy_hosting(t: &'static Texts) -> AnyView {
     paragraphs(t.hosting.texts)
 }
@@ -523,8 +558,8 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 18. November 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 18 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 19. November 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 19 November 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
         // What Betula is built to do with data comes first: as little as possible, in a profile
         // on the device.
         assert!(de.contains("Betula erhebt so wenig Daten wie möglich") && de.contains("Dein Profil liegt auf deinem Gerät."), "{de}");
@@ -532,6 +567,10 @@ mod tests {
         // Betula Sync: what its service keeps of a profile, and that it can open none of it.
         assert!(de.contains("id=\"sync\"") && de.contains("öffnen kann er sie nicht") && de.contains("13 Monate"), "{de}");
         assert!(en.contains("id=\"sync\"") && en.contains("it cannot open them"), "{en}");
+        // Notifications: what Betula's service keeps of a browser, that it does not know whose it
+        // is, and whose push service carries a message.
+        assert!(de.contains("id=\"notifications\"") && de.contains("Wem ein Browser gehört, weiß der Dienst nicht") && de.contains("Google, Mozilla, Apple oder Microsoft"), "{de}");
+        assert!(en.contains("id=\"notifications\"") && en.contains("The service does not know whose browser it is"), "{en}");
         // What the codes of a subscription and of a shared link carry, as they carry it.
         assert!(de.contains("deine Änderungen an Terminen aus QIS: Tag, Zeit und den Raum, den du eingibst") && de.contains("deine Notizen und deine eigenen Termine enthält er nicht"), "{de}");
         assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");

@@ -25,7 +25,7 @@
 # packet they count (rule "Xylem: its firewall drops connections"). Drops by a chain's policy
 # would be invisible to it: the policy is only the backstop behind the last rule.
 #
-# Two drops are not counted, on purpose, since neither is anyone trying anything:
+# Three drops are not counted, on purpose, since none of them is anyone trying anything:
 #   - `xylem start`'s own check that the firewall holds: one datagram to 192.0.2.1 port 9 (an
 #     address of the documentation range, RFC 5737: nobody's), sent as root before it drops its
 #     rights (meta skuid 0: the uid that made the socket). Counted, every start (a reboot at
@@ -33,6 +33,17 @@
 #     65532, the same datagram is counted below.
 #   - packets conntrack cannot place (ct state invalid): late segments of a connection it let go
 #     already, which happen now and then in any normal traffic.
+#   - IPv6's neighbour discovery (ICMPv6: router and neighbour solicitations and advertisements,
+#     redirects, multicast listener queries and reports), which the kernels on a link send by
+#     themselves. <stack>_out leads out over docker_gwbridge, which has IPv6 since 2026-11
+#     (deploy/README.md section 15, "IPv6 to Traefik"), so the container has an address on it,
+#     and its kernel asks for a router once an hour for as long as none answers (RFC 7559:
+#     router_solicitations -1, router_solicitation_max_interval 3600). Counted, that set off
+#     Phloem's alarm every hour, whose container is on the bridge the same way (2026-11-12 to
+#     11-19; phloem/deploy/firewall.nft). No process sends them: one without capabilities can
+#     open no socket that sends neighbour discovery, and whatever Xylem itself could send over
+#     IPv6 (TCP, UDP, a ping) meets the counting rule after them before any neighbour is asked
+#     for.
 #
 # Docker's NAT rewrites port 53 of its resolver to the one it listens on before this table sees
 # the packet (nat comes before filter), so the rules ask conntrack for the port it was sent to.
@@ -56,6 +67,7 @@ table inet xylem {
 
 	chain input {
 		type filter hook input priority filter; policy drop;
+		icmpv6 type { mld-listener-query, mld-listener-report, mld-listener-done, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, nd-redirect, mld2-listener-report } drop comment "IPv6 neighbour discovery, the kernels' own: noise, not counted"
 		meta nfproto ipv6 counter drop comment "IPv6: none, either way"
 		ct state established,related accept
 		ct state invalid drop comment "late packets conntrack cannot place: noise, not counted"
@@ -67,6 +79,7 @@ table inet xylem {
 
 	chain output {
 		type filter hook output priority filter; policy drop;
+		icmpv6 type { mld-listener-query, mld-listener-report, mld-listener-done, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, nd-redirect, mld2-listener-report } drop comment "IPv6 neighbour discovery, the kernel's own: noise, not counted"
 		meta nfproto ipv6 counter drop comment "IPv6: none, either way"
 		ct state established,related accept
 		ct state invalid drop comment "late packets conntrack cannot place: noise, not counted"
