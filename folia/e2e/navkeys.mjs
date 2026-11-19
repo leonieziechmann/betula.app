@@ -5,7 +5,8 @@
 // goes to the tab of the navigation, 1 the start page to 5 the Stundenplan, without a page load and
 // from the search as well; pressed, the keys show at once in full at the rail's tabs (owner, the
 // same day: „zeig ruhig die shortcuts gleich an … und zeig mal die volle kombo. Also "alt + 1""),
-// in the words of the system and the language, and let go they go; a key or the mouse with them,
+// in the words of the system and the language, the rail meanwhile over the crown's leaves and over a
+// page held in front while it loads, and let go they go; a key or the mouse with them,
 // and nothing shows; an Alt held for them opens no menu of the browser, a tapped one keeps its
 // own; Ctrl alone, Ctrl+C, S, P, Ctrl or Alt
 // and a digit where they are the browser's, and AltGr (Ctrl and Alt on Windows) do nothing and
@@ -111,6 +112,25 @@ const stays = async (page, label, modifiers, digit) => {
   });
   await clearKeys(page);
   check(!(await state(page)).shown, `${label}: the digits stay after the keys are let go`);
+  // Held, the rail stands over all of the page (app.css, „The navigation's keys"; owner, 2026-11-19):
+  // the crown's leaves stay under its logo, and a page held in front while it loads (a skeleton, as
+  // skeleton.rs puts one) under the keys' labels.
+  await holding(page, ["Control", "Alt"], async () => {
+    await page.waitForTimeout(MOMENT_MS);
+    const layers = await page.evaluate(() => {
+      const z = (el) => Number(getComputedStyle(el).zIndex) || 0;
+      const skeleton = document.createElement("div");
+      skeleton.className = "pending-page";
+      document.querySelector("#content").append(skeleton);
+      const key = [...document.querySelectorAll(".rail .nav-key")].find((one) => one.getClientRects().length);
+      const r = key?.getBoundingClientRect();
+      const there = r ? document.elementFromPoint(r.right - 4, r.top + r.height / 2) : null;
+      const out = { rail: z(document.querySelector(".rail")), crown: z(document.querySelector(".crown")), skeleton: z(skeleton), labelOnTop: !!key && (there === key || key.contains(there)) };
+      skeleton.remove();
+      return out;
+    });
+    check(layers.rail > layers.crown && layers.rail > layers.skeleton && layers.labelOnTop, `${label}: held, the rail is not over the leaves and a skeleton: ${JSON.stringify(layers)}`);
+  });
   // Another key with them: nothing while they are held.
   await holding(page, ["Control", "Alt"], async () => {
     await page.keyboard.press("KeyX");
