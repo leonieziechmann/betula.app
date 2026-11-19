@@ -1900,6 +1900,13 @@ async fn a_trap_pauses_the_address_that_springs_it() {
         assert!(group.lines().any(|line| line == "Disallow: /api/" || line == "Disallow: /"), "a crawler that keeps to robots.txt never meets a trap: {group}");
     }
 
+    // No page of the site is a trap, whatever a program or a module is called: every address of
+    // the sitemap is checked.
+    let sitemap = String::from_utf8(request(&router, "/sitemap.xml", &[]).await.2).unwrap();
+    let pages: Vec<&str> = sitemap.split("<loc>https://catalog.example").skip(1).filter_map(|rest| rest.split("</loc>").next()).collect();
+    let traps: Vec<&&str> = pages.iter().filter(|page| crate::trap::bait(page.split(['?', '#']).next().unwrap_or_default()).is_some()).collect();
+    assert!(pages.len() > 1000 && traps.is_empty(), "{} pages of the sitemap, traps among them: {traps:?}", pages.len());
+
     // Sprung: the answer says why, how long and how a person goes on, and nobody keeps it.
     let (status, headers, body) = request(&router, TRAP_LINK, &from("203.0.113.7")).await;
     let html = String::from_utf8(body).unwrap();

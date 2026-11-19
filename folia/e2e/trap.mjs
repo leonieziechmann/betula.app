@@ -7,9 +7,18 @@
 // visitors. Folia answers without Traefik here, so the check says where it comes from as Traefik
 // would (`X-Forwarded-For`); the addresses are the documentation's, and each pause is ended again.
 //   node trap.mjs [base-url]      (SMOKE_BROWSER_CHANNEL=msedge by default)
+// Only against a Folia of one's own, never against canary or the site: behind Traefik the address
+// that is paused is the real one the check comes from, and where requests leave through a pool
+// of addresses (a cloud session's way out) the button's request leaves from another one than the
+// trap's did: the pause stays, for an hour, for everybody who shares that pool (2026-11-19: it
+// took some eighty presses to end one). The check refuses such an address.
 import { chromium } from "playwright-core";
 
 const base = (process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
+if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(base).hostname)) {
+  console.error(`${base} is not a Folia of this machine: the traps are checked against a local one only (see the head of this file)`);
+  process.exit(2);
+}
 const LINK = "/api/trap/modules";
 const IN_SCRIPT = "/api/trap/catalog.db";
 const RELEASE = "/api/trap/release";

@@ -13,6 +13,10 @@
 //!   path traversal, the same list the dashboard „Security" counts as scanner probes
 //!   (`deploy/config/monitoring/loki-rules/fake/security.yml`).
 //!
+//! Under the addresses where a code of random letters travels (`/calendar/`, `/cards/`) nothing is
+//! a probe: a subscription must never look like one. And no page of the sitemap is a trap (a
+//! test of the server walks it).
+//!
 //! The first two lie under `/api/trap/`, and `robots.txt` has kept every crawler out of `/api/`
 //! since before there were traps: a search engine that keeps to it never comes here.
 //!
@@ -83,6 +87,13 @@ pub enum Bait {
 pub fn bait(path: &str) -> Option<Bait> {
     if path.starts_with(TRAP_PREFIX) {
         return Some(Bait::Laid);
+    }
+    // Where a code of random letters travels (a calendar subscription, the card of a shared
+    // plan), nothing is a probe: one code in some ten thousands begins with „wp-", and a
+    // subscription must never break, nor pause the calendar service that fetches it.
+    let own = folia_locale::Locale::split(path).1;
+    if own.starts_with(folia_calendar::subscription::CALENDAR_PREFIX) || own.starts_with("/cards/") {
+        return None;
     }
     let lower = path.to_ascii_lowercase();
     PROBES.iter().any(|probe| lower.contains(probe)).then_some(Bait::Probe)
@@ -349,6 +360,11 @@ mod tests {
         ] {
             assert_eq!(bait(path), None, "{path}");
         }
+        // A code of random letters is never a probe, whatever it happens to spell.
+        for path in ["/calendar/wp-Abc123.ics", "/calendar/s/WP-xyz_solr.ics", "/en/calendar/wp-Abc123.ics", "/cards/studyplan/wp-Abc.png", "/en/cards/studyplan/solrX.png", "/calendar/backupQ.ics"] {
+            assert_eq!(bait(path), None, "{path}");
+        }
+        assert_eq!(bait("/calendar.php"), Some(Bait::Probe));
         for address in [folia_routes::url::TRAP_LINK, folia_routes::url::TRAP_IN_SCRIPT, TRAP_RELEASE] {
             assert!(address.starts_with(TRAP_PREFIX) && address.starts_with("/api/"), "{address}: under what robots.txt keeps crawlers out of");
         }
