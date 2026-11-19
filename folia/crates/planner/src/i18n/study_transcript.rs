@@ -15,9 +15,11 @@ pub struct Texts {
     pub read_here: &'static str,
 
     // What it does, before a file is picked.
-    /// The line under the title, and what Betula does with the Notenübersicht.
+    /// The line under the title; what Betula does with the Notenübersicht, a line in bold and what
+    /// it takes over under it.
     pub intro_sub: &'static str,
     pub intro_lead: &'static str,
+    pub intro_what: &'static str,
     /// The three steps: download it (with the way to the BTU's Online-Portal), pick it, check it.
     pub step_download: &'static str,
     pub step_download_line: &'static str,
@@ -26,9 +28,12 @@ pub struct Texts {
     pub step_pick_line: &'static str,
     pub step_check: &'static str,
     pub step_check_line: &'static str,
-    /// That the file stays on the device.
+    /// That the file stays on the device, in three points: read here, nothing sent or kept, nothing
+    /// about the student.
     pub stays_title: &'static str,
-    pub stays_line: &'static str,
+    pub stays_here: &'static str,
+    pub stays_sent: &'static str,
+    pub stays_grades: &'static str,
     /// The button that opens the file picker.
     pub pick: &'static str,
 
@@ -63,6 +68,11 @@ pub struct Texts {
     pub n_passed: fn(usize) -> String,
     pub n_failed: fn(usize) -> String,
     pub n_registered: fn(usize) -> String,
+    /// What was read as a strip (a module's mark and their number over these words), and its name.
+    pub tally_label: &'static str,
+    pub tally_passed: &'static str,
+    pub tally_failed: &'static str,
+    pub tally_registered: &'static str,
     /// What taking them over changes: „12 neu", „8 schon so", „3 verschoben".
     pub n_new: fn(usize) -> String,
     pub n_kept: fn(usize) -> String,
@@ -112,16 +122,19 @@ pub const DE: Texts = Texts {
     read_here: "Auf diesem Gerät gelesen · die Datei ist schon wieder vergessen",
 
     intro_sub: "Dein Studium in einem Schritt",
-    intro_lead: "Betula liest aus der PDF deiner Notenübersicht deinen Studiengang und deine Module: was du bestanden hast, was nicht und wofür du angemeldet bist. Damit füllt es „Mein Studium“.",
+    intro_lead: "Aus der PDF direkt in dein Studium",
+    intro_what: "Studiengang und Module mit ihrem Stand: bestanden, nicht bestanden, angemeldet.",
     step_download: "Notenübersicht herunterladen",
-    step_download_line: "Im Online-Portal der BTU mit deinem BTU-Account, als PDF.",
+    step_download_line: "Im Online-Portal der BTU, als PDF.",
     portal: "Zum Online-Portal",
     step_pick: "Hier auswählen",
-    step_pick_line: "Betula liest sie in deinem Browser, in ein paar Sekunden.",
+    step_pick_line: "Betula liest sie in ein paar Sekunden.",
     step_check: "Prüfen und übernehmen",
-    step_check_line: "Du siehst jedes Modul, bevor sich in deinem Studium etwas ändert.",
-    stays_title: "Die Datei bleibt bei dir.",
-    stays_line: "Sie wird nur hier im Browser gelesen, nicht hochgeladen, nicht gespeichert und danach vergessen. Noten und Angaben über dich liest Betula nicht.",
+    step_check_line: "Nichts ändert sich, bevor du übernimmst.",
+    stays_title: "Die Datei bleibt bei dir",
+    stays_here: "Nur hier im Browser gelesen",
+    stays_sent: "Nicht hochgeladen, nicht gespeichert",
+    stays_grades: "Keine Noten, nichts über dich",
     pick: "Notenübersicht auswählen",
 
     reading_sub: "Nur hier in deinem Browser",
@@ -146,6 +159,10 @@ pub const DE: Texts = Texts {
     n_passed: |n| format!("{n} bestanden"),
     n_failed: |n| format!("{n} nicht bestanden"),
     n_registered: |n| format!("{n} angemeldet"),
+    tally_label: "Gelesen",
+    tally_passed: "bestanden",
+    tally_failed: "nicht bestanden",
+    tally_registered: "angemeldet",
     n_new: |n| format!("{n} neu"),
     n_kept: |n| format!("{n} schon so"),
     n_moved: |n| if n == 1 { "1 verschoben".to_string() } else { format!("{n} verschoben") },
@@ -189,16 +206,19 @@ pub const EN: Texts = Texts {
     read_here: "Read on this device · the file is already forgotten",
 
     intro_sub: "Your studies in one step",
-    intro_lead: "Betula reads your programme and your modules from the PDF of your transcript: what you passed, what you did not pass and what you are registered for. With them it fills “My studies”.",
+    intro_lead: "From the PDF straight into your studies",
+    intro_what: "Your programme and modules with where they stand: passed, not passed, registered.",
     step_download: "Download your transcript",
-    step_download_line: "In the BTU's Online-Portal with your BTU account, as a PDF.",
+    step_download_line: "In the BTU's Online-Portal, as a PDF.",
     portal: "To the Online-Portal",
     step_pick: "Choose it here",
-    step_pick_line: "Betula reads it in your browser, in a few seconds.",
+    step_pick_line: "Betula reads it in a few seconds.",
     step_check: "Check and take over",
-    step_check_line: "You see every module before anything in your studies changes.",
-    stays_title: "The file stays with you.",
-    stays_line: "It is read here in your browser only, not uploaded, not stored and forgotten afterwards. Betula does not read grades or anything about you.",
+    step_check_line: "Nothing changes before you take it over.",
+    stays_title: "The file stays with you",
+    stays_here: "Read here in your browser only",
+    stays_sent: "Not uploaded, not stored",
+    stays_grades: "No grades, nothing about you",
     pick: "Choose transcript",
 
     reading_sub: "Only here in your browser",
@@ -223,6 +243,10 @@ pub const EN: Texts = Texts {
     n_passed: |n| format!("{n} passed"),
     n_failed: |n| format!("{n} not passed"),
     n_registered: |n| format!("{n} registered"),
+    tally_label: "Read",
+    tally_passed: "passed",
+    tally_failed: "not passed",
+    tally_registered: "registered",
     n_new: |n| format!("{n} new"),
     n_kept: |n| format!("{n} already so"),
     n_moved: |n| format!("{n} moved"),

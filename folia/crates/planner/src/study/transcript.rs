@@ -218,31 +218,50 @@ pub(super) fn TranscriptDialog(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// What it does: Betula reads the PDF here, in the browser, and fills the study from it; where the
-/// PDF comes from, with the way to the BTU's Online-Portal; that the file stays on the device.
+/// PDF comes from, with the way to the BTU's Online-Portal; that the file stays on the device. Each
+/// part at a glance, an icon to each and little to read (owner, 2026-11-19: „mach mal den modal
+/// weniger wie eine wall of text durch bessere visuelle Hierarchie und Icons"): the PDF going into
+/// „Mein Studium" with a line in bold, the three steps on a line of their own, and three points.
 #[component]
 fn Intro(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let x = &t.study_transcript;
     let input = NodeRef::<leptos::html::Input>::new();
-    let step = |n: &'static str, title: &'static str, line: &'static str| view! {
-        <span class="st-tr-n" aria-hidden="true">{n}</span>
+    let step = |icon: &'static str, title: &'static str, line: &'static str| view! {
+        <span class="st-tr-n" aria-hidden="true"><Icon name=icon/></span>
         <span class="st-tr-step"><b>{title}</b><small>{line}</small></span>
     };
+    let point = |icon: &'static str, text: &'static str| view! { <li><Icon name=icon/><span>{text}</span></li> };
     view! {
         <DialogHead ctx title=x.title sub=x.intro_sub/>
         <div class="st-dlg-body st-transcript st-tr-intro">
-            <p class="st-tr-lead">{x.intro_lead}</p>
+            <div class="st-tr-hero">
+                // The PDF into „Mein Studium".
+                <span class="st-tr-flow" aria-hidden="true">
+                    <span class="st-tr-icon"><Icon name="file-text"/></span>
+                    <Icon name="arrow-right"/>
+                    <span class="st-tr-icon"><Icon name="graduation-cap"/></span>
+                </span>
+                <span class="st-tr-hero-text"><b>{x.intro_lead}</b><small>{x.intro_what}</small></span>
+            </div>
             <ol class="st-tr-steps">
                 <li>
-                    {step("1", x.step_download, x.step_download_line)}
+                    {step("download", x.step_download, x.step_download_line)}
                     <a class="st-tr-portal" id="st-transcript-portal" href=btu::ONLINE_PORTAL target="_blank" rel="noopener noreferrer"><span>{x.portal}</span><Icon name="arrow-up-right"/></a>
                 </li>
-                <li>{step("2", x.step_pick, x.step_pick_line)}</li>
-                <li>{step("3", x.step_check, x.step_check_line)}</li>
+                <li>{step("file-input", x.step_pick, x.step_pick_line)}</li>
+                <li>{step("list-checks", x.step_check, x.step_check_line)}</li>
             </ol>
-            <p class="st-tr-stays"><Icon name="shield-check"/><span><b>{x.stays_title}</b>" "{x.stays_line}</span></p>
+            <div class="st-tr-stays">
+                <p class="st-tr-stays-title"><Icon name="shield-check"/><b>{x.stays_title}</b></p>
+                <ul>
+                    {point("monitor-smartphone", x.stays_here)}
+                    {point("cloud-off", x.stays_sent)}
+                    {point("eye-off", x.stays_grades)}
+                </ul>
+            </div>
         </div>
-        <footer class="st-dlg-foot">
+        <footer class="st-dlg-foot st-tr-foot">
             <button class="btn secondary" type="button" on:click=move |_| ctx.dialog.set(None)>{x.cancel}</button>
             <button class="btn primary" type="button" id="st-transcript-pick" on:click=move |_| pick(input)><Icon name="file-input"/>{x.pick}</button>
             <Picker ctx input/>
@@ -310,7 +329,7 @@ fn Progressing(ctx: StudyCtx) -> impl IntoView {
             </div>
             <p class="st-safe"><Icon name="shield-check"/><span>{x.reading_safe}</span></p>
         </div>
-        <footer class="st-dlg-foot">
+        <footer class="st-dlg-foot st-tr-foot">
             <p class="st-foot-state">{move || format!("{} %", percent())}</p>
             <button class="btn secondary" type="button" on:click=move |_| ctx.dialog.set(None)>{x.cancel}</button>
         </footer>
@@ -558,7 +577,7 @@ fn Outcome(ctx: StudyCtx, reading: Reading) -> impl IntoView {
                     <p class="st-tr-problem" role="alert"><Icon name="triangle-alert"/><span>{why}</span></p>
                     <p class="st-safe"><Icon name="shield-check"/><span>{x.privacy}</span></p>
                 </div>
-                <footer class="st-dlg-foot">
+                <footer class="st-dlg-foot st-tr-foot">
                     <button class="btn secondary" type="button" on:click=move |_| ctx.dialog.set(None)>{x.close}</button>
                     <button class="btn primary" type="button" id="st-transcript-again" on:click=move |_| pick(input)>{x.try_again}</button>
                     <Picker ctx input/>
@@ -610,7 +629,7 @@ fn ReadDialog(ctx: StudyCtx, read: Read) -> impl IntoView {
                 <p class="st-tr-counts">{read_line}</p>
                 <p class="st-safe"><Icon name="shield-check"/><span>{x.privacy}</span></p>
             </div>
-            <footer class="st-dlg-foot">
+            <footer class="st-dlg-foot st-tr-foot">
                 <button class="btn primary" type="button" on:click=move |_| ctx.dialog.set(None)>{x.close}</button>
             </footer>
         }
@@ -700,7 +719,24 @@ fn ReadDialog(ctx: StudyCtx, read: Read) -> impl IntoView {
             })
         })
         .collect::<Vec<_>>();
-    let change_line = [(new > 0).then(|| (x.n_new)(new)), (kept > 0).then(|| (x.n_kept)(kept)), (moved > 0).then(|| (x.n_moved)(moved))].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+    // What was read as the strip of „Mein Studium" (`tally_strip`): each mark with its number over
+    // its word, every part always (one without a module faint); under it how many were read and what
+    // taking them over changes.
+    let tally = [(Status::Passed, passed, x.tally_passed), (Status::Failed, failed, x.tally_failed), (Status::Running, registered, x.tally_registered)]
+        .into_iter()
+        .map(|(status, count, word)| {
+            view! {
+                <li class:none=count == 0>
+                    <span class="st-tally-n">{tally_mark(Some(status))}<b>{count}</b></span>
+                    <span class="st-tally-w">{word}</span>
+                </li>
+            }
+        })
+        .collect_view();
+    let summary = std::iter::once((x.modules_read)(read.rows.len()))
+        .chain([(new > 0).then(|| (x.n_new)(new)), (kept > 0).then(|| (x.n_kept)(kept)), (moved > 0).then(|| (x.n_moved)(moved))].into_iter().flatten())
+        .collect::<Vec<_>>()
+        .join(" · ");
     let taken_count = plan.rows.iter().filter(|(_, _, taken)| taken.is_some()).count();
     let apply_label = if plan.becomes == Becomes::New { x.apply_setup } else { x.apply };
     let plan = StoredValue::new(plan);
@@ -712,7 +748,8 @@ fn ReadDialog(ctx: StudyCtx, read: Read) -> impl IntoView {
         <DialogHead ctx title=x.title sub=x.read_here/>
         <div class="st-dlg-body st-transcript">
             {program_view}
-            <p class="st-tr-counts">{read_line}<br/><span>{change_line}</span></p>
+            <ul class="st-tally st-tr-tally" aria-label=x.tally_label>{tally}</ul>
+            <p class="st-tr-summary">{summary}</p>
             <section>
                 <h3>{x.taken}</h3>
                 <ul class="st-area-items">{rows}</ul>
@@ -720,7 +757,7 @@ fn ReadDialog(ctx: StudyCtx, read: Read) -> impl IntoView {
             {missing_view}
             <p class="st-safe"><Icon name="shield-check"/><span>{x.privacy}</span></p>
         </div>
-        <footer class="st-dlg-foot">
+        <footer class="st-dlg-foot st-tr-foot">
             <button class="btn secondary" type="button" on:click=move |_| ctx.dialog.set(None)>{x.cancel}</button>
             <button class="btn primary" type="button" id="st-transcript-apply" disabled=taken_count == 0 on:click=apply>{apply_label}</button>
         </footer>
