@@ -1,0 +1,1375 @@
+<title>Modulseite am Rechner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The module's own page on a wide screen (folia/crates/widgets/src/module.rs, `ModuleFull`,
+     `Sidebar`; app.css `.module-page`, `.module-grid`), made to use its room. Owner, 2026-11-19:
+     „Hey claude, wir müssen unbedingt nochmal die volle modulseite auf dem PC überarbeiten. Irgendwie
+     sieht die müllig aus. Infromationen werden nicht effizient dargestellt. Wir haben an der seite eine
+     unnütze übersicht like ich brauche keine navigation für eine seite mit nur 1000px zum scrollen.
+     Wir brauchen eine bessere visual hirarchy eine sinnvolle nutzung der Seitenleiste und keine
+     verschwendung von platz. Alles muss hier eingebettet sein." Then: „Erstelle bitte ein paar
+     konzepte, wie man das jetzt umsetzen könnte und dann besprechen wir das weiter."
+     Today (bilder/heute-*.webp): /catalog/module/12102 as canary draws it (Folia 1.110.0) at
+     1280 × 680 (the owner's screen) and 1920 × 1080, with Informatik B.Sc. as Mein Studiengang and
+     Programmierpraktikum planned into WiSe 2026/27. What the three concepts share (no jump links,
+     everything once, a slim head, three steps of type, the Termine open, lists ragged, one sheet,
+     the phone as it is), then three concepts, each a screen to click and scroll, with three real
+     modules and three screen sizes: A „Der Steckbrief in der Seitenleiste" (the facts and the two
+     switches pinned at the left, the page for the Termine and the texts), B „Dein Studium in der
+     Seitenleiste" (the semesters to plan into, the fit with the Stundenplan, the place in Mein
+     Studiengang and the prerequisites with their state; the facts as a row in the head), C „Die
+     Woche in der Seitenleiste" (a small week, the list and the exam dates pinned; the page a quiet
+     page to read) —, the comparison, the recommendation and the questions.
+     The data: canary's snapshot of 2026-11-19, 12102 Programmierpraktikum, 12202 Softwarepraktikum
+     and 11112 Mathematik IT-1 with their Termine of WiSe 2026/27, texts, facts and programs, as
+     their pages show them; the Sachsendorf course of 12102 as its page shows it to nobody's
+     program. The study is an example: Informatik B.Sc. (PO 2008), begun in WiSe 2026/27, with
+     12102, 12104 (EvS), 12107 (EEG) and 11112 (MIT1) planned into WiSe 2026/27. Tokens are
+     Betula's (folia/assets/app.css), the week's look its `.slot`; Inter comes from Google Fonts
+     here, the app self-hosts it. Design only: nothing is built. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a review desk. The brief and what the concepts share; today with its screenshots; each
+   concept as a desktop screen (1280 × 680 by default, scaled to the desk) above what it does; the
+   comparison, the recommendation and the questions. Tokens: Betula's own (light, then dark); the
+   screens use them too, so the theme switch changes the prototypes as the app would. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #6b7484;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58;
+  --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --warn: #8f5a0a;
+  --warn-dot: #d49a2a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --desk: color-mix(in oklab, var(--text) 5%, var(--bg));
+  --screen-ring: rgba(15, 23, 42, .22);
+  --logo-tile: #10151f;
+  --logo-leaf: #f4f5f7;
+  --crown: oklch(.765 .105 80);
+  --plan-slot: color-mix(in oklab, var(--text) 6%, var(--panel-2));
+  /* The modules' tones (app.css `t-…`): 12102 ice, 12202 green, 11112 teal; Sachsendorf's coral. */
+  --t-ice: oklch(.55 .09 240);
+  --t-teal: oklch(.56 .08 190);
+  --t-green: oklch(.56 .1 150);
+  --t-coral: oklch(.6 .12 35);
+  /* A module's week (app.css „A module's week"): a full card's lightness, words in the tone, a
+     card to choose. */
+  --mod-l: .5; --mod-ink-l: .42; --mod-dim: 86%; --mod-ink-mix: #000; --on-mod: #fff; --mod-card: 9%;
+  --card-shadow: 0 1px 1px rgba(15, 23, 42, .06), 0 3px 8px -4px rgba(15, 23, 42, .32);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #7d879c;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+    --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 9%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --screen-ring: rgba(255, 255, 255, .16);
+    --logo-tile: #e9edf5; --logo-leaf: #10151f;
+    --crown: oklch(.44 .08 75);
+    --plan-slot: color-mix(in oklab, var(--text) 8%, var(--panel-2));
+    --t-ice: oklch(.78 .08 240); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35);
+    --mod-l: .46; --mod-ink-l: .86; --mod-dim: 58%; --mod-ink-mix: #fff; --mod-card: 12%;
+    --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #7d879c;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --ok-soft: color-mix(in srgb, #4fd1a1 12%, var(--panel));
+  --warn: #f0b861; --warn-dot: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 9%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --screen-ring: rgba(255, 255, 255, .16);
+  --logo-tile: #e9edf5; --logo-leaf: #10151f;
+  --crown: oklch(.44 .08 75);
+  --plan-slot: color-mix(in oklab, var(--text) 8%, var(--panel-2));
+  --t-ice: oklch(.78 .08 240); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35);
+  --mod-l: .46; --mod-ink-l: .86; --mod-dim: 58%; --mod-ink-mix: #fff; --mod-card: 12%;
+  --card-shadow: 0 1px 1px rgba(0, 0, 0, .35), 0 4px 10px -4px rgba(0, 0, 0, .7);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+html.noscroll, html.noscroll body { overflow: hidden; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.page { max-width: 1320px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 22px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 64ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.intro .lead b { color: var(--text); font-weight: 650; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote span { color: var(--text-3); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 11px; }
+.rules li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li > i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); }
+.rules li > i svg { width: 14px; height: 14px; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The bar: the theme, the module, the screen, the ways down the page. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-panel); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.seg button small { font-size: 11.5px; font-weight: 500; color: var(--text-3); margin-left: 4px; }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 7px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+.linkb { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--accent-ink); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.linkb:hover { background: var(--accent-soft); }
+.linkb svg.i { width: 15px; height: 15px; }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec h2 .tag { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; vertical-align: 2px; }
+.sec .sub { max-width: 86ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub b { color: var(--text); font-weight: 620; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+
+/* Today: the screenshots and what goes wrong. */
+.shots { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.shots .stack { display: grid; gap: 22px; }
+.shot { margin: 0; min-width: 0; }
+.shot img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-lift); background: #f1f2f4; }
+.shot figcaption { margin-top: 8px; font-size: 13px; color: var(--text-3); text-wrap: pretty; }
+.shot figcaption b { color: var(--text-2); font-weight: 650; }
+.wrong { margin: 0; padding: 0; list-style: none; counter-reset: w; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 32px; }
+.wrong li { counter-increment: w; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.wrong li::before { content: counter(w); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 12px; font-weight: 760; }
+.wrong li b { display: block; margin-bottom: 2px; color: var(--text); font-weight: 650; }
+
+/* A concept: the screen on its desk, what it does below it. */
+.stage { border-radius: 16px; background: var(--desk); padding: 12px 14px 18px; min-width: 0; }
+.stage-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 0 2px 12px; }
+.stage-bar .grow { flex: 1; }
+.stage-bar .kicker { font-size: 10.5px; }
+.stage-bar .hint { font-size: 12.5px; color: var(--text-3); }
+.fit { position: relative; width: 100%; height: calc(var(--H) * var(--s, 1) * 1px); }
+.stage.full { position: fixed; inset: 0; z-index: 1000; border-radius: 0; display: flex; flex-direction: column; padding: calc(10px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px)); }
+.stage.full .fit { flex: 1; height: auto; }
+.how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 30px; }
+.how > div { min-width: 0; }
+.how h3 { margin-bottom: 6px; }
+.how ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.how ul b { color: var(--text); font-weight: 620; }
+.how .weak h3 { color: var(--warn); }
+
+/* The comparison, the recommendation, the questions. */
+.tablewrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line-strong); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+table.t td { padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); text-wrap: pretty; min-width: 180px; }
+table.t td:first-child { color: var(--text); font-weight: 620; min-width: 160px; }
+table.t td .was { display: block; color: var(--text-3); font-size: 12.5px; font-weight: 450; }
+.verdict { display: inline-flex; align-items: baseline; gap: 7px; }
+.verdict i { flex: none; width: 8px; height: 8px; border-radius: 50%; translate: 0 -1px; }
+.verdict.ok i { background: var(--ok); }
+.verdict.meh i { background: var(--warn-dot); }
+.verdict.no i { background: var(--no); }
+.num { font-variant-numeric: tabular-nums; }
+.reco { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 32px; }
+.reco ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.reco ul b { color: var(--text); font-weight: 620; }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; padding: 12px 0 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs li b { display: block; margin-bottom: 3px; color: var(--text); font-weight: 650; }
+.qs li .pro { display: block; margin-top: 5px; color: var(--accent-ink); font-weight: 560; }
+.foot { color: var(--text-3); font-size: 12.5px; text-wrap: pretty; max-width: 120ch; }
+
+@media (max-width: 1000px) {
+  .intro, .reco, .shots { grid-template-columns: minmax(0, 1fr); }
+  .qs, .wrong { grid-template-columns: minmax(0, 1fr); }
+  .how { grid-template-columns: minmax(0, 1fr); }
+  .setbar .jump { margin-left: 0; }
+}
+@media (max-width: 700px) {
+  .setbar { position: static; }
+  .sec { padding: 18px 14px 20px; }
+  .stage { padding: 10px 8px 14px; }
+}
+
+/* ================= The screen =================
+   A wide screen as Betula draws a module's page on it (folia/crates/shell/src/frame.rs `Frame`):
+   the rail, the area's name and the search at the top, the sidebar as wide as the catalog's
+   filters (272 px) pinned at the left, the page scrolling beside it. `--s` scales it to the desk;
+   „Vollbild" lays it over the whole window. */
+.screen { --hh: 20px; position: absolute; top: 0; left: 0; width: calc(var(--W) * 1px); height: calc(var(--H) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; border-radius: 10px; background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--screen-ring), 0 30px 60px -30px rgba(15, 23, 42, .5); overflow: hidden; isolation: isolate; font: 15px/1.5 var(--font); text-align: left; }
+.screen *, .screen *::before, .screen *::after { box-sizing: border-box; }
+.screen a { color: inherit; text-decoration: none; }
+.screen button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
+.screen kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); font: 500 10.5px/1 var(--mono); }
+.crown { position: absolute; z-index: 0; inset: 0 0 auto; height: 72px; pointer-events: none; opacity: .32;
+  background:
+    radial-gradient(14px 9px at 6% 18px, var(--crown) 98%, transparent), radial-gradient(11px 7px at 9% 34px, var(--crown) 98%, transparent),
+    radial-gradient(13px 8px at 31% 12px, var(--crown) 98%, transparent), radial-gradient(10px 6px at 35% 30px, var(--crown) 98%, transparent),
+    radial-gradient(15px 9px at 48% 8px, var(--crown) 98%, transparent), radial-gradient(12px 7px at 63% 22px, var(--crown) 98%, transparent),
+    radial-gradient(14px 8px at 71% 6px, var(--crown) 98%, transparent), radial-gradient(10px 6px at 77% 28px, var(--crown) 98%, transparent),
+    radial-gradient(15px 9px at 88% 14px, var(--crown) 98%, transparent), radial-gradient(11px 7px at 95% 30px, var(--crown) 98%, transparent),
+    linear-gradient(color-mix(in srgb, var(--crown) 30%, transparent), transparent);
+}
+.rail { position: absolute; z-index: 2; top: 8px; bottom: 8px; left: 6px; width: 40px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.rail .logo { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 10px; border-radius: 10px; background: var(--logo-tile); color: var(--logo-leaf); }
+.rail .logo svg { width: 22px; height: 22px; fill: currentColor; stroke: none; }
+.rail .nav { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 9px; color: var(--text-2); }
+.rail .nav svg.i { width: 19px; height: 19px; stroke-width: 1.8; }
+.rail .nav.on { background: var(--invert); color: var(--on-invert); }
+.rail .nav b { position: absolute; top: 3px; right: 2px; display: grid; place-items: center; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 9.5px; font-weight: 700; box-shadow: 0 0 0 2px var(--bg); }
+.rail .grow { flex: 1; }
+.topbar { position: absolute; z-index: 2; top: 8px; left: 60px; right: 8px; height: 40px; display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 8px; align-items: center; }
+.topbar .area { padding-left: 14px; font-size: 19px; font-weight: 720; letter-spacing: -.02em; }
+.topbar .search { max-width: 760px; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 15px; white-space: nowrap; overflow: hidden; }
+.topbar .search svg.i { width: 18px; height: 18px; }
+.topbar .search .cmd { margin-left: auto; display: flex; align-items: center; gap: 6px; padding-left: 12px; border-left: 1px solid var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; }
+.frame { position: absolute; z-index: 1; top: 56px; left: 60px; right: 8px; bottom: 0; display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 8px; }
+.sidebar { align-self: start; height: calc(100% - 8px); display: flex; flex-direction: column; min-height: 0; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; }
+.sb-head { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 13px 16px 6px; }
+.sb-head h2 { font-size: 16.5px; font-weight: 720; letter-spacing: -.015em; }
+.sb-head span { color: var(--text-3); font-size: 13px; font-weight: 560; }
+.sb-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 14px 16px; display: flex; flex-direction: column; gap: 18px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.sb-sec { display: flex; flex-direction: column; gap: 8px; }
+.sb-sec + .sb-sec { padding-top: 16px; border-top: 1px solid var(--line); }
+.lbl { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; color: var(--text-3); }
+.lbl kbd { text-transform: none; letter-spacing: 0; }
+.pagearea { min-width: 0; overflow-y: auto; overflow-x: hidden; padding-bottom: 8px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.sheet { container: page / inline-size; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); padding: 14px 28px 30px; }
+
+/* The head of the page: Zurück, number and abbreviation, the title, the English title. */
+.mh-top { display: flex; align-items: center; gap: 6px; height: 32px; margin-left: -8px; }
+.back { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border-radius: var(--r-ctl); color: var(--text-2); font-size: 13px; font-weight: 550; }
+.back:hover { background: var(--panel-3); color: var(--text); }
+.chipid { padding: 4px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font: 500 12px/1 var(--mono); white-space: nowrap; }
+.mh-title { display: flex; align-items: flex-start; gap: 12px 20px; margin-top: 6px; }
+.mh-title > div { flex: 1; min-width: 0; }
+.mh h1 { font-size: 28px; line-height: 1.15; font-weight: 730; letter-spacing: -.028em; }
+.mh .en { margin-top: 5px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--text-2); font-size: 14.5px; }
+.badges { display: inline-flex; flex-wrap: wrap; gap: 5px; }
+.badge { display: inline-flex; align-items: center; min-height: 23px; padding: 0 8px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.badge.strong { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+
+/* The two switches (app.css `.mark-switch`, `.plan-toggle`): an outlined button, inverted when on,
+   with its key and a menu at its end. */
+.sw { display: inline-flex; align-items: stretch; min-height: 42px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); }
+.sw:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.sw .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 4px 9px 4px 11px; font-size: 13.5px; font-weight: 620; }
+.sw .main > span { flex: 1; min-width: 0; line-height: 1.2; }
+.sw .main small { display: block; font-size: 12px; font-weight: 500; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw .more { flex: none; display: grid; place-items: center; width: 30px; box-shadow: inset 1px 0 0 var(--line-strong); }
+.sw .more svg.i { width: 15px; height: 15px; }
+.sw.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.sw.on .more { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 22%, transparent); }
+.sw.on kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
+.switches { flex: none; display: flex; gap: 6px; }
+.switches .sw { width: 224px; }
+.switches .sw.mark { width: 150px; }
+
+/* Sections of the page: a heading as a heading, a line between them. */
+.part { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--line); }
+.h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font-size: 17px; line-height: 1.3; font-weight: 680; letter-spacing: -.012em; }
+.h2 small { font-size: 13.5px; font-weight: 550; color: var(--text-3); letter-spacing: 0; }
+.h2 + * { margin-top: 10px; }
+.hint { color: var(--text-3); font-size: 13px; }
+.line { display: flex; align-items: flex-start; gap: 7px; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.line svg.i { width: 15px; height: 15px; margin-top: 2px; color: var(--text-3); }
+.line.ok svg.i { color: var(--ok); }
+.line.warn { color: var(--text); }
+.line.warn svg.i { color: var(--no); }
+.line a, .line button { color: var(--accent-ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent-line); text-underline-offset: 3px; }
+.dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--c); vertical-align: 1px; }
+
+/* The week (app.css `.week`, `.slot`): the module's own Termine in its tone, the plan under them
+   grey; a hatched card is one of a choice, a ringed one a single date, a dotted one an extra. */
+.wk { display: grid; grid-template-columns: 26px repeat(5, minmax(0, 1fr)); column-gap: 5px; padding: 8px 8px 8px 2px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.wk .d { padding-bottom: 6px; text-align: center; color: var(--text-3); font-size: 11.5px; font-weight: 650; }
+.wk .hrs { position: relative; grid-row: 2; grid-column: 1; }
+.wk .hrs span { position: absolute; right: 4px; top: calc(var(--at) * var(--hh) * 2); translate: 0 -50%; color: var(--text-3); font-size: 10px; font-weight: 560; line-height: 1; font-variant-numeric: tabular-nums; }
+.wk .col { position: relative; grid-row: 2; height: calc(var(--span) * var(--hh)); background: repeating-linear-gradient(var(--line) 0 1px, transparent 1px calc(var(--hh) * 2)); box-shadow: inset 0 -1px 0 var(--line); }
+.wk .spill { grid-row: 3; padding-top: 3px; text-align: center; color: var(--text-3); font-size: 10px; line-height: 1.3; }
+.slot { --mod: var(--tone); position: absolute; left: calc(1px + (100% - 2px) * var(--lane, 0) / var(--lanes, 1)); width: calc((100% - 2px) / var(--lanes, 1) - 2px - var(--free, 0) * 12px); top: calc(var(--f) * var(--hh)); height: calc(var(--l) * var(--hh) - 2px); border-radius: 6px; padding: 3px 5px; overflow: hidden; font-size: 11px; line-height: 1.25; font-weight: 600; transition: box-shadow .12s, opacity .12s; }
+.slot .w { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot small { display: block; font-weight: 500; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot.pl { background: var(--plan-slot); color: var(--text-3); }
+.slot.pl.cutb { -webkit-mask: linear-gradient(#000 calc(100% - 7px), transparent); mask: linear-gradient(#000 calc(100% - 7px), transparent); }
+.slot.own { --mod-fill: color-mix(in oklch, var(--mod) var(--mod-dim), #000); --mod-ink: color-mix(in oklch, var(--mod) 78%, var(--mod-ink-mix)); --mod-tint: color-mix(in oklch, var(--mod) var(--mod-card), var(--panel)); z-index: 1; cursor: pointer; }
+@supports (color: oklch(from red l c h)) {
+  .slot.own, .key i { --mod-fill: oklch(from var(--mod) var(--mod-l) c h); --mod-ink: oklch(from var(--mod) var(--mod-ink-l) c h); }
+}
+.slot.must { background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--card-shadow); }
+.slot.alt { background-color: var(--mod-tint); background-image: repeating-linear-gradient(45deg, color-mix(in oklch, var(--mod) 34%, transparent) 0 1.6px, transparent 1.6px 6px); color: var(--mod-ink); box-shadow: inset 0 0 0 1.5px var(--mod), var(--card-shadow); }
+.slot.alt > * { width: fit-content; max-width: calc(100% + 4px); margin-inline: -2px; padding-inline: 2px; border-radius: 3px; background: var(--mod-tint); }
+.slot.once { background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong), var(--card-shadow); }
+.slot.extra { background-color: var(--mod-tint); background-image: radial-gradient(circle, color-mix(in oklch, var(--mod) 40%, transparent) 1px, transparent 1.4px); background-size: 6px 6px; color: var(--mod-ink); outline: 1px dashed color-mix(in oklch, var(--mod) 70%, transparent); outline-offset: -1px; }
+.slot.extra > * { width: fit-content; max-width: calc(100% + 4px); margin-inline: -2px; padding-inline: 2px; border-radius: 3px; background: var(--mod-tint); }
+.slot.faint, .slot.must.faint { background: color-mix(in oklch, var(--t-coral) 12%, var(--panel)); background-image: none; color: var(--text-2); box-shadow: inset 3px 0 0 var(--t-coral), var(--card-shadow); }
+.slot.clash { box-shadow: inset 0 0 0 2px var(--no), var(--card-shadow); }
+.slot.hl { z-index: 3; box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--mod-fill); }
+.keys { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; color: var(--text-2); font-size: 12px; }
+.key { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.key i { --mod: var(--tone); --mod-fill: color-mix(in oklch, var(--mod) var(--mod-dim), #000); --mod-tint: color-mix(in oklch, var(--mod) var(--mod-card), var(--panel)); width: 13px; height: 10px; border-radius: 3px; }
+.key i.must { background: var(--mod-fill); }
+.key i.alt { background-color: var(--mod-tint); background-image: repeating-linear-gradient(45deg, color-mix(in oklch, var(--mod) 45%, transparent) 0 1.2px, transparent 1.2px 4px); box-shadow: inset 0 0 0 1.2px var(--mod); }
+.key i.once { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.key i.extra { background: var(--mod-tint); outline: 1px dashed var(--mod); outline-offset: -1px; }
+.key i.pl { background: var(--plan-slot); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* The list of the Termine: what its lines share once above them, a heading per part, a line per
+   Termin without the module's name. */
+.tl { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tl-share { color: var(--text-3); font-size: 12.5px; }
+.tl-grp h4 { display: flex; align-items: center; gap: 7px; margin: 0 0 3px; color: var(--text-2); font-size: 12.5px; font-weight: 650; }
+.tl-grp h4 small { font-weight: 500; color: var(--text-3); }
+.tl-grp h4 .key i { width: 12px; height: 9px; }
+.tl-row { display: grid; grid-template-columns: 30px 88px minmax(0, 1fr); gap: 0 8px; align-items: baseline; padding: 5px 8px; margin: 0 -8px; border-radius: 7px; font-size: 13.5px; cursor: pointer; }
+.tl-row:hover, .tl-row.hl { background: var(--row-hover); }
+.tl-row b { font-weight: 640; }
+.tl-row .t { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 560; white-space: nowrap; }
+.tl-row .r { color: var(--text-2); min-width: 0; }
+.tl-row .r small { color: var(--text-3); font-size: 12.5px; }
+.tl-row.faint { opacity: .55; }
+.tl-row.exam .t { white-space: nowrap; }
+
+/* Running text (app.css `.prose`): paragraphs justified and hyphenated (owner, 2026-10-01), the
+   items of a list ragged. */
+.prose { color: var(--text-2); font-size: 14.5px; line-height: 1.6; overflow-wrap: break-word; }
+.prose > * + * { margin-top: .6em; }
+.prose p { text-align: justify; hyphens: auto; -webkit-hyphens: auto; text-wrap: pretty; }
+.prose ol, .prose ul { margin: 0; padding-left: 1.35em; }
+.prose li { text-align: left; }
+.prose li + li { margin-top: .25em; }
+.prose li::marker { color: var(--text-3); }
+.texts { columns: 330px 3; column-gap: 44px; }
+.texts > section { min-width: 0; break-inside: avoid; padding-bottom: 24px; }
+.texts > section:last-child { padding-bottom: 0; }
+
+/* The prerequisites (module.rs `prerequisite_link`, `.either`): a module each, a choice framed. */
+.pres { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; align-items: start; }
+.pre { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 1px 10px; padding: 8px 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); font-size: 13.5px; line-height: 1.3; }
+.pre:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.pre .chipid { grid-row: 1 / span 2; }
+.pre b { font-weight: 620; color: var(--text); }
+.pre small { grid-column: 2; color: var(--text-3); font-size: 12px; }
+.pre .off { color: var(--warn); }
+.either { display: grid; gap: 4px; padding: 5px; border-radius: 11px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.either .or { text-align: center; color: var(--text-3); font-size: 11.5px; font-weight: 600; }
+
+/* The programs: compact rows, Mein Studiengang first. */
+.progs { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 0 24px; }
+.prog { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; align-items: center; padding: 7px 10px; margin: 0 -10px; border-radius: 7px; font-size: 13.5px; }
+.prog:hover { background: var(--row-hover); }
+.prog b { font-weight: 620; color: var(--text); }
+.prog small { grid-column: 1; color: var(--text-3); font-size: 12.5px; }
+.prog .kind { grid-row: 1 / span 2; grid-column: 2; display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.prog .kind i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); }
+.prog.mine { background: var(--accent-soft); }
+.prog.mine b::after { content: "Mein Studiengang"; margin-left: 8px; padding: 1px 6px; border-radius: 5px; background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 650; vertical-align: 1px; }
+.src { display: flex; align-items: flex-start; gap: 7px; color: var(--text-3); font-size: 12.5px; line-height: 1.45; }
+.src svg.i { width: 14px; height: 14px; margin-top: 2px; }
+.src span { min-width: 0; }
+.src a { color: var(--accent-ink); font-weight: 600; }
+
+/* The facts as a sheet (A, in the sidebar): label over value, two to a line where short. */
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; margin: 0; }
+.facts > div { min-width: 0; }
+.facts .wide { grid-column: 1 / -1; }
+.facts dt { color: var(--text-3); font-size: 12px; font-weight: 550; }
+.facts dd { margin: 1px 0 0; color: var(--text); font-size: 14px; font-weight: 620; line-height: 1.35; }
+.facts dd small { display: block; color: var(--text-3); font-size: 12px; font-weight: 450; }
+/* The facts as a row (B, C, in the head): label over value, a hairline between them. */
+.kz { display: flex; flex-wrap: wrap; margin: 16px 0 0; padding: 10px 0; border-block: 1px solid var(--line); }
+.kz > div { padding: 0 18px; min-width: 0; }
+.kz > div:first-child { padding-left: 0; }
+.kz > div + div { border-left: 1px solid var(--line); }
+.kz dt { color: var(--text-3); font-size: 12px; font-weight: 550; white-space: nowrap; }
+.kz dd { margin: 1px 0 0; color: var(--text); font-size: 15.5px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
+.who { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px; color: var(--text-2); font-size: 13.5px; }
+.who span { display: inline-flex; align-items: center; gap: 7px; }
+.who svg.i { width: 15px; height: 15px; color: var(--text-3); }
+
+/* ---------- A: the Steckbrief in the sidebar ---------- */
+.ka .acts { display: flex; flex-direction: column; gap: 6px; }
+.ka .acts .sw { width: 100%; }
+.ka .links { display: flex; gap: 4px; margin-top: 2px; }
+.ka .links a { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border-radius: 8px; color: var(--text-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.ka .links a:hover { background: var(--panel-3); color: var(--text); }
+.ka .links svg.i { width: 14px; height: 14px; }
+.ka .mine { gap: 2px; }
+.ka .mine .lbl { margin-bottom: 4px; }
+.ka .mine b { display: block; font-size: 14px; font-weight: 650; }
+.ka .mine b span { color: var(--text-3); font-weight: 500; }
+.ka .mine p { color: var(--text-2); font-size: 13px; line-height: 1.4; }
+.ka .tgrid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(250px, 1fr); gap: 16px 24px; align-items: start; }
+@container page (max-width: 760px) { .ka .tgrid { grid-template-columns: minmax(0, 1fr); } }
+@container page (min-width: 1200px) { .ka .tgrid { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); } }
+
+/* ---------- B: your study in the sidebar ---------- */
+.kb .sems { display: flex; flex-direction: column; gap: 4px; }
+.kb .semopt { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 0 10px; width: 100%; min-height: 44px; padding: 5px 10px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13.5px; }
+.kb .semopt:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.kb .semopt i { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.75px var(--text-3); }
+.kb .semopt b { font-weight: 640; }
+.kb .semopt small { display: block; color: var(--text-3); font-size: 12px; }
+.kb .semopt em { font-style: normal; color: var(--text-3); font-size: 11.5px; font-weight: 600; }
+.kb .semopt.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.kb .semopt.on i { box-shadow: inset 0 0 0 4.5px var(--on-invert); }
+.kb .semopt.on small, .kb .semopt.on em { color: inherit; opacity: .75; }
+.kb .semlinks { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-top: 2px; font-size: 12.5px; }
+.kb .semlinks button { white-space: nowrap; }
+.kb .semlinks button { color: var(--accent-ink); font-weight: 600; }
+.kb .semlinks button.out { color: var(--text-3); }
+.kb .state { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; color: var(--text-2); }
+.kb .state svg.i { width: 16px; height: 16px; margin-top: 1px; }
+.kb .state.ok svg.i { color: var(--ok); }
+.kb .state.warn { color: var(--text); }
+.kb .state.warn svg.i { color: var(--no); }
+.kb .state b { color: var(--text); font-weight: 620; }
+.kb .markrow { display: flex; gap: 6px; }
+.kb .markrow .sw { flex: 1; min-height: 38px; }
+.kb .note { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px; border-radius: 8px; background: var(--panel-2); color: var(--text-3); font-size: 13px; }
+.kb .note svg.i { width: 14px; height: 14px; }
+.kb .prow { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 0 8px; font-size: 13px; }
+.kb .prow svg.i { width: 16px; height: 16px; margin-top: 1px; }
+.kb .prow.ok svg.i { color: var(--ok); }
+.kb .prow.no svg.i { color: var(--warn); }
+.kb .prow.off svg.i, .kb .prow.rec svg.i { color: var(--text-3); }
+.kb .prow b { font-weight: 620; color: var(--text); }
+.kb .prow small { display: block; color: var(--text-3); font-size: 12px; }
+.kb .prow small .act { color: var(--accent-ink); font-weight: 600; }
+.kb .porgroup { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; margin: 0 -8px; border-radius: 9px; background: var(--panel-2); }
+.kb .porgroup > .or { margin-left: 26px; color: var(--text-3); font-size: 11.5px; font-weight: 600; }
+.kb .foot-links { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; font-weight: 600; }
+.kb .foot-links a { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); white-space: nowrap; }
+.kb .foot-links svg.i { width: 13px; height: 13px; }
+.kb .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, .82fr); gap: 0 32px; align-items: start; }
+.kb .cols > .termcol { position: sticky; top: 14px; }
+.kb .cols > .readcol > section + section { margin-top: 22px; }
+@container page (max-width: 820px) { .kb .cols { grid-template-columns: minmax(0, 1fr); } .kb .cols > .termcol { position: static; order: -1; margin-bottom: 22px; } }
+@container page (min-width: 1250px) { .kb .readcol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 36px; align-items: start; } .kb .cols > .readcol > section + section { margin-top: 0; } }
+
+/* ---------- C: the week in the sidebar ---------- */
+.kc .sidebar .wk { --hh: 13px; grid-template-columns: 20px repeat(5, minmax(0, 1fr)); column-gap: 3px; padding: 6px 5px 6px 0; }
+.kc .sidebar .wk .d { padding-bottom: 4px; font-size: 11px; }
+.kc .sidebar .wk .hrs span { right: 3px; font-size: 9.5px; }
+.kc .sidebar .slot { padding: 2px 3px; font-size: 10px; border-radius: 4px; }
+.kc .sidebar .slot small { display: none; }
+.kc .sidebar .slot.tall small { display: block; }
+.kc .sidebar .keys { gap: 3px 10px; font-size: 11.5px; }
+.kc .sidebar .wk .spill { display: none; }
+.kc .sidebar .tl-row { grid-template-columns: 22px auto minmax(0, 1fr); gap: 0 10px; font-size: 12.5px; padding: 4px 8px; }
+.kc .sidebar .tl-row .r small { display: block; }
+.kc .sidebar .tl-grp h4 { font-size: 12px; }
+.kc .sidebar .tl { gap: 10px; }
+.kc .sidebar .line { font-size: 12.5px; }
+.kc .tolink { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-ink); font-size: 12.5px; font-weight: 600; }
+.kc .tolink svg.i { width: 13px; height: 13px; }
+</style>
+
+<div class="page">
+  <section class="intro" aria-labelledby="top-title">
+    <div>
+      <p class="kicker">Folia · Modulseite am Rechner · 19. November 2026 · gelesen in Folia 1.110.0</p>
+      <h1 id="top-title">Die Modulseite am Rechner</h1>
+      <p class="lead">Heute zeigt die Seite eines Moduls am Rechner viel Rahmen und wenig Inhalt. Die Seitenleiste springt nur zu Abschnitten einer kurzen Seite, der Kopf nimmt ein Drittel des Bildschirms, und die Fakten kommen erst nach dem ersten Scrollen. Hier sind drei Konzepte. Alle drei räumen die Seite auf dieselbe Weise auf (rechts), aber jedes beantwortet die Frage <b>„Was soll beim Scrollen immer zu sehen sein?“</b> anders: <b>A</b> stellt den Steckbrief des Moduls in die Seitenleiste, <b>B</b> dein Studium mit dem Modul, <b>C</b> seine Woche. Jedes ist ein Bildschirm zum Anklicken und Scrollen, mit drei echten Modulen und drei Bildschirmgrößen.</p>
+      <p class="quote">„Hey claude, wir müssen unbedingt nochmal die volle modulseite auf dem PC überarbeiten. Irgendwie sieht die müllig aus. Infromationen werden nicht effizient dargestellt. Wir haben an der seite eine unnütze übersicht like ich brauche keine navigation für eine seite mit nur 1000px zum scrollen. Wir brauchen eine bessere visual hirarchy eine sinnvolle nutzung der Seitenleiste und keine verschwendung von platz. Alles muss hier eingebettet sein.“ <span>— du</span></p>
+    </div>
+    <div class="rules">
+      <p class="kicker">Was alle drei teilen</p>
+      <ul>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M3 6h11M3 12h7M3 18h11"/><path d="m16 10 5 5M21 10l-5 5"/></svg></i><span><b>Keine Sprungmarken.</b> „Auf dieser Seite“ entfällt. Die Seite ist kurz, und was man sucht, sieht man.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/></svg></i><span><b>Alles einmal.</b> Nummer, Kürzel, Merken und Einplanen stehen je an einer Stelle. Heute stehen die Nummer dreimal und die beiden Knöpfe zweimal da.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h10"/></svg></i><span><b>Ein schlanker Kopf.</b> Zurück, Nummer, Kürzel, Titel und englischer Titel in rund 130 statt 189 px.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 6h12M4 12h9M4 18h6"/></svg></i><span><b>Drei Stufen.</b> Titel mit 28 px, Abschnitte als echte Überschriften mit 17 px, dann der Text. Kleine graue Großbuchstaben bleiben Etiketten in der Seitenleiste.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg></i><span><b>Die Termine offen.</b> Die Liste ist aufgeklappt. Was alle Zeilen teilen (Zeitraum, wöchentlich), steht einmal darüber, und der Name des Moduls steht nicht in jeder Zeile. Ein Zeiger auf einer Zeile hebt ihren Termin in der Woche hervor.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h10"/></svg></i><span><b>Absätze im Blocksatz, Listen linksbündig.</b> Der Blocksatz bleibt, wie du ihn am 1. Oktober wolltest. Listen stehen linksbündig, denn in schmalen Spalten reißen sie heute Lücken.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/></svg></i><span><b>Ein Blatt statt vier Kästen.</b> Die Seite ist ein Blatt, ihre Teile trennen Abstand und eine feine Linie.</span></li>
+        <li><i><svg class="i" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></i><span><b>Am Handy bleibt alles, wie es ist.</b> Die Konzepte gelten für breite Fenster. Schmaler fließt die Seite wie heute in eine Spalte.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <nav class="setbar" aria-label="Ansicht und Abschnitte">
+    <div class="group">
+      <span class="kicker">Modul</span>
+      <span class="seg" role="group" aria-label="Modul">
+        <button type="button" data-mod="pp" aria-pressed="true">Programmierpraktikum</button>
+        <button type="button" data-mod="swp" aria-pressed="false">Softwarepraktikum</button>
+        <button type="button" data-mod="mit1" aria-pressed="false">Mathematik IT-1</button>
+      </span>
+    </div>
+    <div class="group">
+      <span class="kicker">Bildschirm</span>
+      <span class="seg" role="group" aria-label="Bildschirmgröße">
+        <button type="button" data-size="1280x680" aria-pressed="true">1280 × 680<small>deiner</small></button>
+        <button type="button" data-size="1440x900" aria-pressed="false">1440 × 900</button>
+        <button type="button" data-size="1920x1080" aria-pressed="false">1920 × 1080</button>
+      </span>
+    </div>
+    <div class="group">
+      <span class="kicker">Farben</span>
+      <span class="seg" role="group" aria-label="Farbschema">
+        <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+        <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+      </span>
+    </div>
+    <div class="jump">
+      <a href="#heute">Heute</a>
+      <a href="#a">A</a>
+      <a href="#b">B</a>
+      <a href="#c">C</a>
+      <a href="#vergleich">Vergleich</a>
+      <a href="#empfehlung">Empfehlung</a>
+      <a href="#fragen">Fragen</a>
+    </div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <header>
+      <p class="kicker">Ausgangslage</p>
+      <h2 id="heute-title">Was heute ist</h2>
+      <p class="sub">Programmierpraktikum (12102), wie canary es zeichnet (Folia 1.110.0), mit Informatik B.Sc. als Mein Studiengang und dem Modul im WiSe 2026/27 eingeplant. Links dein Bildschirm (1280 × 680), daneben die ganze Seite und ein großer Bildschirm.</p>
+    </header>
+    <div class="shots">
+      <div class="stack">
+      <figure class="shot">
+        <img src="bilder/heute-1280.webp" width="2560" height="1360" loading="lazy" alt="Die Modulseite bei 1280 × 680: links die Seitenleiste mit „Auf dieser Seite“ (acht Links) und „Aktionen“, oben ein Kopf mit Zurück, 12102, PP, dem Titel Programmierpraktikum, Programming Laboratory, den Badges 4 LP, WiSe, DE und den Knöpfen Eingeplant und Merken; darunter links Inhalte und Lernziele, rechts der Anfang der Termine mit einem Hinweis zu den Standorten und einer schmalen Woche.">
+        <figcaption><b>Der erste Bildschirm bei 1280 × 680.</b> Kopf, Inhalte, die halbe Woche. Keine Fakten.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="bilder/heute-1920.webp" width="2880" height="1620" loading="lazy" alt="Die Modulseite bei 1920 × 1080: dieselbe Seitenleiste, die Woche rechts in 526 px, die Kacheln von „Auf einen Blick“ fangen unten am Rand an.">
+        <figcaption><b>1920 × 1080.</b> Mehr Platz, dieselbe Ordnung.</figcaption>
+      </figure>
+      </div>
+      <figure class="shot">
+        <img src="bilder/heute-1280-ganz.webp" width="2560" height="2946" loading="lazy" alt="Die ganze Seite bei 1280 px Breite: links unter den Texten die Bemerkungen im Blocksatz mit Lücken und die Studiengänge, rechts unter der Woche „Termine als Liste (5)“ zugeklappt und „Auf einen Blick“ mit acht Kacheln.">
+        <figcaption><b>Die ganze Seite bei 1280, 1.467 px.</b> „Auf einen Blick“ beginnt bei 939 px, die Liste der Termine ist zu, 5 der 13 Studiengänge stehen da.</figcaption>
+      </figure>
+    </div>
+    <ol class="wrong">
+      <li><span><b>Die Seitenleiste wiederholt nur.</b> Acht Sprungmarken für eine Seite von 2,2 Bildschirmen, dazu „Merken“ und „Eingeplant“, die schon im Kopf stehen, und die Nummer ein drittes Mal. Neu sind dort nur „Link kopieren“ und „Original bei der BTU“. Darunter bleiben 300 px leer.</span></li>
+      <li><span><b>Der Kopf nimmt ein Drittel des Bildschirms.</b> 189 von 616 px für Zurück, Nummer, Titel, englischen Titel, drei Badges und zwei Knöpfe. Am lautesten sind die beiden Knöpfe, nicht der Titel.</span></li>
+      <li><span><b>Die Fakten kommen erst nach dem Scrollen.</b> „Auf einen Blick“ beginnt bei 939 px, unter der Woche in der schmalen Spalte: acht Kacheln mit Symbol und Rahmen, 463 px hoch. „Dauer: 1 Semester“ ist dabei so laut wie die Prüfung.</span></li>
+      <li><span><b>Die Woche ist zu schmal, die Liste zu.</b> 320 px für fünf Tage, also 50 px je Tag: „ab 07:…“, „EvS ·…“, „+ EvS 17:…“ sind abgeschnitten. Die Liste ist zugeklappt, und jede ihrer Zeilen wiederholt „Programmierpraktikum“ und den Zeitraum.</span></li>
+      <li><span><b>Alles ist gleich laut.</b> Jede Überschrift ist ein graues Etikett aus 11,5 px großen Großbuchstaben, ob „Termine“ oder „Literatur“. Zwischen Titel (30 px) und Text (14 px) gibt es keine Stufe. Vier Kästen mit Schatten stehen gleichrangig nebeneinander.</span></li>
+      <li><span><b>Listen mit Lücken.</b> Die Bemerkungen stehen im Blocksatz in einer 523 px schmalen Spalte: „Studiengang Wirtschaftsmathematik B.Sc. (grundständig+dual): Pflichtmo-dul“ mit großen Lücken. Absätze sehen im Blocksatz gut aus, solche Listen nicht.</span></li>
+      <li><span><b>Doppelt.</b> Die acht Bemerkungen von 12102 zählen Studiengänge auf, die zwei Abschnitte weiter unter „Studiengänge“ noch einmal stehen.</span></li>
+    </ol>
+  </section>
+
+  <section class="sec" id="a" aria-labelledby="a-title">
+    <header>
+      <p class="kicker">Konzept A</p>
+      <h2 id="a-title"><span class="tag">A</span>Der Steckbrief in der Seitenleiste</h2>
+      <p class="sub">Die Seitenleiste wird zum <b>Steckbrief des Moduls</b>: oben Einplanen und Merken, darunter alle Fakten, dann dein Studiengang und die Quelle. Sie bleibt beim Scrollen stehen, also sind Knöpfe und Fakten immer da. Die Seite rechts gehört den zwei großen Dingen: den <b>Terminen</b>, Woche und Liste nebeneinander, und den <b>Texten</b>, paarweise nebeneinander.</p>
+    </header>
+    <div class="stage" data-concept="a">
+      <div class="stage-bar"><span class="kicker">Zum Anklicken und Scrollen</span><span class="hint">Zeiger auf eine Zeile der Termine, „Auch … zeigen“, Einplanen, Merken</span><span class="grow"></span><button type="button" class="linkb" data-full><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Vollbild</button></div>
+      <div class="fit"><div class="screen ka" data-screen="a"></div></div>
+    </div>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>Oben links Einplanen und Merken</b> über die ganze Breite der Seitenleiste, darunter „Link kopieren“ und „Original“.</li>
+          <li><b>Der Steckbrief:</b> Prüfung, Benotung, Dauer, Plätze zu zweit nebeneinander, Lehrformen, Standort und Verantwortlich über die ganze Breite. Ohne Kacheln und Symbole.</li>
+          <li><b>„In deinem Studiengang“:</b> Informatik B.Sc., Pflicht im 1. FS, Grundstudium / Komplex Informatik.</li>
+          <li><b>Der Kopf:</b> Zurück, Nummer, Kürzel, Titel, dahinter englischer Titel mit LP, Turnus und Sprache.</li>
+          <li><b>Die Termine über die ganze Breite:</b> die Woche links, gut 480 statt 320 px breit, die Liste offen daneben, die Prüfungstermine in ihr.</li>
+          <li><b>Die Texte</b> zu zweit nebeneinander, am Ende alle Studiengänge in zwei Spalten.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Die Seitenleiste steht beim Scrollen. Was nicht in sie passt, scrollt in ihr.</li>
+          <li>Voraussetzungen stehen gleich unter dem Kopf, vor den Terminen (Softwarepraktikum).</li>
+          <li>„Auch Cottbus-Sachsendorf zeigen“ bringt die anderen Termine blass dazu, in Woche und Liste.</li>
+          <li>Ohne App (Server, Suchmaschinen) stehen Steckbrief, Termine und Studiengänge genauso da. Nur die zwei Knöpfe und „In deinem Studiengang“ kommen mit der App, an ihrem freigehaltenen Platz.</li>
+          <li>Unter 760 px Breite der Seite rückt die Liste unter die Woche, am Handy fließt alles wie heute.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li><b>Einplanen und Merken verlassen die Zeile der LP.</b> Am 20. September hast du sie dort hingestellt. Hier stehen sie dafür immer in Reichweite, ohne zweites Paar.</li>
+          <li>Die Vorschau neben der Liste hat keine Seitenleiste. Dort bleiben die Knöpfe im Kopf, die Modulseite wäre die Ausnahme.</li>
+          <li>272 px sind schmal für lange Namen: „Prof. Dr. rer. nat. habil. Petra Hofstedt“ bricht um.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="b" aria-labelledby="b-title">
+    <header>
+      <p class="kicker">Konzept B</p>
+      <h2 id="b-title"><span class="tag">B</span>Dein Studium in der Seitenleiste</h2>
+      <p class="sub">Die Seitenleiste zeigt, <b>was das Modul für dein Studium heißt</b>: in welches Semester du es legst (die Semester stehen offen zur Wahl statt in einem Menü), ob es in deinen Stundenplan passt, wo es in deinem Studiengang steht und ob du seine Voraussetzungen eingeplant hast. Die Fakten wandern als <b>Zeile mit Kennzahlen</b> in den Kopf. Darunter stehen die Texte links und die Termine rechts nebeneinander.</p>
+    </header>
+    <div class="stage" data-concept="b">
+      <div class="stage-bar"><span class="kicker">Zum Anklicken und Scrollen</span><span class="hint">ein Semester wählen, Softwarepraktikum für die Voraussetzungen</span><span class="grow"></span><button type="button" class="linkb" data-full><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Vollbild</button></div>
+      <div class="fit"><div class="screen kb" data-screen="b"></div></div>
+    </div>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>„Einplanen“ als Liste der Semester,</b> in denen das Modul angeboten wird, mit dem Fachsemester. Das gewählte ist gefüllt, „laut Plan“ steht beim Semester des Regelstudienplans.</li>
+          <li><b>„Stundenplan“:</b> passt, oder womit es sich überschneidet.</li>
+          <li><b>„Merken“</b> und darunter deine Notiz.</li>
+          <li><b>„In Informatik B.Sc.“:</b> Pflicht im 1. FS laut Regelstudienplan, mit dem Bereich.</li>
+          <li><b>„Voraussetzungen“ mit deinem Stand:</b> eingeplant, nicht im Plan, nicht mehr angeboten.</li>
+          <li><b>Im Kopf die Kennzahlen</b> (LP, Angebot, Sprache, Prüfung, Benotung, Dauer, Plätze), darunter Lehrformen, Verantwortliche und Standort.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Ein Klick auf ein Semester plant das Modul dorthin, ohne Menü. „Aus dem Plan nehmen“ steht darunter.</li>
+          <li>Die Termine rechts bleiben beim Lesen der Texte stehen.</li>
+          <li>Auf 1920 px stehen die Texte links zu zweit nebeneinander.</li>
+          <li>Ohne „Mein Studium“ zeigt die Seitenleiste „Einplanen“ wie heute und lädt ein, das Studium anzulegen. Voraussetzungen stehen dann ohne Stand da.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li><b>Am meisten zu bauen:</b> Die Semester zur Wahl, die Voraussetzungen mit Stand und die Zeile zum Stundenplan sind neue Teile.</li>
+          <li>Für einen ersten Besuch ohne Studium und auf dem Server ist die Seitenleiste fast leer. Sie muss ihren Platz trotzdem halten, damit bei der Übernahme durch die App nichts springt.</li>
+          <li>Die Knöpfe verlassen den Kopf wie in A.</li>
+          <li>Die Termine haben die schmalere Hälfte: 380 px bei 1280.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="c" aria-labelledby="c-title">
+    <header>
+      <p class="kicker">Konzept C</p>
+      <h2 id="c-title"><span class="tag">C</span>Die Woche in der Seitenleiste</h2>
+      <p class="sub">Die Seitenleiste hält <b>die Termine</b>: eine kleine Woche, die Liste und die Prüfungstermine. Wer liest, worum es geht, sieht daneben immer, wann es ist. Die Seite selbst wird eine <b>ruhige Leseseite</b>: der Kopf mit den Knöpfen und den Kennzahlen, dann die Texte zu zweit nebeneinander.</p>
+    </header>
+    <div class="stage" data-concept="c">
+      <div class="stage-bar"><span class="kicker">Zum Anklicken und Scrollen</span><span class="hint">Zeiger auf eine Zeile der Termine, Mathematik IT-1 für einen Prüfungstermin</span><span class="grow"></span><button type="button" class="linkb" data-full><svg class="i" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>Vollbild</button></div>
+      <div class="fit"><div class="screen kc" data-screen="c"></div></div>
+    </div>
+    <div class="how">
+      <div>
+        <h3>Was man sieht</h3>
+        <ul>
+          <li><b>In der Seitenleiste:</b> der Hinweis zum Standort, „Passt in deinen Stundenplan“, eine Woche mit gut 40 px je Tag, darunter die Liste und die Prüfungstermine.</li>
+          <li><b>Der Kopf wie heute, nur schlanker:</b> Einplanen und Merken bleiben rechts neben dem Titel.</li>
+          <li><b>Die Kennzahlen</b> und Lehrformen, Verantwortliche, Standort wie in B.</li>
+          <li><b>Inhalte und Lernziele</b> nebeneinander, schon auf dem ersten Bildschirm.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wie es sich verhält</h3>
+        <ul>
+          <li>Die Woche bleibt beim Lesen der Texte stehen.</li>
+          <li>Die Seitenleiste lässt sich wie die Filter breiter ziehen, dann wächst die Woche mit.</li>
+          <li>Ein Klick auf einen Termin öffnet seine Karte wie heute.</li>
+          <li>Ohne App ist alles da bis auf die Knöpfe und „Passt“.</li>
+        </ul>
+      </div>
+      <div class="weak">
+        <h3>Worauf zu achten ist</h3>
+        <ul>
+          <li><b>Die Woche ist klein:</b> gut 40 px je Tag. Zwei Termine nebeneinander sind kaum zu lesen (Mathematik IT-1, Mi 9:15), und auf 1920 px bleibt sie so klein, während die Seite daneben breit wird.</li>
+          <li>Ein Modul ohne Termine (eine Abschlussarbeit, ein Praktikum im Betrieb) lässt die Seitenleiste fast leer.</li>
+          <li>Viele Termine (die 14 Projekte von Berufspraktische Profilierung) scrollen in der Seitenleiste.</li>
+          <li>Die Termine stehen links, in der Vorschau neben der Liste aber oben: zwei Orte für dieselbe Sache.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="vergleich-title">
+    <header>
+      <p class="kicker">Nebeneinander</p>
+      <h2 id="vergleich-title">Im Vergleich</h2>
+      <p class="sub">Breite und Länge folgen dem Modul und dem Bildschirm, die oben in der Leiste gewählt sind. Die Konzepte zeigen alles offen: die Liste der Termine und alle Studiengänge.</p>
+    </header>
+    <div class="tablewrap">
+      <table class="t">
+        <thead><tr><th></th><th>A · Steckbrief</th><th>B · Dein Studium</th><th>C · Woche</th></tr></thead>
+        <tbody>
+          <tr><td>Was beim Scrollen stehen bleibt</td><td>Knöpfe und alle Fakten</td><td>Dein Semester, „Passt“, Voraussetzungen</td><td>Woche, Liste, Prüfungstermine</td></tr>
+          <tr><td>Auf dem ersten Bildschirm (1280 × 680)</td><td><span class="verdict ok"><i></i>Titel, Woche mit Liste, alle Fakten, die Knöpfe</span></td><td><span class="verdict ok"><i></i>Titel, Kennzahlen, Anfang von Texten und Woche, dein Plan</span></td><td><span class="verdict ok"><i></i>Titel, Kennzahlen, Inhalte, Lernziele, die ganze Woche</span></td></tr>
+          <tr><td>Breite der Woche <small class="was">heute 320 px</small></td><td><span class="num" data-wk="a">–</span> px</td><td><span class="num" data-wk="b">–</span> px</td><td><span class="num" data-wk="c">–</span> px</td></tr>
+          <tr><td>Länge der Seite <small class="was">heute 1.467 px, mit zugeklappter Liste und 5 der 13 Studiengänge</small></td><td><span class="num" data-len="a">–</span> px</td><td><span class="num" data-len="b">–</span> px</td><td><span class="num" data-len="c">–</span> px</td></tr>
+          <tr><td>Ohne „Mein Studium“, auf dem Server</td><td><span class="verdict ok"><i></i>Alles da außer den Knöpfen</span></td><td><span class="verdict no"><i></i>Die Seitenleiste ist fast leer</span></td><td><span class="verdict ok"><i></i>Alles da außer Knöpfen und „Passt“</span></td></tr>
+          <tr><td>Modul ohne Termine</td><td><span class="verdict ok"><i></i>Wie sonst, der Abschnitt sagt es</span></td><td><span class="verdict ok"><i></i>Wie sonst</span></td><td><span class="verdict no"><i></i>Die Seitenleiste ist fast leer</span></td></tr>
+          <tr><td>Wie die Vorschau neben der Liste</td><td><span class="verdict meh"><i></i>Dieselben Teile, anders verteilt</span></td><td><span class="verdict meh"><i></i>Neue Teile, die die Vorschau nicht hat</span></td><td><span class="verdict meh"><i></i>Die Termine links statt oben</span></td></tr>
+          <tr><td>Zu bauen</td><td><span class="verdict ok"><i></i>Wenig: die heutigen Teile neu geordnet</span></td><td><span class="verdict no"><i></i>Viel: Semester, Voraussetzungen mit Stand, „Passt“</span></td><td><span class="verdict meh"><i></i>Mittel: kleine Woche, Kennzahlen</span></td></tr>
+          <tr><td>Gegen frühere Entscheidungen</td><td><span class="verdict meh"><i></i>Knöpfe nicht mehr in der Zeile der LP</span></td><td><span class="verdict meh"><i></i>Dasselbe</span></td><td><span class="verdict ok"><i></i>Keine</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec" id="empfehlung" aria-labelledby="empfehlung-title">
+    <header>
+      <p class="kicker">Was ich bauen würde</p>
+      <h2 id="empfehlung-title">Empfehlung: A, mit den Voraussetzungen aus B</h2>
+      <p class="sub">A beantwortet deine drei Punkte am direktesten. Die Seitenleiste trägt, was man auf dieser Seite immer braucht, der Kopf wird schmal, und auf dem ersten Bildschirm stehen Woche, Liste und alle Fakten. Es sind die heutigen Teile, nur neu verteilt, darum ist es auch am schnellsten gebaut.</p>
+    </header>
+    <div class="reco">
+      <ul>
+        <li><b>Hält für jedes Modul:</b> mit und ohne Termine, mit und ohne „Mein Studium“, auf dem Server wie in der App.</li>
+        <li><b>Die Woche wird anderthalbmal so breit,</b> die Liste daneben braucht keine Höhe, darum muss sie nicht mehr zugeklappt sein.</li>
+        <li><b>Aus B</b> würde ich die Voraussetzungen mit deinem Stand übernehmen („eingeplant im WiSe 26/27“), als Block im Steckbrief, sobald „Mein Studium“ eingerichtet ist.</li>
+      </ul>
+      <ul>
+        <li><b>C</b> ist die ruhigste Leseseite, aber die Woche ist dort zu klein für das, wofür Betula sie zeigt: ob ein Modul in deinen Plan passt.</li>
+        <li><b>Zum Bauen:</b> <code>ModuleFull</code> und <code>Sidebar</code> in <code>widgets/src/module.rs</code> und ihr Stil. Die Anker der Abschnitte werden englisch (<code>#dates</code> …), die alten führen weiter hin. Folia ginge um eine Nebenversion hoch.</li>
+        <li><b>Danach die Vorschau:</b> Sie würde den Kopf, die Überschriften und die offene Liste übernehmen und ihre Fakten als Steckbrief-Block oben zeigen.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <header>
+      <p class="kicker">Zum Entscheiden</p>
+      <h2 id="fragen-title">Fragen an dich</h2>
+      <p class="sub">Jeweils mit meinem Vorschlag. Ein „passt“ reicht, wo du zustimmst.</p>
+    </header>
+    <ol class="qs">
+      <li><span><b>A, B oder C?</b> Oder eine Mischung, etwa A mit den Voraussetzungen aus B.<span class="pro">Vorschlag: A mit den Voraussetzungen aus B.</span></span></li>
+      <li><span><b>Einplanen und Merken in die Seitenleiste?</b> Dafür verlassen sie auf der Modulseite die Zeile der LP, in die du sie am 20. September gestellt hast.<span class="pro">Vorschlag: ja, auf der Modulseite. In der Vorschau bleiben sie im Kopf.</span></span></li>
+      <li><span><b>Wie meinst du „Alles muss hier eingebettet sein“?</b> Ich habe es so gelesen: Nichts steht hinter Sprungmarken, Menüs oder Zugeklapptem, wo Platz ist. Darum sind Liste der Termine, Literatur und alle Studiengänge offen.<span class="pro">Vorschlag: so.</span></span></li>
+      <li><span><b>Blocksatz nur für Absätze?</b> Listen linksbündig, weil sie in schmalen Spalten Lücken reißen. Das gälte überall, wo heute Blocksatz steht.<span class="pro">Vorschlag: ja.</span></span></li>
+      <li><span><b>Fakten ohne Symbole?</b> Der Steckbrief zeigt Etikett und Wert ohne Kachel und Symbol, wie eine Tabelle.<span class="pro">Vorschlag: ja, die Etiketten reichen.</span></span></li>
+      <li><span><b>Die Bemerkungen ans Ende, vor die Studiengänge?</b> Bei vielen Modulen zählen sie Studiengänge auf, bei 12102 acht.<span class="pro">Vorschlag: ja.</span></span></li>
+    </ol>
+  </section>
+
+  <p class="foot">Daten: canarys Datenstand vom 19. November 2026 (Folia 1.110.0): 12102 Programmierpraktikum, 12202 Softwarepraktikum und 11112 Mathematik IT-1 mit ihren Terminen im WiSe 2026/27, Texten, Fakten und Studiengängen, wie ihre Seiten sie zeigen, dazu der Kurs von 12102 in Cottbus-Sachsendorf. Das Studium ist ein Beispiel: Informatik B.Sc. (PO 2008), begonnen im WiSe 2026/27, im Plan des WiSe 2026/27 Programmierpraktikum, Entwicklung von Softwaresystemen (EvS), EEG und Mathematik IT-1 (MIT1). Die Semester zur Wahl in B und der Stand der Voraussetzungen folgen aus diesem Beispiel. Nichts davon ist gebaut.</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- Icons (Lucide's shapes, as the app's) ----------
+  const P = {
+    arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    search: '<circle cx="11" cy="11" r="7.5"/><path d="m21 21-4.3-4.3"/>',
+    zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
+    home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    list: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/>',
+    cap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
+    bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+    calCheck: '<path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+    calPlus: '<path d="M8 2v4M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6M19 16v6"/>',
+    calDays: '<path d="M8 2v4M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>',
+    chevronDown: '<path d="m6 9 6 6 6-6"/>',
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
+    keyboard: '<path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10M8 12h.01"/><rect width="20" height="16" x="2" y="4" rx="2"/>',
+    user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>',
+    external: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+    check: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+    alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+    pin: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+    layers: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/>',
+    shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+    circle: '<circle cx="12" cy="12" r="9"/>',
+    circleOff: '<circle cx="12" cy="12" r="9"/><path d="m4.9 4.9 14.2 14.2"/>',
+    pencil: '<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>',
+    info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  };
+  const ic = (name, cls = "i") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name]}</svg>`;
+  const LOGO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c3.6 3 5.6 6.6 5.6 10.3 0 3.4-2 6-4.9 6.9V22h-1.4v-2.3c-2.9-.9-4.9-3.5-4.9-6.9 0-3.7 2-7.3 5.6-10.3Zm0 3.2c-.2 4.6-.2 9.2 0 13.8.2-4.6.2-9.2 0-13.8Z"/></svg>';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const hm = (x) => { const h = Math.floor(x), m = Math.round((x - h) * 60); return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; };
+  const DAYS = ["Mo", "Di", "Mi", "Do", "Fr"];
+
+  // ---------- The plan of WiSe 2026/27 of the example study (what a module's week draws under it) ----------
+  const PLAN = [
+    { m: "PP", d: 0, f: 11.5, t: 13 }, { m: "PP", d: 2, f: 11.5, t: 13 }, { m: "PP", d: 3, f: 11.5, t: 13 }, { m: "PP", d: 4, f: 11.5, t: 13 }, { m: "PP", d: 4, f: 13.75, t: 15.25 },
+    { m: "EvS", d: 0, f: 15.5, t: 17 }, { m: "EvS", d: 0, f: 17.5, t: 19 }, { m: "EvS", d: 1, f: 11.5, t: 13 }, { m: "EvS", d: 1, f: 15.5, t: 17 }, { m: "EvS", d: 1, f: 17.5, t: 19 }, { m: "EvS", d: 4, f: 9.25, t: 10.75 },
+    { m: "EEG", d: 1, f: 7.5, t: 9 }, { m: "EEG", d: 1, f: 9.25, t: 10.75 },
+    { m: "MIT1", d: 0, f: 13.75, t: 15.25 }, { m: "MIT1", d: 1, f: 13.75, t: 15.25 }, { m: "MIT1", d: 2, f: 9.25, t: 10.75 }, { m: "MIT1", d: 2, f: 13.75, t: 15.25 }, { m: "MIT1", d: 3, f: 9.25, t: 10.75 }, { m: "MIT1", d: 1, f: 15.5, t: 17 },
+  ];
+
+  // ---------- The three modules, as canary's pages show them ----------
+  const PERIOD = "5. Okt. 2026 – 29. Jan. 2027";
+  const M = {
+    pp: {
+      id: "12102", abbr: "PP", title: "Programmierpraktikum", en: "Programming Laboratory", tone: "var(--t-ice)",
+      lp: "4 LP", turnus: "WiSe", turnusLong: "jedes WiSe", lang: "Deutsch", langShort: "DE", fues: false,
+      exam: "MCA", examLong: "Continuous Assessment", grading: "unbenotet", duration: "1 Semester", places: "unbegrenzt",
+      campus: ["Zentralcampus Cottbus", "Cottbus-Sachsendorf"],
+      resp: [["Prof. Dr. rer. nat. habil.", "Petra Hofstedt"]],
+      forms: "Vorlesung 1 SWS · Praktikum 2 SWS · Projekt 75 Stunden",
+      semester: "WiSe 2026/27", semShort: "WiSe 26/27",
+      course: { mine: "Zentralcampus Cottbus", other: "Cottbus-Sachsendorf", prog: "Informatik B.Sc." },
+      fit: { ok: true, text: "Passt in deinen Stundenplan" },
+      slots: [
+        { k: "vl", d: 4, f: 11.5, t: 13, s: "VL", type: "must" },
+        { k: "p1", d: 0, f: 11.5, t: 13, s: "Prak", type: "alt" },
+        { k: "p2", d: 2, f: 11.5, t: 13, s: "Prak", type: "alt" },
+        { k: "p3", d: 3, f: 11.5, t: 13, s: "Prak", type: "alt" },
+        { k: "p4", d: 4, f: 13.75, t: 15.25, s: "Prak", type: "alt" },
+        { k: "sd1", d: 1, f: 7.5, t: 9, s: "VL", type: "must", other: true },
+        { k: "sd2", d: 1, f: 9.25, t: 10.75, s: "Labor", type: "must", other: true },
+      ],
+      groups: [
+        { h: "Vorlesung", note: "für alle", type: "must", rows: [{ k: "vl", d: "Fr", t: "11:30–13:00", r: "ZHG/HS.C", x: "A-Woche" }] },
+        { h: "Praktikum", note: "eine der Gruppen", type: "alt", rows: [
+          { k: "p1", d: "Mo", t: "11:30–13:00", r: "VG1C/0.03" }, { k: "p2", d: "Mi", t: "11:30–13:00", r: "VG1C/0.03" },
+          { k: "p3", d: "Do", t: "11:30–13:00", r: "VG1C/0.03" }, { k: "p4", d: "Fr", t: "13:45–15:15", r: "VG1C/0.03" },
+        ] },
+        { h: "Cottbus-Sachsendorf", note: "für Medizininformatik B.Sc.", type: "must", other: true, rows: [
+          { k: "sd1", d: "Di", t: "07:30–09:00", r: "SD/9.117", x: "Vorlesung · Robel" }, { k: "sd2", d: "Di", t: "09:15–10:45", r: "SD/9.117", x: "Laborausbildung · Robel" },
+        ] },
+      ],
+      exams: [],
+      prereq: null,
+      texts: {
+        inhalte: '<ol><li>Umgang mit Programmiersystemen.</li><li>Programmierung von iterativen und rekursiven Algorithmen über primitiven Datenstrukturen.</li><li>Programmierung von Algorithmen über Felder und Strukturen.</li><li>Einsatz objektorientierter Konzepte.</li><li>Fehlerbehandlung</li></ol>',
+        lernziele: '<p>Nach der Teilnahme am Modul hat der Studierende die Fertigkeiten zur Programmierung kleiner Aufgaben in höheren Programmiersprachen, z.B. Java erworben.</p>',
+        pruefung: '<ul><li>Übungsblatt 1 (5 %)</li><li>praktischer Programmiertest 1, 90 Minuten (25 %)</li><li>Übungsblatt 2 (5 %)</li><li>praktischer Programmiertest 2, 90 Minuten (25 %)</li><li>Übungsblatt 3 (5 %)</li><li>praktischer Programmiertest 3, 90 Minuten (35 %)</li></ul><p>Zum Bestehen müssen 50% der Gesamtpunkte erreicht werden.</p>',
+        literatur: '<ul><li>Aktuelle Literaturhinweise werden zu Beginn der Lehrveranstaltung bekannt gegeben und sind auf der Web-Seite zur Veranstaltung bzw. in Moodle zu finden.</li></ul>',
+        bemerkungen: '<ul><li>Studiengang Informatik B.Sc.: Pflichtmodul</li><li>Studiengang eBusiness B.Sc.: Pflichtmodul</li><li>Studiengang Medizininformatik B.Sc.: Pflichtmodul</li><li>Studiengang Künstliche Intelligenz B.Sc.: Pflichtmodul im Komplex „Methodische Grundlagen“</li><li>Studiengang Künstliche Intelligenz Technologie B.Sc.: Pflichtmodul im Komplex „Software-basierte Systeme“</li><li>Studiengang Mathematik B.Sc. (grundständig+dual): Pflichtmodul im Komplex „Anwendungen“</li><li>Studiengang Wirtschaftsmathematik B.Sc. (grundständig+dual): Pflichtmodul im Komplex „Anwendungen“</li><li>Studiengang Physik B.Sc.: Wahlpflichtmodul im Komplex „Nebenfach“</li></ul>',
+      },
+      litCount: 1,
+      programs: [
+        ["Informatik", "B.Sc.", "PO 2008 · 2. SÄ 2024", "1. FS", "Grundstudium / Komplex Informatik", "Pflicht", true],
+        ["eBusiness", "B.Sc.", "PO 2007", "1. FS", "Pflichtmodule / Komplex Informatik", "Pflicht"],
+        ["Künstliche Intelligenz", "B.Sc.", "PO 2022", "1. FS", "Methodische Grundlagen / Pflichtmodule", "Pflicht"],
+        ["Künstliche Intelligenz Technologie", "B.Sc.", "PO 2022", "1. FS", "Software-basierte Systeme / Pflichtmodule", "Pflicht"],
+        ["Mathematik", "B.Sc.", "PO 2023", "1. FS", "Komplex Anwendungen", "Pflicht"],
+        ["Mathematik - dual", "B.Sc.", "PO 2023", "1. FS", "Komplex Anwendungen", "Pflicht"],
+        ["Medizininformatik", "B.Sc.", "PO 2016 · 1. SÄ 2024", "1. FS", "Informatik / Pflichtmodule", "Pflicht"],
+        ["Physik", "B.Sc.", "PO 2021", "", "Nebenfach", "Nebenfach"],
+        ["Umweltwissenschaften", "Bachelor", "PO 2025", "", "Studienrichtungsspezifische Module / Systemanalyse", ""],
+        ["Umweltwissenschaften - dual", "Bachelor", "PO 2025", "", "Studienrichtungsspezifische Module / Systemanalyse", ""],
+        ["Wirtschaftsinformatik", "Bachelor", "PO 2024", "1. FS", "Informatik-Grundlagen / Pflichtmodule", "Pflicht"],
+        ["Wirtschaftsmathematik", "B.Sc.", "PO 2023", "1. FS", "Komplex Anwendungen", "Pflicht"],
+        ["Wirtschaftsmathematik - dual", "B.Sc.", "PO 2023", "1. FS", "Komplex Anwendungen", "Pflicht"],
+      ],
+      fuesNote: "",
+      fetched: "20.10.2026",
+      mine: { prog: "Informatik B.Sc.", kind: "Pflicht", fs: "1. FS", area: "Grundstudium / Komplex Informatik" },
+      sems: [["WiSe 26/27", "1. FS", "laut Plan"], ["WiSe 27/28", "3. FS", ""], ["WiSe 28/29", "5. FS", ""]],
+      target: "WiSe 26/27",
+    },
+    swp: {
+      id: "12202", abbr: "SWP", title: "Softwarepraktikum", en: "Software Lab Project", tone: "var(--t-green)",
+      lp: "8 LP", turnus: "WiSe", turnusLong: "jedes WiSe", lang: "Deutsch", langShort: "DE", fues: false,
+      exam: "MCA", examLong: "Continuous Assessment", grading: "unbenotet", duration: "1 Semester", places: "unbegrenzt",
+      campus: ["Zentralcampus Cottbus", "Cottbus-Sachsendorf"],
+      resp: [["Prof. Dr. rer. nat.", "Leen Lambers"]],
+      forms: "Laborausbildung 2 SWS · Projekt 4 SWS",
+      semester: "WiSe 2026/27", semShort: "WiSe 26/27",
+      course: { mine: "Zentralcampus Cottbus", other: "Cottbus-Sachsendorf", prog: "Informatik B.Sc.", none: true },
+      fit: { ok: false, text: "Überschneidet sich mit: Programmierpraktikum (Fr 11:30)" },
+      slots: [{ k: "s1", d: 4, f: 11.5, t: 13, s: "Prak", type: "must", clash: true }],
+      groups: [{ h: "Praktikum", note: "für alle", type: "must", rows: [{ k: "s1", d: "Fr", t: "11:30–13:00", r: "ZHG/SEM.1", x: "Lambers" }] }],
+      exams: [],
+      prereq: {
+        groups: [
+          { kind: "zwingend", either: [
+            { id: "12102", t: "Programmierpraktikum", st: "ok", say: "eingeplant im WiSe 26/27" },
+            { id: "11900", t: "Programming Laboratory (IMT)", st: "off", say: "wird nicht mehr angeboten" },
+          ] },
+          { kind: "zwingend", items: [{ id: "12104", t: "Entwicklung von Softwaresystemen", st: "ok", say: "eingeplant im WiSe 26/27" }] },
+          { kind: "empfohlen", items: [{ id: "12101", t: "Algorithmieren und Programmieren", st: "rec", say: "nicht in deinem Plan", act: "Einplanen" }] },
+        ],
+      },
+      texts: {
+        inhalte: '<p>Im Team (4 bis 6 Bearbeiter) wird ein Softwareprojekt erarbeitet. Dabei werden Erfahrungen in der Teamarbeit bei der Problemerkennung, der Planung, des Entwurfs, der Einhaltung von vorgegebenen Kodier- und Dokumentierstandards, des Reviews, des Tests und der Führung von Zeitprotokollen gesammelt. Die Arbeit findet unter Anleitung und wöchentlicher Auswertung statt. Den Abschluss bildet eine öffentliche Projektpräsentation.</p>',
+        lernziele: '<p>Die Studierenden erwerben Kenntnisse und praktische Erfahrungen bei der Planung und Durchführung eines größeren Softwareprojektes in einem Projektteam. Das umfasst sowohl technische Fähigkeiten wie Entwurf, Test und Programmierung als auch soziale Kompetenzen wie Gruppenkoordination, Zeitmanagement und Präsentation.</p>',
+        pruefung: '<ul><li>Dokumentiertes Softwareprodukt (50%)</li><li>Projektdokumentation (30%)</li><li>Projektpräsentationen (20%)</li></ul><p>Der Umfang der Teilleistungen ist aufgabenabhängig und wird in der ersten Veranstaltung bekannt gegeben. Das Modul ist bestanden, wenn 75% der Punkte erreicht sind.</p>',
+        literatur: '<ul><li>C. Lewerentz et al.: Leitfaden für das Softwarepraktikum an der BTU</li></ul>',
+        bemerkungen: '<ul><li>Studiengang Informatik B.Sc.: Pflichtmodul</li><li>Studiengang eBusiness B.Sc.: Pflichtmodul</li><li>Studiengang Künstliche Intelligenz B.Sc.: Wahlpflichtmodul im Komplex „Methodische Grundlagen”</li><li>Studiengang Künstliche Intelligenz Technologie B.Sc.: Wahlpflichtmodul im Komplex „Software-basierte Systeme”</li></ul><p>Das Praktikum kann als Blockveranstaltung in der vorlesungsfreien Zeit durchgeführt werden. (Veranstaltungsplanung mit Zeiten wird vor Semesterbeginn abgeschlossen sein und veröffentlicht.)</p>',
+      },
+      litCount: 1,
+      programs: [
+        ["Informatik", "B.Sc.", "PO 2008 · 2. SÄ 2024", "3. FS", "Grundstudium / Komplex Informatik", "Pflicht", true],
+        ["eBusiness", "B.Sc.", "PO 2007", "3. FS", "Pflichtmodule / Komplex Informatik", "Pflicht"],
+        ["Künstliche Intelligenz", "B.Sc.", "PO 2022", "", "Methodische Grundlagen / Wahlpflichtmodule", "Wahlpflicht"],
+        ["Künstliche Intelligenz Technologie", "B.Sc.", "PO 2022", "", "Software-basierte Systeme / Wahlpflichtmodule", "Wahlpflicht"],
+        ["Maschinenbau", "Bachelor", "PO 2021", "", "Fachspezifisches Studium / Softwaresystemtechnik", ""],
+        ["Maschinenbau - dual", "Bachelor", "PO 2021", "", "Fachspezifisches Studium / Softwaresystemtechnik", ""],
+        ["Medizininformatik", "B.Sc.", "PO 2016 · 1. SÄ 2024", "5. FS", "Pro Track", "Pflicht"],
+        ["Wirtschaftsinformatik", "Bachelor", "PO 2024", "", "Informatik-Grundlagen / Wahlbereich Informatik-Grundlagen", "Wahlpflicht"],
+      ],
+      fuesNote: "",
+      fetched: "19.11.2026",
+      mine: { prog: "Informatik B.Sc.", kind: "Pflicht", fs: "3. FS", area: "Grundstudium / Komplex Informatik" },
+      sems: [["WiSe 27/28", "3. FS", "laut Plan"], ["WiSe 26/27", "1. FS", ""], ["WiSe 28/29", "5. FS", ""]],
+      target: "WiSe 27/28",
+    },
+    mit1: {
+      id: "11112", abbr: "MIT1", title: "Mathematik IT-1 (Diskrete Mathematik)", en: "Mathematics IT-1 (Discrete Mathematics)", tone: "var(--t-teal)",
+      lp: "8 LP", turnus: "WiSe", turnusLong: "jedes WiSe", lang: "Deutsch", langShort: "DE", fues: true,
+      exam: "Vorleistung + MAP", examLong: "Prüfungsvorleistung + Modulabschlussprüfung", grading: "benotet", duration: "1 Semester", places: "unbegrenzt",
+      campus: ["Zentralcampus Cottbus"],
+      resp: [["Prof. Dr. rer. nat. habil.", "Ekkehard Köhler"]],
+      forms: "Vorlesung 4 SWS · Übung 2 SWS",
+      semester: "WiSe 2026/27", semShort: "WiSe 26/27",
+      course: null,
+      fit: { ok: true, text: "Passt in deinen Stundenplan" },
+      slots: [
+        { k: "v1", d: 0, f: 13.75, t: 15.25, s: "VL", type: "must" },
+        { k: "v2", d: 1, f: 13.75, t: 15.25, s: "VL", type: "must" },
+        { k: "u1", d: 2, f: 9.25, t: 10.75, s: "Ü", type: "alt", lane: 0, lanes: 2 },
+        { k: "u0", d: 2, f: 9.25, t: 10.75, s: "Ü", type: "once", lane: 1, lanes: 2, sub: "04.11." },
+        { k: "u2", d: 2, f: 13.75, t: 15.25, s: "Ü", type: "alt" },
+        { k: "u3", d: 3, f: 9.25, t: 10.75, s: "Ü", type: "alt" },
+        { k: "tu", d: 1, f: 15.5, t: 17, s: "+ Tut", type: "extra" },
+      ],
+      groups: [
+        { h: "Vorlesung", note: "für alle", type: "must", rows: [{ k: "v1", d: "Mo", t: "13:45–15:15", r: "ZHG/HS.A" }, { k: "v2", d: "Di", t: "13:45–15:15", r: "LG1A/HS.2" }] },
+        { h: "Übung", note: "eine der Gruppen", type: "alt", rows: [
+          { k: "u1", d: "Mi", t: "09:15–10:45", r: "HG/0.17", x: "Pilling" }, { k: "u2", d: "Mi", t: "13:45–15:15", r: "LG1A/304", x: "Pilling" },
+          { k: "u3", d: "Do", t: "09:15–10:45", r: "HG/0.17", x: "Krowiorz" },
+        ] },
+        { h: "Übung, einmal", note: "", type: "once", rows: [{ k: "u0", d: "Mi", t: "09:15–10:45", r: "LG1A/304", x: "nur am 04.11.2026" }] },
+        { h: "Tutorium", note: "zusätzlich, freiwillig", type: "extra", rows: [{ k: "tu", d: "Di", t: "15:30–17:00", r: "HG/2.45" }] },
+      ],
+      exams: [{ d: "Mi", date: "10.03.2027", t: "11:00–13:00", r: "GHS" }],
+      prereq: null,
+      texts: {
+        inhalte: '<ul><li>Grundlagen: Mengen, Abbildungen, Relationen, vollständige Induktion</li><li>Elementare Kombinatorik: Abzählen, Binomialkoeffizienten, Siebformel, Abschätzen</li><li>Einführung in die Graphentheorie</li><li>Logik: Normalform und Resolution in der Aussagenlogik</li><li>Gesellschaftliche Aspekte in der Geschichte der Mathematik und gesellschaftliche Verantwortung in der Gegenwart</li></ul>',
+        lernziele: '<p>Die Studierenden sollen</p><ul><li>sichere Kenntnisse über grundlegende Begriffe der Graphentheorie, der elementaren Zähltheorie und Kombinatorik sowie der Aussagen- und Prädikatenlogik erwerben</li><li>die Grundtechniken des Lösens typischer Aufgabenstellungen in diesen Gebieten sicher beherrschen</li><li>grundlegende Fähigkeiten und Fertigkeiten im strukturellen Denken und Beweisen entwickeln</li><li>insbesondere durch eigenständiges Lösen von Übungsaufgaben zur Exaktheit in der Umsetzung des Faktenwissens aus den Lehrveranstaltungen befähigt werden</li></ul>',
+        pruefung: '<p>Voraussetzung für die Modulabschlussprüfung:</p><ul><li>erfolgreiche Bearbeitung von Hausaufgaben</li></ul><p>Modulabschlussprüfung:</p><ul><li>Klausur, 90 min.</li></ul>',
+        literatur: '<ul><li>Matousek, J., Nesetril, J.: Diskrete Mathematik: Eine Entdeckungsreise, Springer, 2002</li><li>Meinel, Mundschenk: Mathematische Grundlagen der Informatik</li><li>Tuschik, Wolter: Mathematische Logik – kurzgefasst, Spektrum, 2002</li><li>Steger, A.: Diskrete Strukturen 1</li></ul>',
+        bemerkungen: '<ul><li>Studiengang Informatik B.Sc.: Pflichtmodul</li><li>Studiengang eBusiness B.Sc.: Pflichtmodul</li><li>Studiengang Medizininformatik B.Sc.: Pflichtmodul</li><li>Studiengang Künstliche Intelligenz B.Sc.: Pflichtmodul im Komplex „Mathematik”</li><li>Studiengang Künstliche Intelligenz Technologie B.Sc.: Pflichtmodul im Komplex „Mathematik”</li></ul>',
+      },
+      litCount: 4,
+      programs: [
+        ["Informatik", "B.Sc.", "PO 2008 · 2. SÄ 2024", "1. FS", "Grundstudium / Komplex Mathematik", "Pflicht", true],
+        ["Bauen und Erhalten", "Master", "PO 2007", "", "Wahlpflichtmodule / Hintergrund, Instrumente", "Wahlpflicht"],
+        ["eBusiness", "B.Sc.", "PO 2007", "1. FS", "Pflichtmodule / Komplex Mathematik", "Pflicht"],
+        ["Künstliche Intelligenz", "B.Sc.", "PO 2022", "1. FS", "Mathematik / Pflichtmodule", "Pflicht"],
+        ["Künstliche Intelligenz Technologie", "B.Sc.", "PO 2022", "1. FS", "Mathematik / Pflichtmodule", "Pflicht"],
+        ["Medizininformatik", "B.Sc.", "PO 2016 · 1. SÄ 2024", "1. FS", "Mathematik", "Pflicht"],
+        ["Orientierungsstudium (2 Semester)", "", "PO 2026", "", "Fachmodule 1. Semester", ""],
+        ["Umweltwissenschaften", "Bachelor", "PO 2025", "3. FS", "Studienrichtungsspezifische Module (SYA) / Pflichtmodule (SYA)", "Pflicht"],
+        ["Umweltwissenschaften - dual", "Bachelor", "PO 2025", "3. FS", "Studienrichtungsspezifische Module (SYA) / Pflichtmodule (SYA)", "Pflicht"],
+        ["Wirtschaftsinformatik", "Bachelor", "PO 2024", "1. FS", "Mathematische und Weitere Methodische Grundlagen / Pflichtmodule", "Pflicht"],
+      ],
+      fuesNote: "Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in 70 Studiengängen.",
+      fetched: "03.11.2026",
+      mine: { prog: "Informatik B.Sc.", kind: "Pflicht", fs: "1. FS", area: "Grundstudium / Komplex Mathematik" },
+      sems: [["WiSe 26/27", "1. FS", "laut Plan"], ["WiSe 27/28", "3. FS", ""], ["WiSe 28/29", "5. FS", ""]],
+      target: "WiSe 26/27",
+    },
+  };
+
+  // ---------- What the visitor does on the screens (shared by the three) ----------
+  const state = {
+    mod: "pp", W: 1280, H: 680,
+    planned: { pp: "WiSe 26/27", swp: null, mit1: "WiSe 26/27" },
+    marked: { pp: false, swp: false, mit1: false },
+    reveal: false,
+  };
+  const ABBR = { pp: "PP", swp: "SWP", mit1: "MIT1" };
+
+  // ---------- Parts ----------
+  const kindOf = (type) => ({ must: "Pflicht", alt: "Wahl, eine der Gruppen", once: "Einzeltermin", extra: "Zusatz, freiwillig" })[type];
+
+  // The plan under the module's week: what else is planned into the semester, the module itself
+  // not; the same times on a day one card („EvS · MIT1").
+  function underlay(key) {
+    const own = ABBR[key];
+    const merged = new Map();
+    for (const p of PLAN) {
+      if (p.m === own) continue;
+      const id = `${p.d}-${p.f}-${p.t}`;
+      if (merged.has(id)) merged.get(id).m += ` · ${p.m}`;
+      else merged.set(id, { ...p });
+    }
+    return [...merged.values()];
+  }
+
+  function week(key, m) {
+    const own = m.slots.filter((s) => state.reveal || !s.other);
+    const start = Math.min(8, Math.floor(Math.min(...own.map((s) => s.f))));
+    const end = Math.max(start + 5, Math.ceil(Math.max(...own.map((s) => s.t))));
+    const span = (end - start) * 2;
+    const plan = underlay(key);
+    const hours = [];
+    for (let h = start; h <= end; h++) hours.push(`<span style="--at:${h - start}">${h}</span>`);
+    let cols = "", spills = "";
+    DAYS.forEach((day, i) => {
+      let html = "";
+      const spill = [];
+      for (const p of plan.filter((p) => p.d === i).sort((x, y) => x.f - y.f)) {
+        if (p.f >= end) { spill.push(`+ ${p.m} ${hm(p.f)}`); continue; }
+        if (p.t <= start) continue;
+        const f = Math.max(p.f, start), t = Math.min(p.t, end);
+        const cutT = p.f < start, cutB = p.t > end;
+        if (cutB) spill.unshift(`bis ${hm(p.t)}`);
+        html += `<div class="slot pl${cutB ? " cutb" : ""}" style="--f:${(f - start) * 2};--l:${(t - f) * 2}"><span class="w">${esc(p.m)}</span>${cutT ? `<small>ab ${hm(p.f)}</small>` : ""}</div>`;
+      }
+      for (const s of own.filter((s) => s.d === i)) {
+        const under = plan.some((p) => p.d === i && p.f < s.t && p.t > s.f);
+        const tall = s.t - s.f >= 1.5;
+        const cls = ["slot", "own", s.type, s.other ? "faint" : "", s.clash ? "clash" : "", tall ? "tall" : ""].filter(Boolean).join(" ");
+        const sub = s.sub ? `1 Termin · ${s.sub}` : hm(s.f);
+        html += `<div class="${cls}" data-k="${s.k}" style="--tone:${m.tone};--f:${(s.f - start) * 2};--l:${(s.t - s.f) * 2};--lane:${s.lane || 0};--lanes:${s.lanes || 1};--free:${under ? 1 : 0}" title="${esc(`${DAYS[s.d]} ${hm(s.f)}–${hm(s.t)} · ${kindOf(s.type)}`)}"><span class="w">${esc(s.s)}</span><small>${esc(sub)}</small></div>`;
+      }
+      cols += `<div class="col" style="grid-column:${i + 2};--span:${span}">${html}</div>`;
+      spills += `<div class="spill" style="grid-column:${i + 2}">${spill.map(esc).join("<br>")}</div>`;
+    });
+    const head = DAYS.map((d, i) => `<div class="d" style="grid-column:${i + 2}">${d}</div>`).join("");
+    return `<div class="wk"><div class="d" style="grid-column:1"></div>${head}<div class="hrs" style="height:calc(${span} * var(--hh))">${hours.join("")}</div>${cols}${spills}</div>`;
+  }
+
+  function keys(m) {
+    const types = [...new Set(m.slots.filter((s) => state.reveal || !s.other).map((s) => s.type))];
+    const order = ["must", "alt", "once", "extra"];
+    return `<div class="keys">${order.filter((t) => types.includes(t)).map((t) => `<span class="key"><i class="${t}" style="--tone:${m.tone}"></i>${kindOf(t)}</span>`).join("")}<span class="key"><i class="pl"></i>Darunter: dein Stundenplan</span></div>`;
+  }
+
+  function courseLine(m) {
+    if (!m.course) return "";
+    const c = m.course;
+    const other = state.reveal ? "Nur Zentralcampus zeigen" : `Auch ${c.other} zeigen`;
+    return `<p class="line">${ic("pin")}<span>${esc(c.mine)}, für ${esc(c.prog)} · <button type="button" data-act="reveal">${esc(other)}</button></span></p>`;
+  }
+  function fitLine(m) {
+    return m.fit.ok
+      ? `<p class="line ok">${ic("check")}<span>${esc(m.fit.text)} (${esc(m.semester)})</span></p>`
+      : `<p class="line warn">${ic("alert")}<span>${esc(m.fit.text)}</span></p>`;
+  }
+
+  function termList(m) {
+    const groups = m.groups.filter((g) => state.reveal || !g.other);
+    let html = `<p class="tl-share">${esc(PERIOD)}, wöchentlich, wo nichts anderes steht</p>`;
+    for (const g of groups) {
+      html += `<div class="tl-grp"><h4><span class="key"><i class="${g.type}" style="--tone:${g.other ? "var(--t-coral)" : m.tone}"></i></span>${esc(g.h)}${g.note ? ` <small>· ${esc(g.note)}</small>` : ""}</h4>`;
+      for (const r of g.rows) {
+        html += `<div class="tl-row${g.other ? " faint" : ""}" data-k="${r.k}"><b>${r.d}</b><span class="t">${r.t}</span><span class="r">${esc(r.r)}${r.x ? ` <small>· ${esc(r.x)}</small>` : ""}</span></div>`;
+      }
+      html += "</div>";
+    }
+    if (m.exams.length) {
+      html += `<div class="tl-grp"><h4><span class="key"><i class="once"></i></span>Prüfung <small>· ${esc(m.semester)}</small></h4>`;
+      for (const e of m.exams) html += `<div class="tl-row exam"><b>${e.d}</b><span class="t">${e.date}</span><span class="r">${e.t} · ${esc(e.r)}</span></div>`;
+      html += "</div>";
+    }
+    return `<div class="tl">${html}</div>`;
+  }
+
+  function planSwitch(key, m, wide) {
+    const sem = state.planned[key];
+    const fs = sem ? (m.sems.find((s) => s[0] === sem) || [])[1] : "";
+    return sem
+      ? `<span class="sw on${wide ? " wide" : ""}"><button type="button" class="main" data-act="plan">${ic("calCheck")}<span>Eingeplant<small>${esc(sem)}${fs ? ` · ${fs}` : ""}</small></span><kbd>P</kbd></button><button type="button" class="more" aria-label="Anderes Semester">${ic("chevronDown")}</button></span>`
+      : `<span class="sw${wide ? " wide" : ""}"><button type="button" class="main" data-act="plan">${ic("calPlus")}<span>Einplanen<small>${esc(m.target)}</small></span><kbd>P</kbd></button><button type="button" class="more" aria-label="Anderes Semester">${ic("chevronDown")}</button></span>`;
+  }
+  function markSwitch(key) {
+    const on = state.marked[key];
+    return `<span class="sw mark${on ? " on" : ""}"><button type="button" class="main" data-act="mark">${ic("bookmark")}<span>${on ? "Gemerkt" : "Merken"}</span><kbd>M</kbd></button><button type="button" class="more" aria-label="Sammlung">${ic("chevronDown")}</button></span>`;
+  }
+
+  function topHead(m) {
+    return `<div class="mh-top"><a class="back" href="#">${ic("arrowLeft")}Zurück<kbd>Esc</kbd></a><span class="chipid">${m.id}</span><span class="chipid" title="Kürzel">${m.abbr}</span></div>`;
+  }
+  function badges(m) {
+    return `<span class="badges"><span class="badge strong">${m.lp}</span><span class="badge">${m.turnus}</span><span class="badge">${m.langShort}</span>${m.fues ? '<span class="badge">FÜS</span>' : ""}</span>`;
+  }
+  const person = (m) => m.resp.map(([title, name]) => `${title} ${name}`).join("; ");
+  function kz(m) {
+    const cells = [["Leistungspunkte", m.lp], ["Angebot", m.turnusLong], ["Sprache", m.lang], ["Prüfung", m.exam], ["Benotung", m.grading], ["Dauer", m.duration], ["Plätze", m.places]];
+    return `<dl class="kz">${cells.map(([dt, dd]) => `<div><dt>${dt}</dt><dd>${esc(dd)}</dd></div>`).join("")}</dl>
+      <p class="who"><span>${ic("layers")}${esc(m.forms)}</span><span>${ic("user")}${esc(person(m))}</span><span>${ic("pin")}${m.campus.map(esc).join(", ")}</span>${m.fues ? `<span>${ic("info")}Auch als FÜS anrechenbar</span>` : ""}</p>`;
+  }
+  function factSheet(m) {
+    return `<dl class="facts">
+      <div title="${esc(m.examLong)}"><dt>Prüfung</dt><dd>${esc(m.exam)}</dd></div>
+      <div><dt>Benotung</dt><dd>${esc(m.grading)}</dd></div>
+      <div><dt>Dauer</dt><dd>${esc(m.duration)}</dd></div>
+      <div><dt>Plätze</dt><dd>${esc(m.places)}</dd></div>
+      <div class="wide"><dt>Lehrformen</dt><dd>${esc(m.forms)}</dd></div>
+      <div class="wide"><dt>Standort</dt><dd>${m.campus.map(esc).join("<br>")}</dd></div>
+      <div class="wide"><dt>Verantwortlich</dt><dd>${m.resp.map(([title, name]) => `${esc(name)}<small>${esc(title)}</small>`).join("")}</dd></div>
+    </dl>`;
+  }
+
+  function prereqBlock(m) {
+    if (!m.prereq) return "";
+    const card = (p, kind) => `<a class="pre" href="#"><span class="chipid">${p.id}</span><b>${esc(p.t)}</b><small${p.st === "off" ? ' class="off"' : ""}>${p.st === "off" ? esc(p.say) : kind}</small></a>`;
+    const parts = m.prereq.groups.map((g) => g.either
+      ? `<div class="either" role="group" aria-label="${g.kind}: eins davon genügt">${g.either.map((p, i) => `${i ? '<span class="or">oder</span>' : ""}${card(p, g.kind)}`).join("")}</div>`
+      : g.items.map((p) => card(p, g.kind)).join("")).join("");
+    return `<div class="pres">${parts}</div>`;
+  }
+
+  function texts(m, keysWanted) {
+    const L = { inhalte: "Inhalte", lernziele: "Lernziele", pruefung: "Prüfungsleistung", literatur: "Literatur", bemerkungen: "Bemerkungen" };
+    return keysWanted.filter((k) => m.texts[k]).map((k) => `<section><h2 class="h2">${L[k]}${k === "literatur" && m.litCount > 1 ? ` <small>${m.litCount}</small>` : ""}</h2><div class="prose" lang="de">${m.texts[k]}</div></section>`).join("");
+  }
+
+  function programs(m) {
+    const rows = m.programs.map(([n, deg, po, fs, area, kind, mine]) => {
+      const sub = [po, fs, area].filter(Boolean).join(" · ");
+      return `<a class="prog${mine ? " mine" : ""}" href="#"><b>${esc(n)}${deg ? ` · ${esc(deg)}` : ""}</b><small>${esc(sub)}</small>${kind ? `<span class="kind"><i></i>${esc(kind)}</span>` : ""}</a>`;
+    }).join("");
+    return `<div class="progs">${rows}</div>${m.fuesNote ? `<p class="hint" style="margin-top:8px">${esc(m.fuesNote)}</p>` : ""}`;
+  }
+  const source = (m) => `<p class="src">${ic("shield")}<span>Modulbeschreibung der BTU, abgerufen am ${m.fetched} · <a href="#">Original</a></span></p>`;
+
+  // ---------- The shell: rail, top bar, frame ----------
+  function shell(sidebar, page) {
+    return `<div class="crown"></div>
+      <nav class="rail" aria-label="Bereiche"><span class="logo">${LOGO}</span>
+        <span class="nav">${ic("home")}</span><span class="nav on">${ic("list")}</span><span class="nav">${ic("cap")}</span><span class="nav">${ic("bookmark")}</span><span class="nav">${ic("calDays")}<b>4</b></span>
+        <span class="grow"></span><span class="nav">${ic("keyboard")}</span><span class="nav">${ic("user")}</span><span class="nav">${ic("moon")}</span></nav>
+      <div class="topbar"><div class="area">Module</div><div class="search">${ic("search")}<span>Modul, Nummer oder Thema suchen</span><kbd style="margin-left:auto">/</kbd><span class="cmd">${ic("zap")}Befehle<kbd>Strg</kbd>+<kbd>K</kbd></span></div></div>
+      <div class="frame"><aside class="sidebar">${sidebar}</aside><div class="pagearea">${page}</div></div>`;
+  }
+
+  // ---------- A: the Steckbrief in the sidebar ----------
+  function conceptA(key, m) {
+    const side = `<div class="sb-head"><h2>Steckbrief</h2></div>
+      <div class="sb-body">
+        <div class="acts">${planSwitch(key, m, true)}${markSwitch(key)}
+          <div class="links"><a href="#">${ic("share")}Link kopieren</a><a href="#">${ic("external")}Original</a></div></div>
+        <section class="sb-sec mine"><p class="lbl">In ${esc(m.mine.prog)}</p><b>${esc(m.mine.kind)} im ${esc(m.mine.fs)} <span>laut Plan</span></b><p>${esc(m.mine.area)}</p></section>
+        <section class="sb-sec"><p class="lbl">Auf einen Blick</p>${factSheet(m)}</section>
+        <section class="sb-sec">${source(m)}</section>
+      </div>`;
+    const page = `<article class="sheet">
+        <header class="mh">${topHead(m)}<div class="mh-title"><div><h1>${esc(m.title)}</h1><p class="en">${esc(m.en)} ${badges(m)}</p></div></div></header>
+        ${m.prereq ? `<section class="part"><h2 class="h2">Voraussetzungen</h2>${prereqBlock(m)}</section>` : ""}
+        <section class="part"><h2 class="h2">Termine <small>${esc(m.semester)}</small></h2>
+          <div class="tgrid"><div>${courseLine(m)}${fitLine(m)}<div style="margin-top:10px">${week(key, m)}</div>${keys(m)}</div>${termList(m)}</div></section>
+        <section class="part texts">${texts(m, ["inhalte", "lernziele", "pruefung", "literatur", "bemerkungen"])}</section>
+        <section class="part" data-programs><h2 class="h2">Studiengänge <small>${m.programs.length}</small></h2>${programs(m)}</section>
+      </article>`;
+    return shell(side, page);
+  }
+
+  // ---------- B: your study in the sidebar ----------
+  function conceptB(key, m) {
+    const sem = state.planned[key];
+    const sems = m.sems.map(([s, fs, note]) => `<button type="button" class="semopt${sem === s ? " on" : ""}" data-act="sem" data-sem="${s}"><i></i><span><b>${s}</b><small>${fs}${note ? ` · ${note}` : ""}</small></span>${sem === s ? "<em>eingeplant</em>" : ""}</button>`).join("");
+    const fit = m.fit.ok
+      ? `<p class="state ok">${ic("check")}<span><b>Passt</b> zu den anderen Modulen deines Plans im ${esc(m.semShort)}.</span></p>`
+      : `<p class="state warn">${ic("alert")}<span><b>Überschneidung</b> im ${esc(m.semShort)} mit Programmierpraktikum, Fr 11:30.</span></p>`;
+    let pre = `<p class="state ok">${ic("check")}<span>Keine Voraussetzungen.</span></p>`;
+    if (m.prereq) {
+      const row = (p, kind) => {
+        const icon = p.st === "ok" ? "check" : p.st === "off" ? "circleOff" : "circle";
+        return `<div class="prow ${p.st}">${ic(icon)}<span><b>${esc(p.t)}</b><small>${p.id} · ${p.st === "rec" ? "empfohlen, " : ""}${esc(p.say)}${p.act ? ` · <a class="act" href="#">${p.act}</a>` : ""}</small></span></div>`;
+      };
+      pre = m.prereq.groups.map((g) => g.either
+        ? `<div class="porgroup">${g.either.map((p, i) => `${i ? '<span class="or">oder</span>' : ""}${row(p, g.kind)}`).join("")}</div>`
+        : g.items.map((p) => row(p, g.kind)).join("")).join("");
+      pre = `<p class="state ok">${ic("check")}<span>Die zwingenden sind vor dem ${esc(m.target)} eingeplant.</span></p>${pre}`;
+    }
+    const side = `<div class="sb-head"><h2>Dein Studium</h2><span>Informatik B.Sc.</span></div>
+      <div class="sb-body">
+        <section class="sb-sec"><p class="lbl">Einplanen <kbd>P</kbd></p><div class="sems">${sems}</div>
+          <div class="semlinks"><button type="button">Anderes Semester …</button>${sem ? '<button type="button" class="out" data-act="unplan">Aus dem Plan nehmen</button>' : ""}</div></section>
+        <section class="sb-sec"><p class="lbl">Stundenplan</p>${fit}</section>
+        <section class="sb-sec"><p class="lbl">Merken <kbd>M</kbd></p><div class="markrow">${markSwitch(key)}</div><p class="note">${ic("pencil")}Notiz hinzufügen</p></section>
+        <section class="sb-sec"><p class="lbl">In ${esc(m.mine.prog)}</p><p class="state">${ic("cap")}<span><b>${esc(m.mine.kind)} im ${esc(m.mine.fs)}</b> laut Regelstudienplan<br>${esc(m.mine.area)}</span></p></section>
+        <section class="sb-sec"><p class="lbl">Voraussetzungen</p>${pre}</section>
+        <section class="sb-sec"><div class="foot-links"><a href="#">${ic("share")}Link kopieren</a><a href="#">${ic("external")}Original bei der BTU</a></div></section>
+      </div>`;
+    const page = `<article class="sheet">
+        <header class="mh">${topHead(m)}<div class="mh-title"><div><h1>${esc(m.title)}</h1><p class="en">${esc(m.en)}</p></div></div>${kz(m)}</header>
+        <div class="part cols" style="border-top:0;margin-top:6px">
+          <div class="readcol">${texts(m, ["inhalte", "lernziele", "pruefung", "literatur", "bemerkungen"])}</div>
+          <div class="termcol"><h2 class="h2">Termine <small>${esc(m.semester)}</small></h2>${courseLine(m)}<div style="margin-top:10px">${week(key, m)}</div>${keys(m)}<div style="margin-top:14px">${termList(m)}</div></div>
+        </div>
+        <section class="part"><h2 class="h2">Studiengänge <small>${m.programs.length}</small></h2>${programs(m)}<div style="margin-top:14px">${source(m)}</div></section>
+      </article>`;
+    return shell(side, page);
+  }
+
+  // ---------- C: the week in the sidebar ----------
+  function conceptC(key, m) {
+    const side = `<div class="sb-head"><h2>Termine</h2><span>${esc(m.semShort)}</span></div>
+      <div class="sb-body">
+        <section class="sb-sec">${courseLine(m)}${fitLine(m)}${week(key, m)}${keys(m)}</section>
+        <section class="sb-sec">${termList(m)}<a class="tolink" href="#">Im Stundenplan öffnen ${ic("chevronRight")}</a></section>
+      </div>`;
+    const page = `<article class="sheet">
+        <header class="mh">${topHead(m)}<div class="mh-title"><div><h1>${esc(m.title)}</h1><p class="en">${esc(m.en)}</p></div><div class="switches">${planSwitch(key, m)}${markSwitch(key)}</div></div>${kz(m)}</header>
+        ${m.prereq ? `<section class="part"><h2 class="h2">Voraussetzungen</h2>${prereqBlock(m)}</section>` : ""}
+        <section class="part texts">${texts(m, ["inhalte", "lernziele", "pruefung", "literatur", "bemerkungen"])}</section>
+        <section class="part"><h2 class="h2">Studiengänge <small>${m.programs.length}</small></h2>${programs(m)}<div style="margin-top:14px">${source(m)}</div></section>
+      </article>`;
+    return shell(side, page);
+  }
+
+  const CONCEPTS = { a: conceptA, b: conceptB, c: conceptC };
+
+  // ---------- Rendering, scaling, measuring ----------
+  const screens = [...document.querySelectorAll("[data-screen]")];
+  function render(only) {
+    const m = M[state.mod];
+    for (const el of screens) {
+      const which = el.dataset.screen;
+      if (only && only !== which) continue;
+      const area = el.querySelector(".pagearea");
+      const top = area ? area.scrollTop : 0;
+      el.style.setProperty("--W", state.W);
+      el.style.setProperty("--H", state.H);
+      el.innerHTML = CONCEPTS[which](state.mod, m);
+      if (only) el.querySelector(".pagearea").scrollTop = top;
+    }
+    fit();
+    measure();
+  }
+  function fit() {
+    for (const el of screens) {
+      const box = el.parentElement;
+      const stage = box.closest(".stage");
+      let s;
+      if (stage.classList.contains("full")) {
+        s = Math.min(1, box.clientWidth / state.W, box.clientHeight / state.H);
+        el.style.left = `${Math.max(0, (box.clientWidth - state.W * s) / 2)}px`;
+      } else {
+        s = Math.min(1, box.clientWidth / state.W);
+        el.style.left = `${Math.max(0, (box.clientWidth - state.W * s) / 2)}px`;
+      }
+      el.style.setProperty("--s", s);
+      box.style.setProperty("--H", state.H);
+      box.style.setProperty("--s", s);
+    }
+  }
+  function measure() {
+    for (const el of screens) {
+      const which = el.dataset.screen;
+      const area = el.querySelector(".pagearea");
+      const wk = el.querySelector(".wk");
+      const len = document.querySelector(`[data-len="${which}"]`);
+      const wide = document.querySelector(`[data-wk="${which}"]`);
+      if (len && area) len.textContent = (area.scrollHeight + 56).toLocaleString("de-DE");
+      if (wide && wk) wide.textContent = Math.round(wk.offsetWidth).toLocaleString("de-DE");
+    }
+  }
+  new ResizeObserver(() => fit()).observe(document.querySelector(".page"));
+  window.addEventListener("resize", fit);
+
+  // ---------- What a click does ----------
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-act], [data-mod], [data-size], [data-theme-set], [data-full]");
+    if (!t) { if (e.target.closest(".screen a")) e.preventDefault(); return; }
+    if (t.closest(".screen")) e.preventDefault();
+    const key = state.mod;
+    if (t.dataset.mod) { state.mod = t.dataset.mod; pressed("[data-mod]", t); render(); return; }
+    if (t.dataset.size) { const [w, h] = t.dataset.size.split("x").map(Number); state.W = w; state.H = h; pressed("[data-size]", t); render(); return; }
+    if (t.dataset.themeSet) {
+      const v = t.dataset.themeSet;
+      if (v === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = v;
+      pressed("[data-theme-set]", t);
+      return;
+    }
+    if (t.hasAttribute("data-full")) {
+      const stage = t.closest(".stage");
+      const on = !stage.classList.contains("full");
+      stage.classList.toggle("full", on);
+      document.documentElement.classList.toggle("noscroll", on);
+      t.lastChild.textContent = on ? "Schließen" : "Vollbild";
+      fit();
+      return;
+    }
+    const which = t.closest("[data-screen]")?.dataset.screen;
+    switch (t.dataset.act) {
+      case "plan": state.planned[key] = state.planned[key] ? null : M[key].target; break;
+      case "unplan": state.planned[key] = null; break;
+      case "sem": state.planned[key] = state.planned[key] === t.dataset.sem ? null : t.dataset.sem; break;
+      case "mark": state.marked[key] = !state.marked[key]; break;
+      case "reveal": state.reveal = !state.reveal; break;
+      case "programs": {
+        const target = t.closest(".screen").querySelector("[data-programs]");
+        const area = t.closest(".screen").querySelector(".pagearea");
+        if (target && area) area.scrollTo({ top: target.offsetTop - 12, behavior: "smooth" });
+        return;
+      }
+      default: return;
+    }
+    // A change in one screen is the same change in the others (one module, one plan).
+    render();
+    void which;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { const full = document.querySelector(".stage.full [data-full]"); if (full) full.click(); }
+  });
+  function pressed(sel, on) { document.querySelectorAll(sel).forEach((b) => b.setAttribute("aria-pressed", String(b === on))); }
+
+  // A pointer on a Termin's line lights its card in the week, and the other way round.
+  let lit = [];
+  document.addEventListener("pointerover", (e) => {
+    const t = e.target.closest(".screen [data-k]");
+    lit.forEach((el) => el.classList.remove("hl"));
+    lit = [];
+    if (!t) return;
+    const scr = t.closest(".screen");
+    lit = [...scr.querySelectorAll(`[data-k="${t.dataset.k}"]`)];
+    lit.forEach((el) => el.classList.add("hl"));
+  });
+
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+})();
+</script>
