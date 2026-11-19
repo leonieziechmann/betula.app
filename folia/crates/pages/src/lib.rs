@@ -25,7 +25,7 @@ use folia_locale::Locale;
 use folia_model::db::{Database, DbError};
 use folia_model::labels::{Code, DocumentType, GeneralTopic, Labelled, ModuleKind, OfferStatus, SitePage};
 use folia_model::rows::{
-    CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester,
+    CatalogPage, CatalogRow, Department, FuesChoice, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester,
 };
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
@@ -183,8 +183,11 @@ pub struct CatalogData {
     pub plan_semesters: Vec<i64>,
     /// The areas of the selected program's module tree (empty without a program, or a tree).
     pub areas: Vec<CatalogArea>,
-    /// With a semester of the program chosen: what the plan asks for in it besides the modules
-    /// it places there, and what was listed for that (`plan::semester_plan`).
+    /// The choices the selected program's FÜS list lets a student make (`FuesChoice`): empty
+    /// without a program, or where its negative lists tell no choice apart.
+    pub fues_choices: Vec<FuesChoice>,
+    /// With a semester of the program chosen and its curriculum listed: what the plan asks for in
+    /// it besides the modules it places there, and what was listed for that (`plan::semester_plan`).
     pub semester_plan: Option<SemesterPlan>,
     /// The query the page ran: the URL's, with what the page derived filled in (the areas of the
     /// semester's requirements). Further pages of the list are loaded with this one.
@@ -206,6 +209,7 @@ pub fn catalog(db: &dyn Database, url: &CatalogUrl, locale: Locale) -> Result<Ca
         page: queries::catalog_page(db, &scope.effective, url.offset(), PAGE_SIZE)?,
         plan_semesters: scope.plan_semesters,
         areas: scope.areas,
+        fues_choices: scope.fues_choices,
         semester_plan: scope.semester_plan,
         effective: scope.effective,
         program: scope.program,
@@ -227,6 +231,7 @@ pub struct CatalogSummary {
     pub fues_total: Option<u64>,
     pub plan_semesters: Vec<i64>,
     pub areas: Vec<CatalogArea>,
+    pub fues_choices: Vec<FuesChoice>,
     pub total: u64,
 }
 
@@ -252,6 +257,7 @@ pub fn catalog_summary(db: &dyn Database, query: &CatalogQuery) -> Result<Catalo
         fues_total: scope.fues_total,
         plan_semesters: scope.plan_semesters,
         areas: scope.areas,
+        fues_choices: scope.fues_choices,
         total,
     })
 }
@@ -321,6 +327,7 @@ struct CatalogScope {
     program: Option<Program>,
     plan_semesters: Vec<i64>,
     areas: Vec<CatalogArea>,
+    fues_choices: Vec<FuesChoice>,
     semester_plan: Option<SemesterPlan>,
     /// The query as it is run: the URL's, with what the program's plan says filled in.
     effective: CatalogQuery,
@@ -342,6 +349,10 @@ fn catalog_scope(db: &dyn Database, query: &CatalogQuery, locale: Locale) -> Res
         Some(program) => catalog_areas(&queries::program_areas(db, &program.id)?, &queries::program_area_tree(db, &program.id)?),
         None => Vec::new(),
     };
+    let fues_choices = match &program {
+        Some(program) if program.fues_modules > 0 => FuesChoice::of(&queries::program_fues_notes(db, &program.id)?),
+        _ => Vec::new(),
+    };
 
     // A semester of the plan lists what the plan places there and what can be chosen for the
     // semester's requirements („Wahlpflichtmodule der Informatik"): the modules of the areas the
@@ -360,7 +371,9 @@ fn catalog_scope(db: &dyn Database, query: &CatalogQuery, locale: Locale) -> Res
             let plan = plan::semester_plan(semester, &queries::program_plan_entries(db, &program.id)?, &areas, locale);
             scope.semester_areas = plan.area_ids();
             scope.semester_electives = plan.any_elective();
-            semester_plan = Some(plan);
+            // The note above the list is the curriculum's. The FÜS list keeps the semester for the
+            // way back, and the curriculum's count beside it is counted with what it means.
+            semester_plan = (scope.relation == ProgramRelation::Curricular).then_some(plan);
         }
     }
 
@@ -377,7 +390,7 @@ fn catalog_scope(db: &dyn Database, query: &CatalogQuery, locale: Locale) -> Res
         }
     }
 
-    Ok(CatalogScope { program, plan_semesters, areas, semester_plan, effective: query, curricular_total, fues_total })
+    Ok(CatalogScope { program, plan_semesters, areas, fues_choices, semester_plan, effective: query, curricular_total, fues_total })
 }
 
 /// What a derived faculty rests on, from strongest to weakest.

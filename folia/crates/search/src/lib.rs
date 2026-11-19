@@ -22,6 +22,29 @@ use folia_model::db::{Database, DbError, Value};
 use folia_model::rows::SearchMarks;
 use serde::{Deserialize, Serialize};
 
+/// What may stand before the first letter or digit of a title and is passed over when titles are
+/// ordered (`order_key`): brackets, quotation marks, dashes, dots and spaces.
+pub const ORDER_LEAD: &str = "([{\"'„“”‚‘’«»‹›¿¡*#/-–—…. ";
+
+/// The letters a title is ordered by in place of others (DIN 5007-1, as a dictionary orders): Ä,
+/// Ö and Ü as A, O and U, ß as ss. The titles of the catalog hold no other letter beyond ASCII
+/// (2026-11-19).
+pub const ORDER_FOLDS: [(&str, &str); 7] = [("Ä", "A"), ("Ö", "O"), ("Ü", "U"), ("ä", "a"), ("ö", "o"), ("ü", "u"), ("ß", "ss")];
+
+/// A title as the lists order it, by its letters: what stands before its first letter or digit is
+/// passed over („(Cyber-)Mobbing" stands under C; owner, 2026-11-19: „sollte offensichlich bei C
+/// stehen und nicht vor A"), Ä, Ö and Ü are A, O and U, ß is ss, and the case does not count.
+/// Titles that come out alike are ordered as written: order by `(order_key(title), title)`. The
+/// catalog's SQL orders the same way (`folia_query::sql::title_key`), with SQLite's own functions.
+pub fn order_key(title: &str) -> String {
+    let mut key = title.trim_start_matches(|c| ORDER_LEAD.contains(c)).to_string();
+    for (from, to) in ORDER_FOLDS {
+        key = key.replace(from, to);
+    }
+    key.make_ascii_lowercase();
+    key
+}
+
 /// Lower case, `ß` → `ss`, umlauts and the common Latin diacritics removed.
 pub fn fold(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
@@ -528,6 +551,49 @@ pub fn search_program_modules(db: &dyn Database, program: &str) -> Result<HashSe
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn titles_are_ordered_by_their_letters() {
+        let mut titles = vec![
+            "Zoologie",
+            "Ökologie und Naturschutz",
+            "(Cyber-)Mobbing - Aufgeklärt!",
+            "\"Achtung, wir drehen!\" Film in der Kulturellen Bildung",
+            "„Anführung“ unten",
+            "Abwassertechnik",
+            "Cyber Security Lab",
+            "Übung zur Triebwerkskonstruktion",
+            "Ukrainisch Start A1",
+            "Maßtheorie",
+            "Masterarbeit",
+            "Okologie",
+            "Ökologie",
+        ];
+        titles.sort_by_cached_key(|title| (order_key(title), title.to_string()));
+        assert_eq!(
+            titles,
+            [
+                "Abwassertechnik",
+                "\"Achtung, wir drehen!\" Film in der Kulturellen Bildung",
+                "„Anführung“ unten",
+                "Cyber Security Lab",
+                "(Cyber-)Mobbing - Aufgeklärt!",
+                // ß is ss.
+                "Maßtheorie",
+                "Masterarbeit",
+                // Alike by their letters: as written, the plain letter first.
+                "Okologie",
+                "Ökologie",
+                "Ökologie und Naturschutz",
+                "Übung zur Triebwerkskonstruktion",
+                "Ukrainisch Start A1",
+                "Zoologie",
+            ]
+        );
+        assert_eq!(order_key("(Cyber-)Mobbing"), "cyber-)mobbing");
+        assert_eq!(order_key("„Ä“"), "a“");
+        assert_eq!(order_key("..."), "");
+    }
 
     #[test]
     fn folding() {

@@ -1275,7 +1275,8 @@ fn ListPane(ctx: StudyCtx, parts: Parts, group: Option<usize>) -> impl IntoView 
             lines.retain(|line| line.fit.fits() || line.here);
         }
         // In each group what is marked first (konzept.html of the Merkliste, „Von überall").
-        lines.sort_by_cached_key(|line| (line.fit.group(), line.marked.is_none(), line.fit.clone(), line.title.to_lowercase()));
+        // Titles by their letters, as the catalog orders them („(Cyber-)Mobbing" under C).
+        lines.sort_by_cached_key(|line| (line.fit.group(), line.marked.is_none(), line.fit.clone(), folia_search::order_key(&line.title), line.title.clone()));
         let mut groups: Vec<(String, Vec<Line>)> = Vec::new();
         for line in lines {
             let name = match line.fit.group() {

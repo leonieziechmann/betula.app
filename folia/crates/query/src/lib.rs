@@ -29,7 +29,7 @@ use folia_model::rows_detail::{
 use folia_routes::filter::{CatalogQuery, ProgramRelation};
 use folia_search::Plan as SearchPlan;
 
-use crate::sql::CatalogSql;
+use crate::sql::{title_key, CatalogSql};
 
 pub use folia_model::ids::MAX_PLANNED;
 pub use folia_model::rows::meta;
@@ -85,10 +85,13 @@ pub fn program_modules(
     fetch(
         db,
         "program_modules",
-        "SELECT module_id, relation, kind, kind_source, kind_basis, area, section, module_title, \
-         module_credits, offer_status, turnus_season, plan_semester \
-         FROM v_program_module WHERE program_id = ? AND relation = ? \
-         ORDER BY plan_semester IS NULL, plan_semester, module_title COLLATE NOCASE, module_id",
+        &format!(
+            "SELECT module_id, relation, kind, kind_source, kind_basis, area, section, module_title, \
+             module_credits, offer_status, turnus_season, plan_semester \
+             FROM v_program_module WHERE program_id = ? AND relation = ? \
+             ORDER BY plan_semester IS NULL, plan_semester, {}, module_title, module_id",
+            title_key("module_title")
+        ),
         &[Value::from(program_id), Value::from(relation.code())],
     )
 }
@@ -216,19 +219,33 @@ pub fn catalog_page(
     }
     with_offers(db, &mut rows)?;
     if let Some(scope) = query.program.as_ref().filter(|scope| scope.relation == ProgramRelation::Fues) {
-        with_fues_notes(db, &scope.program_slug, &mut rows)?;
+        with_fues_notes(db, &scope.program_slug, scope.choice.as_deref(), &mut rows)?;
     }
     Ok(CatalogPage { total, offset, rows })
 }
 
-/// The rows of a program's FÜS list with what it says of them (`catalog_fues_notes`).
-fn with_fues_notes(db: &dyn Database, program_slug: &str, rows: &mut [CatalogRow]) -> Result<(), DbError> {
+/// The rows of a program's FÜS list with what it says of them (`catalog_fues_notes`), for a
+/// student of `choice` where one is chosen (`FuesNote::of`).
+fn with_fues_notes(db: &dyn Database, program_slug: &str, choice: Option<&str>, rows: &mut [CatalogRow]) -> Result<(), DbError> {
     let ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
     let notes = catalog_fues_notes(db, program_slug, &ids)?;
     for row in rows.iter_mut() {
-        row.fues_note = FuesNote::of(notes.iter().filter(|note| note.module_id == row.id));
+        row.fues_note = FuesNote::of(notes.iter().filter(|note| note.module_id == row.id), choice);
     }
     Ok(())
+}
+
+/// Every row of `v_program_fues_note` of a program: what its FÜS list says of its modules besides
+/// that they are on it, of which the choices its negative list tells apart are read
+/// (`FuesChoice::of`). A few dozen rows at most (Mathematics M.Sc. has the most, 2026-11-19).
+pub fn program_fues_notes(db: &dyn Database, program_id: &str) -> Result<Vec<FuesNoteRow>, DbError> {
+    fetch(
+        db,
+        "program_fues_notes",
+        "SELECT module_id, season, semester, admitted, excluded_for FROM v_program_fues_note \
+         WHERE program_id = ? ORDER BY module_id, season",
+        &[Value::from(program_id)],
+    )
 }
 
 /// What the FÜS list of the program `program_slug` says of the modules `module_ids` besides that
@@ -785,12 +802,15 @@ pub fn program_areas(db: &dyn Database, program_id: &str) -> Result<Vec<AreaPlac
     fetch(
         db,
         "program_areas",
-        "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
-         a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind \
-         FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id \
-         LEFT JOIN (SELECT module_id, kind FROM v_program_module WHERE program_id = ?) pm ON pm.module_id = a.module_id \
-         WHERE a.program_id = ? \
-         ORDER BY a.area_ord, a.area_id, m.title COLLATE NOCASE, a.module_id",
+        &format!(
+            "SELECT a.module_id, m.title AS module_title, m.credits AS module_credits, a.area_id, a.area, \
+             a.area_label, a.depth, a.area_ord, a.kind, a.kind_basis, pm.kind AS module_kind \
+             FROM v_program_module_area a JOIN v_module m ON m.id = a.module_id \
+             LEFT JOIN (SELECT module_id, kind FROM v_program_module WHERE program_id = ?) pm ON pm.module_id = a.module_id \
+             WHERE a.program_id = ? \
+             ORDER BY a.area_ord, a.area_id, {}, m.title, a.module_id",
+            title_key("m.title")
+        ),
         &[Value::from(program_id), Value::from(program_id)],
     )
 }

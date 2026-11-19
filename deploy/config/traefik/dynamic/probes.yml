@@ -1,0 +1,176 @@
+# Probes: rules that judge the headers a browser sends, watched before any of them turns somebody
+# away (owner, 2026-11-19, after fleets.yml: „Ja, Header loggen", and, told that the privacy notice
+# says no other details of a browser are recorded, chose this way over logging the headers).
+#
+# Why. The fleets of fleets.yml send a browser's user agent from residential addresses; the day
+# they change their strings they pass that file. What a user agent cannot hide is whether the rest
+# of the request is what that browser sends:
+#
+# nobrowser       a browser's user agent without Sec-Fetch-Mode. Every browser has sent the
+#                 Sec-Fetch-* headers with every request for years (Chrome 76, Firefox 90, Safari
+#                 16.4); a client without them is a program that only says it is one. Older versions
+#                 than those, and crawlers, are left out.
+# firefox-hints   Firefox in the user agent, but Sec-CH-UA in the request: Firefox has never sent
+#                 client hints, Chrome does; Chrome that calls itself Firefox.
+# platform        Windows, macOS or Android in the user agent, another system in Sec-CH-UA-Platform:
+#                 a browser on a server (Linux, mostly) that changed its user agent but not its hints.
+# chrome-nohints  Chrome 89 or newer in the user agent (not Android's WebView), Sec-Fetch-Mode but
+#                 no Sec-CH-UA: a real browser engine whose user agent was replaced without its hints,
+#                 which Chrome sends with every request since 89.
+#
+# How. Nothing is turned away here and no header is written to the access log: each rule is a
+# router that sends what it matches where it would have gone, and the access log names the router
+# (RouterName "edge-probe-<rule>@file"), so that how often a rule matches, and whom (user agent,
+# what was asked for, how many requests an address made), can be read from the log as it is. A
+# request matches at most one rule, the first of the order above (the priorities). Two kinds:
+#
+# - edge-probe-<rule>, betula.app only, everything served as by Folia's own router (its middlewares,
+#   its service betula-folia@swarm). Priority 900: above Folia's router (the colour's, 22 on
+#   2026-11-19), below Phloem's /sync/v1/ and Xylem's /push/v1/ (1000) and the calendar feeds'
+#   router (100000 and up), which keep their requests. **Before betula.app switches its colour, take
+#   this file away** (or point the service at the new colour): it names the colour that serves
+#   today, and while the old one still runs, what these rules match would go to it. Once that
+#   colour is gone, Traefik drops these routers (a router without its service is never routed) and
+#   everything goes to Folia's router again.
+# - edge-crawler-fleets-<rule>, the fleets of fleets.yml judged by the same rules (the same user
+#   agents, copied: change both or neither), turned away as fleets.yml does, above it (10001 to
+#   10004): which rules would have caught the fleets anyway. What none of them catches stays
+#   "edge-crawler-fleets@file". The dashboard counts both as "crawlers turned away".
+#
+# A rule that catches the fleets and no person (people start the app, come back, ask from one
+# address; the fleets ask once per address) can turn away later, in its own router of fleets.yml;
+# this file goes then. Test: deploy/test/crawlers.sh.
+
+http:
+  routers:
+    # ---- Served: betula.app as Folia's router serves it.
+    edge-probe-nobrowser:
+      entryPoints:
+        - websecure
+      rule: >-
+        Host(`betula.app`)
+        && HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(`)
+        && !HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|preview|facebookexternalhit|google|Nexus 5X Build/MMB29P)`)
+        && !HeaderRegexp(`User-Agent`, `Version/([0-9]|1[0-5])\.|Version/16\.[0-3]([^0-9]|$)|Firefox/([0-9]|[0-8][0-9])\.|Chrome/([0-9]|[0-6][0-9]|7[0-5])\.`)
+        && !HeaderRegexp(`Sec-Fetch-Mode`, `.`)
+      priority: 904
+      tls: {}
+      middlewares:
+        - secure-headers@file
+        - rate-limit@file
+        - compress@file
+      service: betula-folia@swarm
+
+    edge-probe-firefox-hints:
+      entryPoints:
+        - websecure
+      rule: >-
+        Host(`betula.app`)
+        && HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(.*Firefox/[0-9]`)
+        && HeaderRegexp(`Sec-Ch-Ua`, `.`)
+      priority: 903
+      tls: {}
+      middlewares:
+        - secure-headers@file
+        - rate-limit@file
+        - compress@file
+      service: betula-folia@swarm
+
+    edge-probe-platform:
+      entryPoints:
+        - websecure
+      rule: >-
+        Host(`betula.app`)
+        && !HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|preview|facebookexternalhit|google)`)
+        && HeaderRegexp(`Sec-Ch-Ua-Platform`, `.`)
+        && ((HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Windows NT`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"Windows"$`))
+        || (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Macintosh`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"macOS"$`))
+        || (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Linux; Android`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"Android"$`)))
+      priority: 902
+      tls: {}
+      middlewares:
+        - secure-headers@file
+        - rate-limit@file
+        - compress@file
+      service: betula-folia@swarm
+
+    edge-probe-chrome-nohints:
+      entryPoints:
+        - websecure
+      rule: >-
+        Host(`betula.app`)
+        && HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(.*\(KHTML, like Gecko\) Chrome/(89|9[0-9]|[1-9][0-9][0-9])\.`)
+        && !HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|preview|google|Nexus 5X Build/MMB29P|; wv\))`)
+        && HeaderRegexp(`Sec-Fetch-Mode`, `.`)
+        && !HeaderRegexp(`Sec-Ch-Ua`, `.`)
+      priority: 901
+      tls: {}
+      middlewares:
+        - secure-headers@file
+        - rate-limit@file
+        - compress@file
+      service: betula-folia@swarm
+
+    # ---- The fleets of fleets.yml, judged by the same rules and turned away as there. The four
+    # user agents of fleets.yml in each (change both or neither), the same exceptions.
+    edge-crawler-fleets-nobrowser:
+      entryPoints:
+        - websecure
+      rule: >-
+        (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10_15_7)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`)
+        || HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10\.15); rv:(120|121)\.0\) Gecko/20100101 Firefox/(120|121)\.0$`)
+        || HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|X11; Linux x86_64)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/146\.0\.0\.0 Safari/537\.36$`)
+        || HeaderRegexp(`User-Agent`, `^Lightpanda/`))
+        && !HeaderRegexp(`Sec-Fetch-Mode`, `.`)
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      priority: 10004
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      service: edge-crawlers-nowhere
+
+    edge-crawler-fleets-firefox-hints:
+      entryPoints:
+        - websecure
+      rule: >-
+        HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10\.15); rv:(120|121)\.0\) Gecko/20100101 Firefox/(120|121)\.0$`)
+        && HeaderRegexp(`Sec-Ch-Ua`, `.`)
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      priority: 10003
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      service: edge-crawlers-nowhere
+
+    edge-crawler-fleets-platform:
+      entryPoints:
+        - websecure
+      rule: >-
+        HeaderRegexp(`Sec-Ch-Ua-Platform`, `.`)
+        && ((HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Windows NT 10\.0; Win64; x64\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120|146)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"Windows"$`))
+        || (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Macintosh; Intel Mac OS X 10_15_7\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"macOS"$`)))
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      priority: 10002
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      service: edge-crawlers-nowhere
+
+    edge-crawler-fleets-chrome-nohints:
+      entryPoints:
+        - websecure
+      rule: >-
+        (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10_15_7)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`)
+        || HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|X11; Linux x86_64)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/146\.0\.0\.0 Safari/537\.36$`))
+        && HeaderRegexp(`Sec-Fetch-Mode`, `.`)
+        && !HeaderRegexp(`Sec-Ch-Ua`, `.`)
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      priority: 10001
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      service: edge-crawlers-nowhere
