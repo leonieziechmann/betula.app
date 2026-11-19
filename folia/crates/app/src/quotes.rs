@@ -131,6 +131,10 @@ mod tests {
                 (legal.push.ending, quoted(t.app.push)),
                 (legal.rights.finding, quoted(t.app.push)),
                 (text(legal.hosting.texts, 0), quoted(legal.push.heading)),
+                // The host's backup is said once, in the part the others name.
+                (legal.sync.retention, quoted(legal.hosting.heading)),
+                (legal.push.retention, quoted(legal.hosting.heading)),
+                (legal.access_log.retention, quoted(legal.hosting.heading)),
             ];
             for (text, label) in pairs {
                 assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");

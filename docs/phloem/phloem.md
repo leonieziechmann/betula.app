@@ -287,12 +287,26 @@ log) and /healthz (not Phloem's), the stats file, `phloem status`; at last
 
 ## No backup
 
-`phloem.db` has none (owner, 2026-11-11: „Also tbh 1. ist mir egal, mach es im zweifelsfall so,
-dass es aus den clients rekonstruiert wird, falls es mal verloren geht"): every device of a
-profile holds all of it. A database lost, or deleted on purpose, comes back empty with another
+Phloem makes none of `phloem.db` (owner, 2026-11-11: „Also tbh 1. ist mir egal, mach es im
+zweifelsfall so, dass es aus den clients rekonstruiert wird, falls es mal verloren geht"): every
+device of a profile holds all of it. A database lost, or deleted on purpose, comes back empty with another
 epoch, and the devices make their spaces anew as they connect (docs/phloem/protocol.md section 7);
 for a profile none of whose devices comes back, nothing is lost that anybody still has. What a
 new database cannot bring back: the parcels for devices to come (connect again), and the
 spaces of devices that last connected to a Phloem before 0.5.0 (they never heard an epoch, and
 turn private). Under the limits for new spaces (20 an hour per address, 500 in all) the devices
 of many profiles make theirs over a few hours.
+
+**The host's backup holds it all the same** (owner, 2026-11-19: „ich habe auto backup bei meinem
+hosting anbieter enabled", kept 7 days): the provider backs up the whole disk once a day, and the
+file system of `phloem.db` (`data.img`) is on it. The privacy notice says so („Betula Sync", „Wo
+Betula läuft"): what a profile's devices sealed is in a backup for up to 7 days after it was
+deleted at Phloem. Phloem was not built to come back from such a copy, though. A database brought
+back from the backup has the epoch it had and is up to a day behind its devices, and the protocol
+knows a Phloem that holds everything or one that lost everything (another epoch), nothing in
+between: a device takes the higher of the number it holds and the head it is told
+(`Core::held_up_to`, `folia/crates/stores/src/sync/core.rs`), so what Phloem numbers again below
+that would count as held and never be taken. **After the server was brought back from a backup,
+Phloem is started on an empty database** (remove `phloem.db` and its `-wal` and `-shm` from
+`/var/lib/betula/phloem/<stack>/data` before the stack comes up): another epoch, and the devices
+make their spaces anew as above. (Read from the code on 2026-11-19, not tried.)
