@@ -97,6 +97,9 @@ pub struct AppState {
     /// Where the parts of calendar subscriptions that stay current are fetched (`--sync-parts`,
     /// `parts`); `None` without.
     pub parts: Option<Arc<parts::Parts>>,
+    /// Notifications offered (`--push`): where the browser reaches Xylem, empty for `/push/v1/` on
+    /// the page's own host (`--push-url`); `None` while they are off.
+    pub push: Option<Arc<str>>,
 }
 
 /// The header that names the build of the server on every answer (`AppState::build_id`).
@@ -184,12 +187,16 @@ pub fn pages(state: &AppState) -> Router<AppState> {
     let provide = {
         let (store, site, build) = (state.store.clone(), folia_shell::seo::SiteUrl(state.public_url.clone()), folia_app::BuildId(state.build_id.clone()));
         let sync = state.sync.clone().map(folia_app::SyncOffer);
+        let push = state.push.clone().map(folia_app::PushOffer);
         move || {
             provide_context(source.clone());
             provide_context(site.clone());
             provide_context(build.clone());
             if let Some(sync) = &sync {
                 provide_context(sync.clone());
+            }
+            if let Some(push) = &push {
+                provide_context(push.clone());
             }
             if let Some(snapshot) = store.current() {
                 if let Some((map, ..)) = &snapshot.program_map {
@@ -342,7 +349,7 @@ pub fn files() -> Router<AppState> {
 pub fn router(state: AppState) -> Router {
     // The Content-Security-Policy of every HTML answer, made once from what the server was started
     // with (`csp`). Its text is ASCII by construction; should it ever not be, the strictest one.
-    let policy = HeaderValue::try_from(csp::policy(&state.public_url, state.sync.as_deref()))
+    let policy = HeaderValue::try_from(csp::policy(&state.public_url, state.sync.as_deref(), state.push.as_deref()))
         .unwrap_or_else(|_| HeaderValue::from_static("default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"));
     Router::new()
         .route("/de", get(language_redirect))
@@ -541,6 +548,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         changes: config.warm_cache.then(|| Arc::new(lastmod::Changes::load(&config.data_dir))),
         sync: config.sync.then(|| config.sync_url.trim().into()),
         parts: parts::Parts::new(&config.sync_parts, &config.public_url).map(Arc::new),
+        push: config.push.then(|| config.push_url.trim().into()),
         leptos: LeptosOptions::builder()
             .output_name("folia-app")
             .site_root(config.site_root.to_string_lossy().into_owned())
@@ -577,6 +585,7 @@ async fn serve(config: Config, cpus: usize, workers: usize) -> std::process::Exi
         html_cache_mb = config.html_cache_mb,
         warm_cache = config.warm_cache,
         sync = state.sync.as_deref().map(|url| if url.is_empty() { "/sync/v1/" } else { url }).unwrap_or("off"),
+        push = state.push.as_deref().map(|url| if url.is_empty() { "/push/v1/" } else { url }).unwrap_or("off"),
         "web server started"
     );
     if config.warm_cache {

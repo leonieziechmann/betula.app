@@ -24,8 +24,9 @@ use axum::response::Response;
 use base64::Engine;
 use sha2::{Digest, Sha256};
 
-/// The policy of the site at `public_url`, offering Betula Sync at `sync` (`AppState::sync`).
-pub fn policy(public_url: &str, sync: Option<&str>) -> String {
+/// The policy of the site at `public_url`, offering Betula Sync at `sync` (`AppState::sync`) and
+/// notifications at `push` (`AppState::push`).
+pub fn policy(public_url: &str, sync: Option<&str>, push: Option<&str>) -> String {
     let scripts: Vec<String> = folia_app::inline_scripts().iter().map(|script| hash(script)).collect();
     let styles: Vec<String> = folia_app::INLINE_STYLES.iter().map(|style| hash(style)).collect();
     // The site itself, and where Betula Sync reaches Phloem: its WebSocket by name as well, since
@@ -38,6 +39,15 @@ pub fn policy(public_url: &str, sync: Option<&str>) -> String {
                 connect.push(origin.clone());
             }
             connect.push(socket(&origin));
+        }
+    }
+    // Where the browser reaches Xylem: `/push/v1/` of the site itself, which `'self'` covers, or
+    // while working on the site a host of its own.
+    if let Some(xylem) = push.filter(|push| push.starts_with("http://") || push.starts_with("https://")) {
+        if let Some(origin) = origin(xylem) {
+            if Some(&origin) != self::origin(public_url).as_ref() && !connect.contains(&origin) {
+                connect.push(origin);
+            }
         }
     }
     connect.dedup();
@@ -111,7 +121,7 @@ mod tests {
 
     #[test]
     fn the_policy_names_every_inline_script_and_style_by_its_hash() {
-        let policy = policy("https://betula.app", None);
+        let policy = policy("https://betula.app", None, None);
         for script in folia_app::inline_scripts() {
             assert!(policy.contains(&hash(&script)), "{policy}");
         }
@@ -129,7 +139,7 @@ mod tests {
     #[test]
     fn betula_sync_may_be_reached_where_the_site_offers_it() {
         let connect = |public_url: &str, sync: Option<&str>| {
-            policy(public_url, sync).split("; ").find_map(|directive| directive.strip_prefix("connect-src ").map(str::to_string)).unwrap()
+            policy(public_url, sync, None).split("; ").find_map(|directive| directive.strip_prefix("connect-src ").map(str::to_string)).unwrap()
         };
         assert_eq!(connect("https://betula.app", None), "'self'");
         // On the page's own host (`/sync/v1/`): its WebSocket by name.
@@ -140,5 +150,23 @@ mod tests {
         assert_eq!(origin("HTTPS://Example.org:8443/a?b#c").as_deref(), Some("https://Example.org:8443"));
         assert_eq!(origin("/sync/v1/"), None);
         assert_eq!(connect("https://betula.app", Some("https://x.example; script-src *")), "'self'", "no address");
+    }
+
+    #[test]
+    fn xylem_may_be_reached_where_the_site_offers_notifications() {
+        let connect = |public_url: &str, sync: Option<&str>, push: Option<&str>| {
+            policy(public_url, sync, push).split("; ").find_map(|directive| directive.strip_prefix("connect-src ").map(str::to_string)).unwrap()
+        };
+        // On the page's own host (`/push/v1/`): the site itself, nothing to name.
+        assert_eq!(connect("https://betula.app", None, Some("")), "'self'");
+        assert_eq!(connect("https://betula.app", None, Some("/push/v1/")), "'self'");
+        assert_eq!(connect("https://betula.app", None, Some("https://betula.app/push/v1/")), "'self'");
+        // Xylem on a port of its own while working on the site: that host, beside Phloem's.
+        assert_eq!(connect("http://127.0.0.1:8420", None, Some("http://127.0.0.1:8300/push/v1/")), "'self' http://127.0.0.1:8300");
+        assert_eq!(
+            connect("http://127.0.0.1:8420", Some("http://127.0.0.1:8200/sync/v1/"), Some("http://127.0.0.1:8300/push/v1/")),
+            "'self' http://127.0.0.1:8200 ws://127.0.0.1:8200 http://127.0.0.1:8300"
+        );
+        assert_eq!(connect("https://betula.app", None, Some("https://x.example; script-src *")), "'self'", "no address");
     }
 }
