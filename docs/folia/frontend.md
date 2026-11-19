@@ -7702,6 +7702,11 @@ temporär". An address that asks for what only a program asks for is turned away
   — the list the dashboard „Security" counts as scanner probes (`trap::PROBES`, as
   `deploy/config/monitoring/loki-rules/fake/security.yml` has it).
 
+Under the addresses where a code of random letters travels (`/calendar/`, `/cards/`, in every
+language) nothing is a probe: one code in some ten thousands begins with „wp-", and a subscription
+must never break, nor pause the calendar service that fetches it (Folia 1.109.2). No page of the
+sitemap is a trap either, whatever a program is called; a test of the server walks it.
+
 The first two lie under `/api/trap/`: `robots.txt` has kept every crawler out of `/api/` since
 before there were traps, so a search engine that keeps to it never meets one, and none needed to
 learn a new rule first (a `robots.txt` is kept for a day).
@@ -7737,7 +7742,13 @@ address, and one button. Everything else gets a line of text. Open meanwhile: wh
 - **What it does against whom.** A crawler that walks the site from one address is stopped at its
   first page for an hour, and a scanner at its first probe. Clients that come from thousands of
   addresses with a few requests each lose one address at a time; that is what the pass in front of
-  the catalog is for. The dashboard „Visitors" counts traps sprung, requests turned away and
+  the catalog is for. Seen on canary, 2026-11-19: this session's own requests leave through a pool
+  of some fifty addresses, the trap paused the one that sprang it, and eleven of the next twelve
+  requests were answered as if nothing had happened.
+- **Never against canary or the site by hand.** A pause there is a real one, of the address the
+  request really came from; from a pool of addresses the button's request leaves from another one,
+  and the pause stays for everybody who shares the pool (the owner's other sessions among them).
+  `e2e/trap.mjs` runs against a Folia of this machine alone and refuses another address. The dashboard „Visitors" counts traps sprung, requests turned away and
   buttons pressed.
 
 ### Content-Security-Policy (`folia/crates/server/src/csp.rs`, 2026-11-08)
@@ -8130,6 +8141,7 @@ at that address gets „Kurze Pause" with its minutes, styled, the focus at „W
 which leads to the page it asked for, where the app takes over; the address in the script,
 `/wp-login.php` and `/.env` pause as well; a request from another site and the server asked
 directly pause nobody, and no pause is left behind. A server with `FOLIA_TRAP_MINUTES=0` fails it.
+Against a Folia of this machine only: the check refuses any other address („The traps" in §3).
 
 ```bash
 cd e2e && node pass.mjs
