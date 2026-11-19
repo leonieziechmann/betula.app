@@ -56,6 +56,18 @@ nochmal über das Konzept nachdenken."):
   changes only what stands below it, never what stands above it. A view whose pick would change
   what stands above it needs another order, not a tweak.
 
+What Betula has just done is said in the wait note (owner, 2026-11-19, of „Als Kalender angelegt:
+Kalender 1" standing above the Stundenplan's week: „So dann auch hier verwende die Wait note für
+notfications. Warum steht das oben. Bitte schriebe das auch in die claude md. dass sowas damit
+umgesetzt werden soll."):
+
+- A notification — what an action of the student just did, with „Rückgängig" where it can be taken
+  back — is the note that waits for interaction (`folia_design::waitnote::WaitNote`, at the bottom of
+  the window; `docs/folia/frontend.md`, „A note that waits for interaction"), never a line put into
+  the page where the action was.
+- What a page says of its state (a warning beside a value, what is still open, a share that ended, an
+  error under a field) is no notification and stays where it belongs.
+
 ## Addresses
 
 Every address of the site is US English (owner, 2026-11-08: „Keine deutschen links und den urls. Like
