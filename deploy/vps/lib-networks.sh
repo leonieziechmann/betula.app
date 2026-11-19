@@ -16,6 +16,7 @@ NETPLAN_FILE="${NETPLAN_FILE:-${BETULA_FILES_DIR}/networks.conf}"
 NETPLAN_NETS=()
 NETPLAN_OLD=()
 NETPLAN_NOOUT=()
+NETPLAN_WEBONLY=()
 NETPLAN_LISTENERS=()
 # The IPv6 subnet of docker_gwbridge (line "gwbridge"); empty: IPv4 only.
 NETPLAN_GWBRIDGE6=""
@@ -33,7 +34,7 @@ netplan_read() {
   local -a w
   [[ -r "${file}" ]] || die "the network plan ${file} is missing (run deploy/sync.sh)"
   assert_lf "${file}"
-  NETPLAN_NETS=() NETPLAN_OLD=() NETPLAN_NOOUT=() NETPLAN_LISTENERS=() NETPLAN_GWBRIDGE6=""
+  NETPLAN_NETS=() NETPLAN_OLD=() NETPLAN_NOOUT=() NETPLAN_WEBONLY=() NETPLAN_LISTENERS=() NETPLAN_GWBRIDGE6=""
   NETPLAN_BY=() NETPLAN_INTERNAL=() NETPLAN_ATTACHABLE=() NETPLAN_SUBNET=() NETPLAN_MEMBERS=() NETPLAN_PORTS=()
   while IFS= read -r line || [[ -n "${line}" ]]; do
     n=$((n + 1))
@@ -72,6 +73,9 @@ netplan_read() {
       noout)
         NETPLAN_NOOUT+=("${w[@]:1}")
         ;;
+      webonly)
+        NETPLAN_WEBONLY+=("${w[@]:1}")
+        ;;
       old)
         [[ "${#w[@]}" -eq 2 ]] || die "${file}:${n}: 'old NAME'"
         NETPLAN_OLD+=("${w[1]}")
@@ -82,7 +86,7 @@ netplan_read() {
         [[ -z "${NETPLAN_GWBRIDGE6}" ]] || die "${file}:${n}: gwbridge is named twice"
         NETPLAN_GWBRIDGE6="${w[1]}"
         ;;
-      *) die "${file}:${n}: '${w[0]}' is no keyword of the plan (net, listen, noout, old, gwbridge)" ;;
+      *) die "${file}:${n}: '${w[0]}' is no keyword of the plan (net, listen, noout, webonly, old, gwbridge)" ;;
     esac
   done <"${file}"
   [[ "${#NETPLAN_NETS[@]}" -gt 0 ]] || die "${file} names no network"
@@ -157,6 +161,16 @@ netplan_ports() {
 netplan_noout() {
   local pattern
   for pattern in ${NETPLAN_NOOUT[@]+"${NETPLAN_NOOUT[@]}"}; do
+    member_matches "${pattern}" "$1" && return 0
+  done
+  return 1
+}
+
+# netplan_webonly SERVICE - true when the plan says a firewall of its own lets it out to port 443
+# of the internet and to Docker's DNS, and to nothing else.
+netplan_webonly() {
+  local pattern
+  for pattern in ${NETPLAN_WEBONLY[@]+"${NETPLAN_WEBONLY[@]}"}; do
     member_matches "${pattern}" "$1" && return 0
   done
   return 1

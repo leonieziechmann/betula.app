@@ -1,6 +1,8 @@
 # The stand-in of the stack "phloem" for deploy/test/netmatrix.sh: what docs/phloem/protocol.md
-# says of Phloem's place, not Phloem (that is stacks/phloem.yml): its two networks, the router of
-# /sync/v1/ above Folia's, its stats file, nothing published. It runs as uid 65532 without any
+# says of Phloem's place, not Phloem (that is stacks/phloem.yml): its network <stack>_in, the
+# router of /sync/v1/ above Folia's, its stats file, nothing published. Phloem without TURN: no
+# <stack>_out and no ports (vps/91-verify-stacks.sh, section phloem, holds a Phloem to what its
+# instance's file says; with TURN it is deploy/test/turn.sh that tries it). It runs as uid 65532 without any
 # capability from the start; the harness loads its firewall (phloem/deploy/firewall.nft, as `phloem start` would) from outside.
 # Variables: NETMATRIX_DIR (the harness's work directory), STACK_NAME (phloem or phloem-canary),
 # APP_HOST (betula.app or canary.betula.app).
@@ -26,7 +28,6 @@ services:
     cap_drop: [ALL]
     networks:
       in: {}
-      out: {}
     deploy:
       endpoint_mode: dnsrr
       # A list: compose substitutes variables in values only, and the names of routers are keys.
@@ -46,5 +47,3 @@ networks:
   in:
     external: true
     name: "${STACK_NAME}_in"
-  out:
-    driver: overlay

@@ -1,0 +1,174 @@
+# Stacks "xylem" and "xylem-canary": Xylem, the service of Betula's notifications
+# (docs/xylem/xylem.md, the contract docs/xylem/protocol.md). One file for both instances; what
+# differs is in stacks/xylem/<stack>.env (xylem.env: https://betula.app, xylem-canary.env:
+# https://canary.betula.app). Each is a stack of its own, with its own networks, data, key and
+# numbers: who subscribes at canary is never told what betula.app announces.
+#
+# Xylem is run as Phloem is, as if it were an outside service (owner, 2026-11-05, of Phloem: „als
+# wäre es ein externer dienst. Also eigenes virtuelles netzwerk etc. … Security first!!"), with
+# the one difference that it has to reach the internet: the push services of the browsers, and the
+# site's feed (owner, 2026-11-19, of a network of its own that lets out DNS and port 443 to public
+# addresses alone: „Ja passt so"):
+#   - <stack>_in (vps/30-docker.sh: overlay, internal, not attachable), whose only other member is
+#     Traefik: the browsers' requests to /push/v1/. No network with Folia, Radix, Cortex, Phloem
+#     or the monitoring.
+#   - <stack>_out (overlay, not internal, made by this stack, Xylem's alone): its way out. Docker
+#     has no allowlist of hosts for it; the firewall below is what holds it.
+#   - A firewall of its own inside the container (xylem/deploy/firewall.nft): `xylem start` loads
+#     it with NET_ADMIN, then drops to 65532 without any capability before it serves. In, 8300
+#     only. Out, a name asked of Docker's resolver and new TCP connections to port 443 of an
+#     address on the internet: nothing to an address inside the house (the other containers, the
+#     host, the metadata service), no other port, no datagram, no IPv6. Every drop that means
+#     someone tried something is counted; betula-xylem-guard (vps/30-docker.sh) reads that from
+#     outside every minute, with the rights of each process of the container.
+#   - Its numbers leave as a file, never over a network: /stats is the host's tmpfs
+#     /run/betula/xylem/<stack>/stats (1 MiB, vps/47-xylem-host.sh), which Alloy reads through
+#     /rootfs (config/monitoring/alloy/config.alloy). Nothing asks Xylem for anything.
+#   - Its data: /var/lib/betula/xylem/<stack>/data, a file system of fixed size of its own (a
+#     loop device, 47-xylem-host.sh): a Xylem taken over fills nothing but its own space.
+#     xylem.db holds the subscriptions and the VAPID key they were made with; it is part of the
+#     host's daily backup (owner, 2026-11-19: „24h datenverlust ist verkraftbar"), and a
+#     subscription made since comes back with its browser's next visit (docs/xylem/xylem.md,
+#     „Backup").
+#
+# The feed (docs/xylem/protocol.md section 7): Xylem reads https://<APP_HOST>/api/announcements
+# every ten minutes, at the site's public address like anybody (from a container the host's own
+# address answers through Traefik's published port); Folia needs no way to Xylem, and Xylem none
+# into the house.
+#
+# Deployed by vps/49-xylem.sh (as deploy, no sudo), which deploy/ship-xylem.sh calls after it has
+# built and loaded the image; never by vps/40-stacks.sh, and never by hand with "docker stack
+# deploy" (49-xylem.sh checks the networks and the host's file systems first, and tries what is
+# forbidden afterwards). Before the first deploy of an instance: sudo bash
+# /opt/betula/vps/47-xylem-host.sh <stack>.
+#
+#   bash /opt/betula/vps/49-xylem.sh xylem 2026-11-19-ab12cd3
+#
+# Variables, set by 49-xylem.sh from stacks/xylem/<stack>.env and the release:
+#   STACK_NAME            xylem or xylem-canary: the stack, its networks <stack>_in and
+#                         <stack>_out, its host paths and its router
+#   APP_HOST              the site's host name: the router takes https://<APP_HOST>/push/v1/, a
+#                         notification opens https://<APP_HOST>/…, and the feed is read there
+#   XYLEM_LANG            the language every announcement is written in
+#   XYLEM_CONTACT         where the operators of a push service reach Xylem's; empty: the site
+#   XYLEM_FEED            the site's feed, or empty: only a person announces
+#   XYLEM_MAX_SUBSCRIPTIONS  how many subscriptions it holds
+#   XYLEM_IMAGE           given per release: betula-xylem:<date>-<hash>, never ":latest" (swarm
+#                         compares the service definition, not the image; stacks/betula.yml,
+#                         "Images")
+#   XYLEM_REV             the revision of this file and of stacks/xylem/<stack>.env (a checksum),
+#                         kept as a service label
+#
+# The messages of "${NAME:?message}" below contain no "-" on purpose (stacks/betula.yml says why).
+#
+# Logs: JSON lines with level / event / msg (the image sets XYLEM_LOG_FORMAT=json); no "logging:"
+# key, like the other stacks. For a human, on the server (each command drops to Xylem's user
+# before it asks, over loopback, where Xylem answers them and nobody else):
+#   x() { docker exec "$(docker ps -q -f label=com.docker.swarm.service.name=xylem_push | head -n 1)" /bin/xylem "$@"; }
+#   x status; x announcements; x feed
+#   x announce --key exam-registration-2027s --topic exams --at "2027-05-03 08:00" --title "…" --body "…"
+
+services:
+  push:
+    # flake.nix builds "betula-xylem:latest" (nix build .#xylem-image); ship-xylem.sh gives it the
+    # tag. The image brings the rest: Entrypoint /bin/xylem start (as root: the firewall, then
+    # the drop to 65532 and exec xylem serve), XYLEM_ADDR=0.0.0.0:8300, XYLEM_DATA=/data,
+    # XYLEM_STATS_DIR=/stats, XYLEM_FIREWALL=/etc/xylem/firewall.nft, XYLEM_LOG_FORMAT=json, the
+    # CA certificates, TZ=Europe/Berlin, and HEALTHCHECK "xylem healthcheck" (/healthz over
+    # loopback every 10 s, 3 tries, 30 s start period), so no healthcheck is declared here.
+    image: "${XYLEM_IMAGE:?XYLEM_IMAGE is not set}"
+    environment:
+      # The label stack= of every series of the stats file.
+      XYLEM_STACK: "${STACK_NAME:?STACK_NAME is not set}"
+      # What a notification's link opens at, and (empty XYLEM_ORIGINS) the only origin answered
+      # for CORS: the site's own.
+      XYLEM_SITE: "https://${APP_HOST:?APP_HOST is not set}"
+      XYLEM_LANG: "${XYLEM_LANG:-de}"
+      XYLEM_CONTACT: "${XYLEM_CONTACT:-}"
+      XYLEM_FEED: "${XYLEM_FEED:-}"
+      XYLEM_MAX_SUBSCRIPTIONS: "${XYLEM_MAX_SUBSCRIPTIONS:?XYLEM_MAX_SUBSCRIPTIONS is not set}"
+      XYLEM_LOG_LEVEL: info
+      # Go's heap stays below the memory limit with room for the rest (SQLite's page cache, the
+      # connections to the push services).
+      GOMEMLIMIT: 200MiB
+    volumes:
+      # xylem.db on the file system of fixed size of its own (47-xylem-host.sh mounts it,
+      # nosuid,nodev,noexec, owned by 65532).
+      - type: bind
+        source: /var/lib/betula/xylem/${STACK_NAME}/data
+        target: /data
+      # The tmpfs of 1 MiB the stats file goes to (47-xylem-host.sh), nothing else.
+      - type: bind
+        source: /run/betula/xylem/${STACK_NAME}/stats
+        target: /stats
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 16777216
+    # Nothing is written outside /data, /stats and /tmp.
+    read_only: true
+    # What `xylem start` needs for the firewall and the drop, and nothing else; the process that
+    # serves has none of them (start checks /proc before it execs serve, and sets no_new_privs
+    # itself: swarm does not take security_opt).
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN, SETUID, SETGID]
+    # IPv6: the firewall drops all of it, and Xylem sends none. No sysctl
+    # net.ipv6.conf.all.disable_ipv6: on a kernel without IPv6 the task would not start at all.
+    networks:
+      in: {}
+      out: {}
+    # SIGTERM: no new connections, the requests in flight end, the sender ends the batch it is in
+    # (a request to a push service ends within 15 s); what it did not get to waits in xylem.db.
+    stop_grace_period: 30s
+    deploy:
+      replicas: 1                 # one writer per database, one sender
+      placement:
+        constraints:
+          - node.role == manager  # the data lives on this node
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        order: stop-first         # never two writers on xylem.db, never two senders
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: stop-first
+      resources:
+        limits:
+          # Small requests and eight senders: little CPU, little memory (docs/xylem/xylem.md,
+          # „Limits").
+          cpus: "0.5"
+          memory: 256M
+          pids: 128
+      labels:
+        # Service labels (deploy.labels): the swarm provider does not read container labels.
+        - "traefik.enable=true"
+        - "traefik.swarm.network=${STACK_NAME}_in"
+        # The site's own host, /push/v1/ only; above Folia's router of the host (priority 0 or a
+        # colour's, vps/55-switch.sh), so that the path never reaches Folia. /status, /feed and
+        # /announcements never come through here, and Xylem answers them to loopback alone.
+        - "traefik.http.routers.${STACK_NAME}-push.rule=Host(`${APP_HOST}`) && PathPrefix(`/push/v1/`)"
+        - "traefik.http.routers.${STACK_NAME}-push.priority=1000"
+        - "traefik.http.routers.${STACK_NAME}-push.entrypoints=websecure"
+        - "traefik.http.routers.${STACK_NAME}-push.tls.certresolver=le"
+        # secure-headers: HSTS and friends. push-ratelimit (config/traefik/dynamic/middlewares.yml):
+        # 5 requests a second per address (an IPv6 /64), bursts of 20; a browser asks for the key
+        # and puts its subscription, and Xylem holds its own limits behind it.
+        - "traefik.http.routers.${STACK_NAME}-push.middlewares=secure-headers@file,push-ratelimit@file"
+        - "traefik.http.routers.${STACK_NAME}-push.service=${STACK_NAME}-push"
+        - "traefik.http.services.${STACK_NAME}-push.loadbalancer.server.port=8300"
+        # A label of the service, not of its tasks: changing it restarts nothing.
+        - "app.betula.xylem-rev=${XYLEM_REV:-0}"
+
+networks:
+  # Overlay, internal, not attachable: made by vps/30-docker.sh with Traefik as its only other
+  # member, so that no stack and no "docker run" can join it.
+  in:
+    external: true
+    name: "${STACK_NAME}_in"
+  # Xylem's way out, its alone: <stack>_out (vps/files/networks.conf). Not internal, so Docker
+  # gives the container an address on docker_gwbridge; what leaves through it is the firewall's
+  # to say.
+  out:
+    driver: overlay

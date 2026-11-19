@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # 91-verify-stacks.sh - read-only audit of what 40-stacks.sh deployed. Run on the server as the
-# deploy user (group docker), no sudo needed but for the probes of sections netmatrix and phloem
-# (sudo -n nsenter; without it they are skipped with a WARN):
+# deploy user (group docker), no sudo needed but for the probes of sections netmatrix, phloem and
+# xylem (sudo -n nsenter; without it they are skipped with a WARN):
 #
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http ipv6 tls headers ports accesslog app cortex canary netmatrix phloem loki
-#           prometheus grafana alerts
+# Sections: services http ipv6 tls headers ports accesslog app cortex canary netmatrix phloem
+#           xylem loki prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing, and writes one file: /run/betula/metrics/verify-probes.prom, the time of its
-# probes, for which the rule "Phloem: its firewall drops connections" keeps quiet for 15 minutes
+# probes, for which the rules "Phloem: its firewall drops connections" and Xylem's keep quiet for 15 minutes
 # (they test exactly that). The only traffic it causes: a few requests to the site (which also
 # put fresh lines into Traefik's access log for the Loki check; one is a calendar subscription's
 # address that names nothing, which Folia asks Phloem for), queries inside the monitoring
@@ -41,12 +41,14 @@ set -Eeuo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib-networks.sh"
 # shellcheck source=lib-phloem.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib-phloem.sh"
+# shellcheck source=lib-xylem.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-xylem.sh"
 betula_init
 require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http ipv6 tls headers ports accesslog app cortex canary netmatrix phloem loki prometheus grafana alerts)
+ALL_SECTIONS=(services http ipv6 tls headers ports accesslog app cortex canary netmatrix phloem xylem loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
 # Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two by
@@ -256,11 +258,12 @@ check_services() {
   local stack svc state found site_owner
   site_owner="$(app_stack_for_host "${SITE_HOST}")"
   # shellcheck disable=SC2046  # instance names are single words
-  for stack in edge placeholder cortex $(instance_names) phloem phloem-canary monitoring; do
+  for stack in edge placeholder cortex $(instance_names) phloem phloem-canary xylem xylem-canary monitoring; do
     if ! stack_exists "${stack}"; then
       case "${stack}" in
         edge | monitoring) fail "stack ${stack} is not deployed (vps/40-stacks.sh)" ;;
         phloem | phloem-canary) ;; # section phloem says it
+        xylem | xylem-canary) ;;   # section xylem says it
         cortex) warning "stack cortex is not deployed (deploy/ship-cortex.sh): a Radix that crawls fetches from the university directly (section cortex)" ;;
         placeholder) [[ -n "${site_owner}" ]] || fail "neither stack placeholder nor an instance of the application serves https://${SITE_HOST}: nothing answers there" ;;
       esac
@@ -1331,10 +1334,14 @@ nm_planned_egress() {
 # one; else its first), open exactly where the plan puts the two on one network; the internet,
 # open exactly where the plan gives SOURCE a network that is not internal; Traefik's metrics where
 # SOURCE is on a network with Traefik (200 over edge_metrics, 403 over any other); for a service
-# that lets nothing out (noout) Docker's DNS. From a noout service everything is closed.
+# with a firewall of its own Docker's DNS. From a service that lets nothing out (noout)
+# everything is closed; from one that lets out port 443 of the internet alone (webonly) everything
+# but the internet on 443 and Docker's DNS.
 nm_probe_lines() {
-  local src=$1 dst ports port shared planned address n=0 id expect noout=no
+  local src=$1 dst ports port shared planned address n=0 id expect noout=no webonly=no fenced=no
   netplan_noout "${src}" && noout=yes
+  netplan_webonly "${src}" && webonly=yes
+  [[ "${noout}" == "no" && "${webonly}" == "no" ]] || fenced=yes
   for dst in "${NM_SERVICES[@]}"; do
     [[ "${dst}" != "${src}" ]] || continue
     ports="$(netplan_ports "${dst}")"
@@ -1349,7 +1356,7 @@ nm_probe_lines() {
       address="$(nm_address "${dst}")" || continue
     fi
     expect=closed
-    [[ -n "${planned}" && "${noout}" == "no" ]] && expect=open
+    [[ -n "${planned}" && "${fenced}" == "no" ]] && expect=open
     n=$((n + 1))
     id="${src}#${n}"
     NM_EXPECT["${id}"]="${expect}"
@@ -1365,6 +1372,8 @@ nm_probe_lines() {
   id="${src}#${n}"
   expect=closed
   if [[ "${noout}" == "no" ]] && nm_planned_egress "${src}"; then expect=open; fi
+  # A webonly service reaches the internet on 443 and on no other port.
+  [[ "${webonly}" == "no" || "${NETPROBE_INTERNET##*:}" == "443" ]] || expect=closed
   NM_EXPECT["${id}"]="${expect}"
   NM_TARGET["${id}"]="the internet"
   NM_ASKED["${id}"]="the internet (${NETPROBE_INTERNET})"
@@ -1374,17 +1383,21 @@ nm_probe_lines() {
     id="${src}#${n}"
     expect=403
     [[ "${shared}" == "edge_metrics" ]] && expect=200
-    [[ "${noout}" == "no" ]] || expect=000
+    [[ "${fenced}" == "no" ]] || expect=000
     address="$(nm_address edge_traefik "${shared}")"
     NM_EXPECT["${id}"]="${expect}"
     NM_TARGET["${id}"]="Traefik's metrics"
     NM_ASKED["${id}"]="Traefik's metrics, http://${address}:8082/metrics over ${shared}"
     printf '%s http %s 8082 /metrics\n' "${id}" "${address}"
   fi
-  if [[ "${noout}" == "yes" ]]; then
+  if [[ "${fenced}" == "yes" ]]; then
     n=$((n + 1))
     id="${src}#${n}"
-    NM_EXPECT["${id}"]=closed
+    # Docker's resolver: closed for a service that lets nothing out, open for one that has names
+    # to look up.
+    expect=closed
+    [[ "${webonly}" == "no" ]] || expect=open
+    NM_EXPECT["${id}"]="${expect}"
     NM_TARGET["${id}"]="Docker's DNS"
     NM_ASKED["${id}"]="Docker's DNS, 127.0.0.11:53/tcp"
     printf '%s tcp 127.0.0.11 53\n' "${id}"
@@ -1713,6 +1726,181 @@ check_phloem() {
   done
   if [[ "${deployed}" -eq 0 ]]; then
     warning "Phloem is not deployed: nothing more to check (docs/phloem/phloem.md)"
+  fi
+}
+
+# ---------------------------------------------------------------- Xylem
+
+check_xylem() {
+  section "xylem (the notifications' service, kept as Phloem is, with a way out to port 443 of the internet: docs/xylem/xylem.md)"
+  local stack svc nets want cid pid ports lines id result value deployed=0 target address users closed open host
+  netplan_read
+  [[ "${#NETMAP_ALL_SERVICES[@]}" -gt 0 ]] || netmap_build
+  [[ "${#NM_SERVICES[@]}" -gt 0 ]] || nm_containers
+  for stack in xylem xylem-canary; do
+    if ! stack_exists "${stack}"; then
+      warning "stack ${stack} is not deployed (docs/xylem/xylem.md); its network waits for it: ${stack}_in $(netplan_check "${stack}_in" && printf 'as planned' || printf '(%s)' "${NETPLAN_DETAIL}")"
+      continue
+    fi
+    deployed=1
+    if ! (load_xylem "${stack}") >/dev/null 2>&1; then
+      fail "stacks/xylem/${stack}.env does not read (bash ${BETULA_ROOT}/vps/49-xylem.sh ${stack} says why)"
+      continue
+    fi
+    load_xylem "${stack}"
+    # Its networks: exactly <stack>_in (Traefik and it) and <stack>_out (it alone, its way out).
+    if netplan_check "${stack}_in"; then
+      pass "${stack}_in: internal, not attachable ($(network_facts "${stack}_in"))"
+    else
+      fail "${NETPLAN_DETAIL}"
+    fi
+    users="${NETMAP_SERVICES[${stack}_in]:-}"
+    want="$( { printf 'edge_traefik\n'; stack_services "${stack}"; } | sort | tr '\n' ' ')"
+    if [[ "$(tr ' ' '\n' <<<"${users}" | sed '/^$/d' | sort | tr '\n' ' ')" == "${want}" ]]; then
+      pass "${stack}_in holds exactly ${want% }"
+    else
+      fail "${stack}_in holds '${users% }', wanted exactly ${want% }"
+    fi
+    users="$(tr ' ' '\n' <<<"${NETMAP_SERVICES[${stack}_out]:-}" | sed '/^$/d' | sort | tr '\n' ' ')"
+    want="$(stack_services "${stack}" | sort | tr '\n' ' ')"
+    if [[ "${users}" != "${want}" ]]; then
+      fail "${stack}_out holds '${users% }', wanted exactly ${want% }: Xylem's way out is its alone (stacks/xylem.yml)"
+    elif [[ "$(network_internal "${stack}_out")" == "false" ]]; then
+      pass "${stack}_out: its own way out (not internal), held by ${users% } alone"
+    else
+      fail "${stack}_out is '$(network_internal "${stack}_out")' internal, wanted false: Xylem could reach no push service (stacks/xylem.yml)"
+    fi
+    while IFS= read -r svc; do
+      [[ -n "${svc}" ]] || continue
+      nets="$(tr ' ' '\n' <<<"${NETMAP_NETS[${svc}]:-}" | sed '/^$/d' | sort | tr '\n' ' ')"
+      if [[ "${nets}" == "$(printf '%s\n' "${stack}_in" "${stack}_out" | sort | tr '\n' ' ')" ]]; then
+        pass "${svc} is on ${nets% } and nothing else"
+      else
+        fail "${svc} is on '${nets% }', wanted ${stack}_in and ${stack}_out (stacks/xylem.yml)"
+      fi
+      ports="$(docker service inspect "${svc}" --format '{{range .Endpoint.Spec.Ports}}{{.PublishedPort}}/{{.Protocol}}/{{.PublishMode}}{{"\n"}}{{end}}' 2>/dev/null | sed '/^$/d' | sort | tr '\n' ' ' || true)"
+      if [[ -z "${ports}" ]]; then
+        pass "${svc} publishes nothing"
+      else
+        fail "${svc} publishes '${ports% }': Xylem publishes nothing (Traefik reaches it over ${stack}_in)"
+      fi
+      cid="${NM_CID[${svc}]:-}"
+      if [[ -z "${cid}" ]]; then
+        fail "${svc} has no running container here (docker service ps --no-trunc ${svc})"
+        continue
+      fi
+      if ! netprobe_possible; then
+        warning "${svc}: its firewall and the probes from it need root (sudo -n), nsenter and curl"
+        continue
+      fi
+      pid="${NM_PID[${svc}]}"
+      nm_announce_probes
+      if netprobe_as_root nsenter -t "${pid}" -n -- nft list table inet xylem >/dev/null 2>&1; then
+        pass "${svc}: the table inet xylem is in its network namespace"
+      else
+        fail "${svc}: no table inet xylem in its network namespace: its firewall is not there (\"xylem start\" sets it; docs/xylem/xylem.md, „On the server\")"
+      fi
+      # From it: nothing inside the house answers, not even what shares a network with it. What
+      # must answer: Docker's resolver, and the internet on 443.
+      lines=""
+      for target in edge_traefik monitoring_prometheus monitoring_grafana monitoring_loki monitoring_scraper cortex_a; do
+        address="$(nm_address "${target}" 2>/dev/null)" || continue
+        ports="$(netplan_ports "${target}")"
+        lines+="closed ${target} tcp ${address} ${ports%% *}"$'\n'
+      done
+      for target in "${NM_SERVICES[@]}"; do
+        [[ "${target}" == *_folia || "${target}" == *_radix || "${target}" == phloem*_sync ]] || continue
+        address="$(nm_address "${target}")" || continue
+        lines+="closed ${target} tcp ${address} $(netplan_ports "${target}" | cut -d' ' -f1)"$'\n'
+      done
+      address="$(nm_address edge_traefik "${stack}_in" 2>/dev/null || true)"
+      if [[ -n "${address}" ]]; then
+        lines+="closed traefik-over-${stack}_in tcp ${address} 443"$'\n'
+        lines+="closed traefik-metrics-over-${stack}_in tcp ${address} 8082"$'\n'
+      fi
+      address="$(docker network inspect docker_gwbridge --format '{{range .IPAM.Config}}{{.Gateway}}{{"\n"}}{{end}}' 2>/dev/null | grep -m 1 -E '^[0-9.]+$' || true)"
+      if [[ -n "${address}" ]]; then
+        lines+="closed the-host-at-its-bridge tcp ${address} 443"$'\n'
+        lines+="closed the-host's-ssh-at-its-bridge tcp ${address} 22"$'\n'
+      fi
+      host=""
+      if have_cmd ip; then host="$(default_ipv4)"; fi
+      if [[ -n "${host}" ]]; then
+        lines+="closed the-host's-ssh tcp ${host} 22"$'\n'
+      fi
+      lines+="closed the-internet-without-tls tcp ${NETPROBE_INTERNET%:*} 80"$'\n'
+      lines+="open docker's-dns tcp 127.0.0.11 53"$'\n'
+      if [[ "${NETPROBE_INTERNET##*:}" == "443" ]]; then
+        lines+="open the-internet-on-443 tcp ${NETPROBE_INTERNET%:*} 443"$'\n'
+      fi
+      closed="" open=""
+      while read -r id result; do
+        [[ -n "${id}" ]] || continue
+        want="${id%%:*}" target="${id#*:}"
+        if [[ "${result}" != "${want}" && "${want}" == "closed" ]]; then
+          fail "${svc} reaches ${target} (${result}): its firewall does not hold it to port 443 of the internet (xylem/deploy/firewall.nft)"
+        elif [[ "${result}" != "${want}" ]]; then
+          fail "${svc} does not reach ${target} (${result}): Xylem needs it for the push services and the site's feed (xylem/deploy/firewall.nft; ${stack}_out)"
+        elif [[ "${want}" == "closed" ]]; then
+          closed+="${target}, "
+        else
+          open+="${target}, "
+        fi
+      done < <(awk '{ print $1 ":" $2, $3, $4, $5 }' <<<"${lines}" | netprobe_run "${pid}")
+      [[ -z "${closed}" ]] || pass "${svc} reaches none of: ${closed%, }"
+      [[ -z "${open}" ]] || pass "${svc} reaches: ${open%, }"
+      # The site's own address, as the feed is read: from a container it is the host itself, and
+      # Traefik's published port answers there. Only where that address is one on the internet
+      # (a host behind NAT reaches its site another way, or not at all).
+      if [[ -n "${XYLEM_FEED_URL}" && -n "${host}" ]] && ! is_private_ipv4 "${host}"; then
+        result="$(netprobe_run "${pid}" <<<"x tcp ${host} 443" | awk '{ print $2 }')"
+        if [[ "${result}" == "open" ]]; then
+          pass "${svc} reaches this host's own address ${host}:443, where the site's feed is read"
+        else
+          warning "${svc} does not reach this host's own address ${host}:443 (${result:-no answer}): the site's feed cannot be read from its container, and only a person announces (docker exec ${cid:0:12} /bin/xylem feed)"
+        fi
+      fi
+      # Towards it: Traefik over <stack>_in, and Traefik's metrics refuse that network.
+      address="$(nm_address "${svc}" "${stack}_in" 2>/dev/null || true)"
+      if [[ -n "${address}" && -n "${NM_PID[edge_traefik]:-}" ]]; then
+        result="$(netprobe_run "${NM_PID[edge_traefik]}" <<<"x http ${address} 8300 /healthz" | awk '{ print $2 }')"
+        if [[ "${result}" == "200" ]]; then pass "Traefik reaches ${svc} over ${stack}_in (GET /healthz -> 200)"; else
+          fail "Traefik does not reach ${svc} over ${stack}_in (GET http://${address}:8300/healthz -> ${result:-nothing})"
+        fi
+        # What Xylem answers loopback alone stays closed to its one neighbour.
+        result="$(netprobe_run "${NM_PID[edge_traefik]}" <<<"x http ${address} 8300 /status" | awk '{ print $2 }')"
+        if [[ "${result}" == "404" ]]; then pass "${svc} gives Traefik no status (GET /status -> 404: loopback alone)"; else
+          fail "${svc} answers GET /status from Traefik's address with ${result:-nothing}, wanted 404: its commands' side is for loopback alone (docs/xylem/protocol.md section 6)"
+        fi
+        address="$(nm_address edge_traefik "${stack}_in" 2>/dev/null || true)"
+        result="$(netprobe_run "${NM_PID[edge_traefik]}" <<<"x http ${address} 8082 /metrics ${address}" | awk '{ print $2 }')"
+        if [[ "${result}" == "403" ]]; then pass "Traefik's metrics refuse ${stack}_in (403 from an address of it)"; else
+          fail "Traefik's metrics answer ${result:-nothing} to an address of ${stack}_in, wanted 403 (config/traefik/dynamic/metrics.yml)"
+        fi
+      fi
+    done < <(stack_services "${stack}")
+    # What the monitoring sees of it: its file (no network), and the guard's.
+    if find_prometheus; then
+      value="$(prom_value "max(xylem_up{job=\"xylem\", stack=\"${stack}\"})" || true)"
+      if [[ "${value}" == "1" ]]; then pass "xylem_up{stack=\"${stack}\"} = 1 in Prometheus (its stats file, read by Alloy)"; else
+        fail "xylem_up{stack=\"${stack}\"} is ${value:-absent} in Prometheus: is /run/betula/xylem/${stack}/stats/xylem.prom written (Xylem) and read (config/monitoring/alloy/config.alloy; bash ${BETULA_ROOT}/vps/40-stacks.sh monitoring)?"
+      fi
+      value="$(prom_value "time() - max(node_textfile_mtime_seconds{job=\"xylem\", stack=\"${stack}\"})" || true)"
+      if [[ "${value}" =~ ^[0-9.]+$ ]] && awk -v v="${value}" 'BEGIN { exit !(v < 120) }'; then
+        pass "its stats file is $(printf '%.0f' "${value}") s old"
+      else
+        fail "its stats file is ${value:-?} s old: Xylem writes it every 15 s"
+      fi
+      value="$(prom_value "max(betula_xylem_guard_firewall{stack=\"${stack}\"}) * (1 - max(betula_xylem_guard_privileged{stack=\"${stack}\"}))" || true)"
+      if [[ "${value}" == "1" ]]; then pass "the guard sees its firewall, and no process of it with rights (betula-xylem-guard)"; else
+        fail "the guard says ${value:-nothing} for ${stack} (firewall present and no rights = 1): sudo systemctl start betula-xylem-guard.service; cat /run/betula/metrics/xylem-guard.prom"
+      fi
+    else
+      warning "no running monitoring_prometheus container: xylem_up not checked"
+    fi
+  done
+  if [[ "${deployed}" -eq 0 ]]; then
+    warning "Xylem is not deployed: nothing more to check (docs/xylem/xylem.md)"
   fi
 }
 

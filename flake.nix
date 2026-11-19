@@ -245,11 +245,11 @@
 
         # ---------------------------------------------------------------- Xylem (Go)
 
-        # The service of Betula's notifications (docs/xylem/xylem.md): the Go module xylem/, a
-        # binary of its own. What it is built from, relative to xylem/ (not live/, its check
-        # against a real push service). No image yet: its place on the server is not decided
-        # (docs/xylem/xylem.md, "Not yet").
-        xylemPaths = [ "go.mod" "go.sum" "cmd" "internal" ];
+        # The service of Betula's notifications (docs/xylem/xylem.md, stacks/xylem.yml): the Go
+        # module xylem/, a binary and an image of its own. What it is built from, relative to
+        # xylem/ (not live/, its check against a real push service);
+        # deploy/ship-xylem.sh reads this line for the release tag, so it stays one line.
+        xylemPaths = [ "go.mod" "go.sum" "cmd" "internal" "deploy" ];
 
         xylem = buildGoModule {
           pname = "betula-xylem";
@@ -266,7 +266,60 @@
           ldflags = [ "-s" "-w" ];
           doCheck = true;
 
+          # The firewall `xylem start` loads, next to the binary.
+          postInstall = ''
+            install -Dm444 deploy/firewall.nft $out/etc/xylem/firewall.nft
+          '';
+
           meta.mainProgram = "xylem";
+        };
+
+        xylem-image = pkgs.dockerTools.buildLayeredImage {
+          name = "betula-xylem";
+          tag = "latest";
+          # /bin/xylem, /etc/xylem/firewall.nft, /bin/nft with the libraries it needs (Phloem's:
+          # `nft -f` and `nft list` only), and the CA certificates: Xylem speaks HTTPS to the push
+          # services and to the site's feed. No shell.
+          contents = [ xylem phloemNft pkgs.cacert ];
+          # /data holds xylem.db, /stats the stats file (a file system and a tmpfs of the host,
+          # stacks/xylem.yml, both owned by 65532); /tmp for SQLite. The image runs as root:
+          # `xylem start` needs it for the firewall and drops to 65532 itself before it serves.
+          fakeRootCommands = ''
+            mkdir -p data stats tmp
+            chown 65532:65532 data stats
+            chmod 1777 tmp
+          '';
+          config = {
+            Entrypoint = [ "/bin/xylem" ];
+            Cmd = [ "start" ];
+            User = "0:0";
+            Env = [
+              "PATH=/bin"
+              "XYLEM_ADDR=0.0.0.0:8300"
+              "XYLEM_DATA=/data"
+              "XYLEM_STATS_DIR=/stats"
+              "XYLEM_FIREWALL=/etc/xylem/firewall.nft"
+              "XYLEM_LOG_FORMAT=json"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              "TZ=Europe/Berlin"
+            ];
+            ExposedPorts = { "8300/tcp" = { }; };
+            Volumes = { "/data" = { }; };
+            # Not /data: start runs as root without CAP_DAC_OVERRIDE (it cannot read Xylem's
+            # data, nor should it), and nothing in a directory Xylem can write may count as
+            # configuration (a development .env).
+            WorkingDir = "/";
+            # Liveness (/healthz over loopback, which the firewall lets through): the process
+            # serves and its store answers. The check drops root before it asks.
+            Healthcheck = {
+              Test = [ "CMD" "/bin/xylem" "healthcheck" ];
+              Interval = 10000000000; # 10 s, in nanoseconds
+              Timeout = 5000000000;
+              StartPeriod = 30000000000;
+              StartInterval = 2000000000;
+              Retries = 3;
+            };
+          };
         };
 
         # ---------------------------------------------------------------- Folia (Rust)
@@ -467,7 +520,7 @@
       in
       {
         packages = {
-          inherit radix radix-image cortex cortex-image phloem phloem-image xylem folia folia-client folia-semantic folia-transcript folia-image;
+          inherit radix radix-image cortex cortex-image phloem phloem-image xylem xylem-image folia folia-client folia-semantic folia-transcript folia-image;
           default = radix;
         };
 
