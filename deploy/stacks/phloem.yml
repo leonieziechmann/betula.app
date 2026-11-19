@@ -95,8 +95,15 @@ services:
     # itself: swarm does not take security_opt).
     cap_drop: [ALL]
     cap_add: [NET_ADMIN, SETUID, SETGID]
-    # IPv6: the firewall drops all of it, and the network has none. No sysctl
-    # net.ipv6.conf.all.disable_ipv6: on a kernel without IPv6 the task would not start at all.
+    # IPv6: the firewall drops all of it. <stack>_in has none; with TURN, <stack>_out leads out
+    # over docker_gwbridge, which has IPv6 since 2026-11 (README section 15): the container has an
+    # address there, to which Docker DNATs IPv6 for the published ports, dropped as well (STUN and
+    # TURN answer over IPv4, and over TLS on 443 through Traefik), and the kernel's own neighbour
+    # discovery there is dropped without being counted (phloem/deploy/firewall.nft). No sysctl
+    # net.ipv6.conf.all.disable_ipv6: on a kernel without IPv6 the task would not start at all,
+    # and to a container without an IPv6 address Docker's userland proxy relays IPv6 for the
+    # published ports over IPv4, so that STUN and TURN would see every such device as the bridge's
+    # gateway, one address for all.
     # With TURN also <stack>_out, and the ports (phloem_turn_file).
     networks:
       in: {}
