@@ -10,7 +10,9 @@
 //! while the plan is edited: what a module taken in is, the Merkliste and the catalog as two ways,
 //! each module with how it sits in that calendar's week (`pages::fit_lines`: „passt",
 //! „überschneidet sich mit …"; one that does not fit is taken in all the same, Betula says what is
-//! unusual), „Aufnehmen", and after it a note with „Rückgängig". The Merkliste is as „Aus der
+//! unusual), „Aufnehmen", and after it the page's note with „Rückgängig" (`note.rs`; on a phone the
+//! sheet's, at its foot; until 2026-11-19 a line over the ways, which moved the list under the
+//! pointer). The Merkliste is as „Aus der
 //! Merkliste" had it until it planned into the study (folia/design/merken/konzept.html, „Von
 //! überall": „nach Sammlung und Suche; zuerst, was das Semester anbietet, mit „passt“ oder
 //! „überschneidet sich mit …“; danach, was es nicht anbietet, mit dem Grund; „3 gemerkte übernehmen“
@@ -46,9 +48,9 @@ pub(crate) enum AddTo {
     Calendar(u8),
 }
 
-/// How the note of a module taken in begins (`PlanCtx::undo`, which the page's other notes share):
-/// a mark of its own, never shown.
-const ADDED: &str = "Aufgenommen: ";
+/// How the note of a module taken in begins (`PlanCtx::undo`, which the page's other notes share,
+/// `note.rs`): a mark of its own, never shown.
+pub(super) const ADDED: &str = "Aufgenommen: ";
 
 /// The most modules the catalog's search lists here; the whole catalog has the rest.
 const FOUND: usize = 12;
@@ -249,21 +251,6 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>,
             });
         });
     };
-    let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(ADDED).map(str::to_string))));
-    let restoring = RwSignal::new(false);
-    let restore = move |_| {
-        if restoring.get_untracked() {
-            return;
-        }
-        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        restoring.set(true);
-        let undo = ctx.undo;
-        plan.update_after_paint(move |doc| {
-            before.restore(doc);
-            let _ = undo.try_set(None);
-            let _ = restoring.try_set(false);
-        });
-    };
     let close = move || match sheet {
         Some(sheet) => sheet.run(()),
         None => ctx.adding.set(None),
@@ -406,13 +393,6 @@ pub(super) fn AddPanel(ctx: PlanCtx, to: AddTo, marked: Memo<Vec<MarkedModule>>,
                 </div>
             })}
             <p class="sp-addp-says">{says}</p>
-            {move || note.get().map(|note| view! {
-                <p class="action note-action sp-marked-note">
-                    <Icon name="check"/>
-                    <span>{note}</span>
-                    <button data-haptic="tap" class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
-                </p>
-            })}
             <div class="seg sp-addp-ways" role="tablist" aria-label=a.ways>
                 {tab(Way::Marked, marked_words)}
                 {tab(Way::Catalog, catalog_words)}

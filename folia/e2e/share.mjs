@@ -124,7 +124,7 @@ await until("Lena: the row says „aktuell“", lena.page, () => [...document.qu
 const other = await device("Other");
 await other.page.goto(once);
 await app(other.page);
-await until("Other: „schon geöffnet“", other.page, () => (onPage(".offer[role=alert]")?.textContent || "").includes("schon geöffnet"), null, 20000);
+await until("Other: „schon geöffnet“ in the page's note", other.page, () => (onPage(".wait-note")?.textContent || "").includes("schon geöffnet") && !onPage(".sp-fold .offer"), null, 20000);
 check(!(await other.page.evaluate(() => plan())).includes("12104"), "Other: got something of the plan");
 
 // ---- Max plans another module: Lena's open page has it within 30 s, by itself (private) ----

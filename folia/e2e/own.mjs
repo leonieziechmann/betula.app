@@ -129,7 +129,7 @@ const click = async (page, selector, name = selector) => {
 };
 const own = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "").split("\n").filter((line) => line.startsWith("t\t")), PLAN);
 const text = (page, selector) => page.evaluate((selector) => onPage(selector)?.innerText.replace(/\s+/g, " ").trim() ?? null, selector);
-const note = (page) => page.evaluate(() => onPage(".own-note .plan-toast-said")?.textContent.replace(/\s+/g, " ").trim() ?? "");
+const note = (page) => page.evaluate(() => onPage(".plan-note .mark-toast-said")?.textContent.replace(/\s+/g, " ").trim() ?? "");
 const form = "dialog.own-form[open]";
 // Betula's select (`combobox::Select`, since 2026-11-19 in the Termin's forms): its button, then
 // the entry of that value in the list it opens, as a hand picks it.
@@ -238,7 +238,7 @@ if (block("form")) {
     return text.includes("t\t1\t0\t2026W\tw\t4\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\n") && !onPage("dialog.own-form[open]")
       && slot?.querySelector(".slot-own") && slot.classList.contains("t-own") && !allOnPage(".sp-week .slot.draft").length
       && onPage(".sp-own .sp-row.own")?.innerText.replace(/\s+/g, " ").includes("Arbeit Do 13:00 Café Mosaik")
-      && onPage(".own-note .plan-toast-said")?.textContent.includes("„Arbeit“ angelegt");
+      && onPage(".plan-note .mark-toast-said")?.textContent.includes("„Arbeit“ angelegt");
   }, [PLAN]);
   // While editing a slot of one's own carries the bin, and no eye: it is deleted, not hidden.
   check(JSON.stringify((await slotOf(page, "Arbeit"))?.acts) === JSON.stringify(["trash-2 Löschen"]), `the slot's buttons while editing: ${JSON.stringify(await slotOf(page, "Arbeit"))}`);
@@ -430,8 +430,8 @@ if (block("form")) {
     return Boolean(slot);
   });
   check(hiwi, "the slot of „HiWi\" and its bin");
-  await until(page, "the bin: the line gone, the note", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tHiWi\t") && !allOnPage(".sp-week a.slot.own").some((slot) => slot.textContent.includes("HiWi")) && onPage(".own-note .plan-toast-said")?.textContent.includes("„HiWi“ gelöscht"), [PLAN]);
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the bin");
+  await until(page, "the bin: the line gone, the note", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tHiWi\t") && !allOnPage(".sp-week a.slot.own").some((slot) => slot.textContent.includes("HiWi")) && onPage(".plan-note .mark-toast-said")?.textContent.includes("„HiWi“ gelöscht"), [PLAN]);
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the bin");
   await until(page, "„Rückgängig“: „HiWi“ back", ([key]) => (localStorage.getItem(key) ?? "").includes("\tHiWi\t") && allOnPage(".sp-week a.slot.own").some((slot) => slot.textContent.includes("HiWi")), [PLAN]);
 
   // „Fertig": the head counts them, and no slot carries a button.
@@ -456,8 +456,8 @@ if (block("card")) {
   // The eye skips the day, the card closes, the note brings it back.
   const day = v.date;
   await click(page, "dialog[open] .tm-tools [data-action='hide-date']", "the eye");
-  await until(page, "the day skipped", ([key, day]) => /^t\t1\t0\t2026W\tw\t4\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\d{4}-\d\d-\d\d$/m.test(localStorage.getItem(key) ?? "") && !onPage("dialog[open] .tm-card") && !location.search.includes("termin=") && onPage(".own-note .plan-toast-said")?.textContent.trim() === `„Arbeit“ am ${day} ausgeblendet`, [PLAN, day]);
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the day");
+  await until(page, "the day skipped", ([key, day]) => /^t\t1\t0\t2026W\tw\t4\t13:00-17:00\t\t\t\tArbeit\tCafé Mosaik\t\d{4}-\d\d-\d\d$/m.test(localStorage.getItem(key) ?? "") && !onPage("dialog[open] .tm-card") && !location.search.includes("termin=") && onPage(".plan-note .mark-toast-said")?.textContent.trim() === `„Arbeit“ am ${day} ausgeblendet`, [PLAN, day]);
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the day");
   await until(page, "the day held again", ([key, line]) => (localStorage.getItem(key) ?? "").includes(line), [PLAN, ARBEIT]);
   // Skipped again: on that day the eye is crossed, and „Am … einblenden" keeps the card.
   await click(page, '.sp-week a.slot.own:has-text("Arbeit")', "the slot of „Arbeit\"");
@@ -485,13 +485,13 @@ if (block("card")) {
   await page.keyboard.press("Backspace");
   await fill(page, { place: "Mensa" });
   await click(page, `dialog.own-form .st-dlg-foot .primary`, "„Speichern\"");
-  await until(page, "„Speichern“", ([key]) => (localStorage.getItem(key) ?? "").includes("t\t1\t0\t2026W\tw\t4\t13:00-17:00\t\t\t\tArbeit\tMensa\t\n") && onPage(".own-note .plan-toast-said")?.textContent.includes("„Arbeit“ gespeichert"), [PLAN]);
+  await until(page, "„Speichern“", ([key]) => (localStorage.getItem(key) ?? "").includes("t\t1\t0\t2026W\tw\t4\t13:00-17:00\t\t\t\tArbeit\tMensa\t\n") && onPage(".plan-note .mark-toast-said")?.textContent.includes("„Arbeit“ gespeichert"), [PLAN]);
   // The bin: the card closes, the note brings it back.
   if (!(await page.evaluate(() => onPage("dialog[open] .tm-card")))) await click(page, '.sp-week a.slot.own:has-text("Arbeit")', "the slot of „Arbeit\"");
   await until(page, "its card for the bin", () => Boolean(onPage("dialog[open] .tm-card [data-action='own-remove']")));
   await click(page, "dialog[open] .tm-tools [data-action='own-remove']", "the bin");
-  await until(page, "„Löschen“", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && !location.search.includes("termin=") && !onPage("dialog[open] .tm-card") && onPage(".own-note .plan-toast-said")?.textContent.includes("„Arbeit“ gelöscht"), [PLAN]);
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the bin");
+  await until(page, "„Löschen“", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && !location.search.includes("termin=") && !onPage("dialog[open] .tm-card") && onPage(".plan-note .mark-toast-said")?.textContent.includes("„Arbeit“ gelöscht"), [PLAN]);
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the bin");
   await until(page, "„Rückgängig“", ([key]) => (localStorage.getItem(key) ?? "").includes("\tArbeit\tMensa\t") && allOnPage(".sp-week .slot.own").some((slot) => slot.textContent.includes("Arbeit")), [PLAN]);
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
   await context.close();
@@ -511,7 +511,7 @@ if (block("module")) {
     const line = (localStorage.getItem(key) ?? "").split("\n").find((line) => line.startsWith("t\t"));
     const slot = allOnPage(".sp-week .slot.own").find((slot) => slot.title.includes("von dir"));
     return line === `t\t1\t0\t2026W\tw\t4\t13:45-15:15\t\t\t${id}\t\t\t` && slot && !slot.classList.contains("t-own") && /^PBS/.test(slot.textContent)
-      && onPage(`.sp-list .sp-mod[data-id='${id}'] .sp-cat.own`)?.innerText.replace(/\s+/g, " ").includes("Do 13:45") && onPage(".own-note .plan-toast-said")?.textContent.trim() === "PBS angelegt";
+      && onPage(`.sp-list .sp-mod[data-id='${id}'] .sp-cat.own`)?.innerText.replace(/\s+/g, " ").includes("Do 13:45") && onPage(".plan-note .mark-toast-said")?.textContent.trim() === "PBS angelegt";
   }, [PLAN, PRAK_BS]);
   check(!(await page.evaluate((id) => onPage(`.sp-list .sp-mod[data-id='${id}'] .sp-cat-none .sp-enter`), PRAK_BS)), "„Termin eintragen\" stays once the module has a Termin");
   if (shots) await page.screenshot({ path: `${shots}/own-module.png` });
@@ -538,7 +538,7 @@ if (block("kind")) {
     const lines = (localStorage.getItem(key) ?? "").split("\n").filter((line) => line.startsWith("t\t"));
     const row = onPage(".sp-list .sp-mod[data-id='12104'] .sp-cat.own .sp-cat-row");
     return lines.join() === "t\t1\t0\t2026W\tw\t2\t16:00-17:30\t\t\t12104\t\t\t\tlecture" && allOnPage(".sp-week a.slot.own").some((slot) => slot.querySelector(".l")?.textContent.replace(/\s+/g, " ").trim() === "VL EvS")
-      && row?.querySelector("b")?.textContent === "Vorlesung" && row.querySelector(".sp-cat-sum")?.textContent.includes("Di 16:00") && onPage(".own-note .plan-toast-said")?.textContent.trim() === "VL EvS angelegt";
+      && row?.querySelector("b")?.textContent === "Vorlesung" && row.querySelector(".sp-cat-sum")?.textContent.includes("Di 16:00") && onPage(".plan-note .mark-toast-said")?.textContent.trim() === "VL EvS angelegt";
   }, [PLAN]);
   check(await page.evaluate(() => !onPage(".sp-list .sp-own .sp-row.own")), "a module's Termin under „Eigene Termine\"");
   // Its card: „EvS Vorlesung · von dir", the module's title.

@@ -17,10 +17,10 @@
 //! puts the plan beside one's own as a calendar, with its groups (`calendars.rs`; a plan of another
 //! semester too, which then stands in the week once the page shows that semester); „Verwerfen"
 //! leaves the plan as it is. Each takes the code out of the address, in the same history entry.
-//! Where the offer stood, „Aus dem Link übernommen: 6 Module" or „Als Kalender angelegt: Kalender
-//! 2" then answers with „Rückgängig" (`PlanCtx::undo`, which the import shares with the other notes)
-//! until the next change of the kind. A code of another semester than the one the page shows is
-//! otherwise only named: the page has no other.
+//! „Aus dem Link übernommen: 6 Module" or „Als Kalender angelegt: Kalender 2" then answers with
+//! „Rückgängig" in the page's note (`PlanCtx::undo`, which the import shares with the other notes,
+//! `note.rs`; until 2026-11-19 in the offer's place, until the next change of the kind). A code of
+//! another semester than the one the page shows is otherwise only named: the page has no other.
 //!
 //! The link handed on is in the page's language (`/en/studyplan?share=…`), so that whoever opens it
 //! reads the offer in the language it was handed on in.
@@ -43,6 +43,7 @@ use leptos_router::NavigateOptions;
 use crate::i18n;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
+use folia_design::waitnote::Mark;
 use super::{now_secs, PlanCtx};
 
 /// What the offer says of a shared plan.
@@ -139,7 +140,6 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     let dismiss = move |_| leave();
     // „Als Kalender": the plan of the link beside one's own, not in it (`calendars.rs`), with the
     // groups it ticked; „Rückgängig" takes it away again. The eighth calendar is the last.
-    let made = RwSignal::new(None::<String>);
     let room = Memo::new(move |_| ctx.calendars.with(Vec::len) < folia_plans::studyplan::MAX_CALENDARS);
     let as_calendar = move |_| {
         if busy.get_untracked() {
@@ -153,7 +153,6 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
                 let before = store.with(Clone::clone);
                 if let Some(id) = super::calendars::create(ctx, &plan, "") {
                     let note = (t.studyplan_calendars.created)(&(t.studyplan_calendars.unnamed)(id));
-                    let _ = made.try_set(Some(note.clone()));
                     let _ = undo.try_set(Some((note, PlanUndo::of(before, store.with_untracked(Clone::clone)))));
                 }
             }
@@ -162,39 +161,8 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         });
     };
 
-    // Once taken over or made a calendar: the note where the offer stood, until the next change of
-    // the kind.
-    let taken = Memo::new(move |_| {
-        ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(s.taken) || made.with(|made| made.as_ref() == Some(note))))
-    });
-    let restoring = RwSignal::new(false);
-    let restore = move |_| {
-        let (Some(store), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        if restoring.get_untracked() {
-            return;
-        }
-        restoring.set(true);
-        let undo = ctx.undo;
-        store.update_after_paint(move |doc| {
-            before.restore(doc);
-            let _ = undo.try_set(None);
-            let _ = restoring.try_set(false);
-        });
-    };
-
     move || {
-        let Some((offer, label)) = offer.get() else {
-            return taken.get().map(|note| {
-                view! {
-                    <div class="offer" role="status">
-                        <Icon name="check"/>
-                        <p><b>{note}</b></p>
-                        <button data-haptic="tap" class="mini hit" type="button" id="sp-share-undo" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
-                    </div>
-                }
-                .into_any()
-            });
-        };
+        let (offer, label) = offer.get()?;
         // A calendar of a plan whose modules the catalog knows.
         let known = !matches!(offer, Offer::Unknown);
         let (text, can_take) = offer_text(offer, t);
@@ -374,15 +342,6 @@ fn open_fragment(opening: Opening, found: ArcRwSignal<Option<Found>>) {
     }
 }
 
-/// How the offer to save the profile with Betula Sync stands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Upgrade {
-    Offered,
-    Saving,
-    Saved,
-    Failed,
-}
-
 /// The offer of a link that names a calendar that stays current, or of a one-time link
 /// (`/studyplan#live=…`, `/studyplan#once=…`; folia/design/teilen/teilen.html, „Was Lena sieht").
 ///
@@ -459,10 +418,12 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
     });
     let room = Memo::new(move |_| ctx.calendars.with(Vec::len) < folia_plans::studyplan::MAX_CALENDARS);
     let busy = RwSignal::new(false);
-    let made = RwSignal::new(None::<String>);
-    // Whether the calendar made follows the share (a copy does not: Betula Sync adds nothing to it).
-    let follows = RwSignal::new(false);
-    let upgrade = RwSignal::new(Upgrade::Offered);
+    // The calendar made to follow the share, while it is there (a copy follows nothing: Betula Sync
+    // adds nothing to it).
+    let follows = RwSignal::new(None::<u8>);
+    let followed = Memo::new(move |_| follows.get().is_some_and(|id| ctx.calendars.with(|calendars| calendars.iter().any(|calendar| calendar.id == id))));
+    // „Profil speichern" under way.
+    let saving = RwSignal::new(false);
 
     // Answered: the fragment goes from the address, what the tab kept of it too.
     let done = move || {
@@ -499,8 +460,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
                 });
                 if let Some(id) = id {
                     let note = (c.created)(&(c.unnamed)(id));
-                    let _ = follows.try_set(link.is_some());
-                    let _ = made.try_set(Some(note.clone()));
+                    let _ = follows.try_set(link.is_some().then_some(id));
                     let _ = undo.try_set(Some((note, PlanUndo::of(before, store.with_untracked(Clone::clone)))));
                 }
             }
@@ -537,27 +497,24 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
         });
     };
 
-    // The note after „Übernehmen" or „Als Kalender", until the next change of the kind.
-    let taken = Memo::new(move |_| {
-        ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(s.live_taken) || made.with(|made| made.as_ref() == Some(note))))
-    });
-    let followed = Memo::new(move |_| follows.get() && taken.with(|taken| taken.is_some() && *taken == made.get()));
-    let restoring = RwSignal::new(false);
-    let restore = move |_| {
-        let (Some(store), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        if restoring.get_untracked() {
-            return;
-        }
-        restoring.set(true);
-        let undo = ctx.undo;
-        store.update_after_paint(move |doc| {
-            before.restore(doc);
-            let _ = undo.try_set(None);
-            let _ = restoring.try_set(false);
+    // „Übernehmen" and „Als Kalender" answer with „Rückgängig" in the page's note (`note.rs`; until
+    // 2026-11-19 in the offer's place). A link that opens nothing says why there, and goes from the
+    // address.
+    Effect::new(move |_| {
+        let text = found.with(|found| match found {
+            Some(Found::Problem(problem)) => Some(problem_text(*problem, t)),
+            Some(Found::NotOffered) => Some(s.link_not_offered),
+            _ => None,
         });
-    };
+        if let Some(text) = text {
+            ctx.say("triangle-alert", Mark::Warn, text);
+            done();
+        }
+    });
     // A private profile follows from this browser alone: Betula Sync brings every change at once,
-    // and the calendar to every device (owner, 2026-11-08: „schnell sein profil speichern").
+    // and the calendar to every device (owner, 2026-11-08: „schnell sein profil speichern"): an offer
+    // under the shared plan's while the calendar made to follow it is there; whether the profile was
+    // saved says the page's note.
     let profile = ctx.plan.map(folia_stores::studyplan::Studyplan::profile);
     let private = Memo::new(move |_| {
         let (Some(sync), Some(profile)) = (Sync::expect(), profile) else { return false };
@@ -565,69 +522,39 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
     });
     let save = move |_| {
         let (Some(sync), Some(profile)) = (Sync::expect(), profile) else { return };
-        if upgrade.get_untracked() == Upgrade::Saving {
+        if saving.get_untracked() {
             return;
         }
-        upgrade.set(Upgrade::Saving);
+        saving.set(true);
         sync.activate_then(profile, move |result| {
-            let _ = upgrade.try_set(if result.is_ok() { Upgrade::Saved } else { Upgrade::Failed });
+            let _ = saving.try_set(false);
+            match result {
+                Ok(_) => ctx.say("check", Mark::Done, s.upgrade_saved),
+                Err(_) => ctx.say("triangle-alert", Mark::Warn, s.upgrade_failed),
+            }
         });
     };
     let upgrade_view = move || {
-        let state = upgrade.get();
-        (followed.get() && (private.get() || state == Upgrade::Saved)).then(|| match state {
-            Upgrade::Saved => view! {
-                <div class="offer" role="status"><Icon name="check"/><p>{s.upgrade_saved}</p></div>
-            }
-            .into_any(),
-            _ => view! {
-                <div class="offer">
-                    <Icon name="monitor-smartphone"/>
-                    <p><b>{s.upgrade}</b>" "{if state == Upgrade::Failed { s.upgrade_failed } else { s.upgrade_small }}</p>
-                    <button class="mini hit" type="button" id="sp-live-save" aria-busy=move || (upgrade.get() == Upgrade::Saving).then_some("true") on:click=save>
-                        {move || if upgrade.get() == Upgrade::Saving { s.upgrade_saving } else { s.upgrade_save }}
-                    </button>
-                </div>
-            }
-            .into_any(),
+        (followed.get() && private.get()).then(|| view! {
+            <div class="offer">
+                <Icon name="monitor-smartphone"/>
+                <p><b>{s.upgrade}</b>" "{s.upgrade_small}</p>
+                <button class="mini hit" type="button" id="sp-live-save" aria-busy=move || saving.get().then_some("true") on:click=save>
+                    {move || if saving.get() { s.upgrade_saving } else { s.upgrade_save }}
+                </button>
+            </div>
         })
     };
 
     move || {
-        let Some(now) = found.get() else {
-            return taken
-                .get()
-                .map(|note| {
-                    view! {
-                        <div class="offer" role="status">
-                            <Icon name="check"/>
-                            <p><b>{note}</b></p>
-                            <button data-haptic="tap" class="mini hit" type="button" id="sp-live-undo" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
-                        </div>
-                        {upgrade_view}
-                    }
-                })
-                .into_any();
-        };
+        let Some(now) = found.get() else { return upgrade_view.into_any() };
         match now {
             Found::Opening => view! {
                 <div class="offer" role="status" aria-busy="true"><Icon name="share-2"/><p>{s.link_opening}</p></div>
             }
             .into_any(),
-            Found::NotOffered | Found::Problem(_) => {
-                let text = match now {
-                    Found::Problem(problem) => problem_text(problem, t),
-                    _ => s.link_not_offered,
-                };
-                view! {
-                    <div class="offer" role="alert">
-                        <Icon name="triangle-alert"/>
-                        <p>{text}</p>
-                        <button class="mini hit" type="button" id="sp-live-ok" on:click=move |_| done()>{s.ok}</button>
-                    </div>
-                }
-                .into_any()
-            }
+            // A link that opens nothing: the page's note says why (above).
+            Found::NotOffered | Found::Problem(_) => ().into_any(),
             Found::Live { link, .. } => {
                 let live = link.clone();
                 let follow = move |_| as_calendar(Some(live.clone()));

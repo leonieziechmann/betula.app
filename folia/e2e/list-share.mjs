@@ -154,7 +154,7 @@ check(await lena.page.locator(".fl-head", { hasText: "bleibt aktuell" }).count()
 const other = await device("Other");
 await other.page.goto(once);
 await app(other.page);
-await until("Other: „schon geöffnet“", other.page, () => (onPage(".offer[role=alert]")?.textContent || "").includes("schon geöffnet"), null, 20000);
+await until("Other: „schon geöffnet“ in the note that waits", other.page, () => (onPage(".wait-note")?.textContent || "").includes("schon geöffnet") && !onPage(".offer"), null, 20000);
 check(!(await other.page.evaluate(() => shelf())).includes("f\t"), "Other: got something of the list");
 
 // ---- Max puts another module in: Lena's page has it when it comes into view ----
@@ -167,7 +167,7 @@ await until("Lena: the module Max put in", lena.page, (m) => allOnPage("#rows a.
 
 // ---- Lena saves her profile; Max puts one more in, and her open page has it by itself ----
 await lena.page.click("#fl-save").catch(() => problems.push("Lena: no „Profil speichern“ over the list"));
-await until("Lena: synced", lena.page, () => syncStatus().startsWith("online"), null, 20000);
+await until("Lena: synced, and the note that waits says so", lena.page, () => syncStatus().startsWith("online") && /Gespeichert/.test(onPage(".wait-note")?.textContent || "") && !onPage("#fl-save"), null, 20000);
 await lena.page.waitForTimeout(2000);
 await putIn(max.page, MORE[1]);
 await go(max.page, "/bookmarks?collection=1");
@@ -175,7 +175,7 @@ await until("Lena: the next module by itself (Phloem's part)", lena.page, (m) =>
 
 // ---- „Alle übernehmen": marked, as her collection „Für Lena", with Max's note ----
 await lena.page.click("#fl-take");
-await until("Lena: the modules are marked", lena.page, (want) => want.every((m) => marked().includes(m)), [...SHARED, ...MORE], 5000);
+await until("Lena: the modules are marked, and the note that waits says so", lena.page, (want) => want.every((m) => marked().includes(m)) && /Übernommen/.test(onPage(".wait-note")?.textContent || ""), [...SHARED, ...MORE], 5000);
 const lenaShelf = await lena.page.evaluate(() => shelf());
 const mine = (lines(lenaShelf, "c").find((l) => l.endsWith("\tFür Lena")) || "").split("\t")[1];
 check(mine && lines(lenaShelf, "m").filter((l) => l.split("\t")[2].split(",").includes(mine)).length === 4, `Lena: no collection „Für Lena“ with the four modules: ${JSON.stringify(lines(lenaShelf, "c").concat(lines(lenaShelf, "m")))}`);

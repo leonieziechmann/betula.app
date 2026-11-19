@@ -222,7 +222,7 @@ const stands = (page, key) => page.evaluate((key) => {
 }, key);
 const fine = (at) => !at.missing && !at.over && !at.overCol && at.inside && at.top;
 // The note of the Stundenplan (or the start page) with „Rückgängig".
-const note = (page) => page.evaluate(() => onPage(".own-note .plan-toast-said")?.textContent.replace(/\s+/g, " ").trim() ?? "");
+const note = (page) => page.evaluate(() => onPage(".plan-note .mark-toast-said")?.textContent.replace(/\s+/g, " ").trim() ?? "");
 const cardOpen = (page, name, key) => until(page, name, (key) => Boolean(onPage("dialog[open] .tm-dialog.tm-card .tk")) && new URLSearchParams(location.search).get("termin") === key, key);
 // Gone, and the page at rest: the picture of the page before (`.pending-page.held`) comes a moment
 // after the address changed, and a click while it is held is lost (3 to 5 in 30 clicks right after
@@ -292,10 +292,10 @@ if (block("card")) {
   await until(page, "the group ticked, the note", (key) => {
     const ticks = (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").filter((line) => line.startsWith("c\t"));
     const groups = allOnPage(".sp-week a.slot").filter((slot) => slot.textContent.includes("Prak PP"));
-    return ticks.join() === `c\t2026W\t${key}` && groups.length === 1 && !groups[0].classList.contains("alt") && onPage(".own-note .plan-toast-said")?.textContent.trim() === "Prak PP Mo 11:30 ausgewählt";
+    return ticks.join() === `c\t2026W\t${key}` && groups.length === 1 && !groups[0].classList.contains("alt") && onPage(".plan-note .mark-toast-said")?.textContent.trim() === "Prak PP Mo 11:30 ausgewählt";
   }, praktikum);
   check(await page.evaluate(() => history.length) === steps + 1, "the card and its tick took more than one step of the history");
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the tick");
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the tick");
   await until(page, "„Rückgängig\": the four hatched again", () => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nc\t") && allOnPage(".sp-week a.slot.alt").filter((slot) => slot.textContent.includes("Prak PP")).length === 4);
 
   // Ticked by the large action, its card again: „Ausgewählt", „Auswahl aufheben" keeps the card.
@@ -326,8 +326,8 @@ if (block("card")) {
   check(reach[0] === "Diese Gruppe die anderen 3 bleiben zur Wahl" && /^Praktikum ganz alle 4 Gruppen$/.test(reach[1] ?? ""), `what „Ausblenden" of a group offers: ${JSON.stringify(reach)}`);
   await click(page, "dialog[open] .tm-hide [data-action='hide-termin']", "„Diese Gruppe\"");
   await cardGone(page, "„Diese Gruppe\": the card closes");
-  await until(page, "the group hidden, its note", (key) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.startsWith("r\t2026W\t") && line.includes(key)) && onPage(".own-note .plan-toast-said")?.textContent.trim() === "Prak PP Mo 11:30 ausgeblendet" && allOnPage(".sp-week a.slot").filter((slot) => slot.textContent.includes("Prak PP")).length === 3, praktikum);
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the group hidden");
+  await until(page, "the group hidden, its note", (key) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.startsWith("r\t2026W\t") && line.includes(key)) && onPage(".plan-note .mark-toast-said")?.textContent.trim() === "Prak PP Mo 11:30 ausgeblendet" && allOnPage(".sp-week a.slot").filter((slot) => slot.textContent.includes("Prak PP")).length === 3, praktikum);
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the group hidden");
   await until(page, "the group back", () => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nr\t") && allOnPage(".sp-week a.slot").filter((slot) => slot.textContent.includes("Prak PP")).length === 4);
   check(await page.evaluate(() => window.__marker === 1), "the Stundenplan was loaded again");
   await context.close();
@@ -368,8 +368,8 @@ if (block("hide")) {
   await click(page, "dialog[open] .tm-tools [data-action='hide']", "the eye");
   await click(page, "dialog[open] .tm-hide [data-action='hide-date']", "„Nur am …\"");
   await cardGone(page, "„Nur am …\": the card closes");
-  await until(page, "the date hidden, its note", ([key, day]) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.startsWith(`h\t2026W\t${key}\t`)) && onPage(".own-note .plan-toast-said")?.textContent.trim() === `VL EvS am ${day} ausgeblendet`, [friday, day]);
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the date");
+  await until(page, "the date hidden, its note", ([key, day]) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.startsWith(`h\t2026W\t${key}\t`)) && onPage(".plan-note .mark-toast-said")?.textContent.trim() === `VL EvS am ${day} ausgeblendet`, [friday, day]);
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the date");
   await until(page, "the date back", () => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nh\t"));
   // Hidden again: the card on that day says so under the ticket, „Einblenden" keeps the card.
   await clickSlot(page, friday);
@@ -379,7 +379,7 @@ if (block("hide")) {
   await cardGone(page, "the date hidden again");
   const line = (await lines(page, "h"))[0] ?? "";
   const date = line.split("\t")[3] ?? "";
-  await page.evaluate(() => onPage(".own-note .wait-note-close, .own-note [aria-label='Schließen']")?.click());
+  await page.evaluate(() => onPage(".plan-note .wait-note-close, .plan-note [aria-label='Schließen']")?.click());
   await clickSlot(page, friday);
   await cardOpen(page, "the card after the date was hidden", friday);
   // The card opened on another date names the hidden one in the series' line; the hidden date's own card.
@@ -401,9 +401,9 @@ if (block("hide")) {
   await click(page, "dialog[open] .tm-tools [data-action='hide']", "the eye");
   await click(page, "dialog[open] .tm-hide [data-action='hide-termin']", "„Alle 15\"");
   await cardGone(page, "„Alle 15\": the card closes");
-  await until(page, "the Termin hidden, its note", (key) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.startsWith("r\t2026W\t") && line.includes(key)) && onPage(".own-note .plan-toast-said")?.textContent.trim() === "VL EvS Fr 09:15 ausgeblendet" && !allOnPage(`.sp-week a.slot[href*="termin=${key}"]`).length, friday);
+  await until(page, "the Termin hidden, its note", (key) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.startsWith("r\t2026W\t") && line.includes(key)) && onPage(".plan-note .mark-toast-said")?.textContent.trim() === "VL EvS Fr 09:15 ausgeblendet" && !allOnPage(`.sp-week a.slot[href*="termin=${key}"]`).length, friday);
   check(await evs() === 1, "Tuesday's lecture went too");
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the Termin");
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the Termin");
   await until(page, "the Termin back", (key) => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nr\t") && allOnPage(`.sp-week a.slot[href*="termin=${key}"]`).length > 0, friday);
 
   // „Vorlesung ganz": the event, both of its Termine.
@@ -412,8 +412,8 @@ if (block("hide")) {
   await click(page, "dialog[open] .tm-tools [data-action='hide']", "the eye");
   await click(page, "dialog[open] .tm-hide [data-action='hide-event']", "„Vorlesung ganz\"");
   await cardGone(page, "„Vorlesung ganz\": the card closes");
-  await until(page, "the lecture hidden, its note", () => (localStorage.getItem("betula.studyplan.v1") ?? "").includes("e\t2026W\t148701") && onPage(".own-note .plan-toast-said")?.textContent.trim() === "Vorlesung EvS ausgeblendet" && !allOnPage(".sp-week a.slot").some((slot) => slot.textContent.includes("VL EvS")));
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the lecture");
+  await until(page, "the lecture hidden, its note", () => (localStorage.getItem("betula.studyplan.v1") ?? "").includes("e\t2026W\t148701") && onPage(".plan-note .mark-toast-said")?.textContent.trim() === "Vorlesung EvS ausgeblendet" && !allOnPage(".sp-week a.slot").some((slot) => slot.textContent.includes("VL EvS")));
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" of the lecture");
   await until(page, "the lecture back", () => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\ne\t") && allOnPage(".sp-week a.slot").filter((slot) => slot.textContent.includes("VL EvS")).length === 2);
   check((await stored(page)) === FS1, `what is stored after every „Rückgängig": ${JSON.stringify(await stored(page))}`);
   check(await page.evaluate(() => window.__marker === 1), "the Stundenplan was loaded again");
@@ -621,7 +621,7 @@ if (block("edit")) {
   await cardGone(page, "„Alle 15\" while editing: the card closes");
   await until(page, "the slot faint", (key) => allOnPage(`.sp-week a.slot.faint[href*="termin=${key}"]`).length === 1, friday);
   await page.waitForTimeout(300);
-  check(await page.evaluate(() => !onPage(".own-note")), "while editing the slot answers, and no note comes");
+  check(await page.evaluate(() => !onPage(".plan-note")), "while editing the slot answers, and no note comes");
   check(/^\/studyplan\?edit=1$/.test(await here(page)), `the mode stays: ${await here(page)}`);
   // d1: the faint slot's card says what hid it, has nothing to hide, and „Einblenden" has the keyboard.
   await clickSlot(page, friday);
@@ -665,7 +665,7 @@ if (block("edit")) {
     const ticks = (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").filter((line) => line.startsWith("c\t")).sort();
     return ticks.join() === [`c\t2026W\t${mo}`, `c\t2026W\t${mi}`].sort().join();
   }, [praktikum, keys.prakMi]);
-  check(await page.evaluate(() => !onPage(".own-note")), "while editing a tick needs no note");
+  check(await page.evaluate(() => !onPage(".plan-note")), "while editing a tick needs no note");
   await clickSlot(page, keys.prakDo);
   await cardOpen(page, "another faint group", keys.prakDo);
   await click(page, "dialog[open] .tm-act .tm-big[data-action='tick-only']", "„Nur diese Gruppe\"");
@@ -704,8 +704,8 @@ if (block("start")) {
     await click(page, "dialog[open] .tm-tools [data-action='hide']", "the eye on the start page");
     await until(page, "„Ausblenden\" on the start page", () => allOnPage("dialog[open] .tm-hide .tm-hide-row").length > 0);
     await click(page, "dialog[open] .tm-hide .tm-hide-row >> nth=0", "the first reach");
-    await until(page, "the note over the start page", () => !onPage("dialog[open] .tm-dialog") && /ausgeblendet$/.test(onPage(".own-note .plan-toast-said")?.textContent.trim() ?? "") && /\n[hre]\t/.test(localStorage.getItem("betula.studyplan.v1") ?? ""));
-    await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" on the start page");
+    await until(page, "the note over the start page", () => !onPage("dialog[open] .tm-dialog") && /ausgeblendet$/.test(onPage(".plan-note .mark-toast-said")?.textContent.trim() ?? "") && /\n[hre]\t/.test(localStorage.getItem("betula.studyplan.v1") ?? ""));
+    await click(page, ".plan-note .plan-toast-undo", "„Rückgängig\" on the start page");
     await until(page, "„Rückgängig\" on the start page", (plan) => localStorage.getItem("betula.studyplan.v1") === plan, FS1);
   } else problems.push(`the start page's first Termin has no eye: ${JSON.stringify(await card(page))}`);
   check(await page.evaluate(() => window.__marker === 1), "the start page was loaded again");

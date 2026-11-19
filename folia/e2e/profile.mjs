@@ -83,7 +83,8 @@ const shown = (page) => page.evaluate(() => ({
   stats: [...allOnPage(".pf-stat b")].map((b) => b.textContent),
   empty: Boolean(onPage(".pf-stats-empty")),
   links: allOnPage(".pf-head a").length,
-  note: onPage(".pf-note p")?.textContent ?? null,
+  // What was just done, in the note that waits at the window's foot.
+  note: onPage(".wait-note .mark-toast-said")?.textContent ?? null,
   rail: onPage(".rail .profile-btn")?.getAttribute("aria-label") ?? null,
 }));
 // The rail's way opens the menu of the profiles (2026-11-08), whose „Profil verwalten" leads to the page.
@@ -261,21 +262,27 @@ const mark = async (page, id) => {
   const garbage = join(folder, "not-a-backup.json");
   await writeFile(garbage, JSON.stringify({ betula: "bookmarks", version: 1 }));
   await page.setInputFiles('.pf-add input[type="file"]', garbage);
-  await page.waitForFunction(() => onPage(".pf-refused")?.textContent.includes("keine Sicherung"), null, { timeout: 8000 }).catch(() => problems.push("a file that is no backup is not refused"));
+  await page.waitForFunction(() => onPage(".wait-note")?.textContent.includes("keine Sicherung") && !onPage(".pf-offer"), null, { timeout: 8000 }).catch(() => problems.push("a file that is no backup is not refused in a note that waits"));
 
-  // Deleting the active profile, and „Rückgängig". The page goes up from the Gefahrenzone to the
-  // note that says it, which lights up (owner, 2026-11-18: „Es braucht unbedingt Bestätigung dass
-  // man ein profil gelöscht hat … und dann den scroll nach ganz oben").
+  // Deleting the active profile, and „Rückgängig". What the Gefahrenzone did says a note that waits
+  // at the window's foot, in sight wherever the page stands, and the page stays where it is (owner,
+  // 2026-11-19: „wenn man dort eins löscht sollte einfach eine wait note kommen und kein banner
+  // oben"; until then the page went up to a panel over its head, 2026-11-18). The note stays until it
+  // is put away: a click elsewhere takes no „Rückgängig" with it.
   // A window too low for the page, so that the frame's scroll area is down at the Gefahrenzone.
   await page.setViewportSize({ width: 1500, height: 560 });
   await page.evaluate(() => { const area = onPage("#pf-delete").closest("#page-scroll"); area.scrollTop = area.scrollHeight; });
   await step("„Löschen“ asks first", () => page.click("#pf-delete >> visible=true"), () => document.activeElement?.id === "pf-delete-yes" && onPage("#pf-delete").closest("#page-scroll").scrollTop > 0);
   await step("the profile deleted", () => page.click("#pf-delete-yes >> visible=true"), (name) => onPage(".pf-head h2")?.textContent === name && allOnPage(".pf-list .pf-item").length === 2, NAME);
   await page.waitForFunction(() => {
-    const note = onPage(".pf-note");
-    const top = note?.getBoundingClientRect().top ?? -1;
-    return (note?.closest("#page-scroll")?.scrollTop ?? -1) === 0 && scrollY === 0 && top >= 0 && top < innerHeight && /gelöscht/.test(note.textContent) && note.classList.contains("pf-flash");
-  }, null, { timeout: 3000 }).catch(() => problems.push("after deleting, the page does not go up to the note that says so, lit up"));
+    const note = onPage(".wait-note");
+    const box = note?.getBoundingClientRect();
+    return Boolean(box) && box.top >= 0 && box.bottom <= innerHeight && /gelöscht/.test(note.textContent) && onPage("#pf-delete").closest("#page-scroll").scrollTop > 0 && document.activeElement?.id === "pf-undo";
+  }, null, { timeout: 3000 }).catch(() => problems.push("after deleting, no note that waits at the window's foot says so with „Rückgängig“, or the page moved"));
+  await page.waitForTimeout(500);
+  await page.click(".pf-head h2");
+  await page.waitForTimeout(400);
+  check(await page.evaluate(() => /gelöscht/.test(onPage(".wait-note:not(.leaving)")?.textContent ?? "")), "a click elsewhere took the note of the deletion and its „Rückgängig“ with it");
   await page.setViewportSize({ width: 1500, height: 900 });
   check((await kept(page, "betula.p3.bookmarks.v1")) === null && !/^profile\t3\t/m.test(await kept(page, LIST)), "the deleted profile left something behind");
   await step("„Rückgängig“ brings it back, active", () => page.click("#pf-undo >> visible=true"), (name) => onPage(".pf-head h2")?.textContent === `${name} (2)` && allOnPage(".pf-list .pf-item").length === 3, NAME);
@@ -403,15 +410,16 @@ const mark = async (page, id) => {
   await page.waitForTimeout(300);
   const back = await page.evaluate(() => ({ y: Math.round(scrollY), at: navigation.currentEntry.index, forward: navigation.canGoForward }));
   check(Math.abs(back.y - left.y) < 4 && back.at === left.at && back.forward, `phone: the arrow did not go back to the list as it was left (scrolled ${left.y}, at ${left.at}): ${JSON.stringify(back)}`);
-  // Deleting on a phone: the window goes up from the Gefahrenzone to the note that says it.
+  // Deleting on a phone: the note that waits says it over the bottom bar, the window stays where it is.
   await step("phone: the profile page again", async () => { await page.tap(".topbar .top-profile >> visible=true"); await page.waitForSelector('.profile-menu a[href="/profile"] >> visible=true', { timeout: 3000 }); await page.tap('.profile-menu a[href="/profile"] >> visible=true'); }, () => location.pathname === "/profile" && onPage(".pf-head h2")?.textContent === "Mobil");
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await step("phone: „Löschen“ asks first", () => page.tap("#pf-delete >> visible=true"), () => document.activeElement?.id === "pf-delete-yes" && scrollY > 0);
   await step("phone: the profile deleted", () => page.tap("#pf-delete-yes >> visible=true"), () => onPage(".pf-head h2")?.textContent !== "Mobil" && allOnPage(".pf-list .pf-item").length === 2);
   await page.waitForFunction(() => {
-    const top = onPage(".pf-note")?.getBoundingClientRect().top ?? -1;
-    return scrollY === 0 && top >= 0 && top < innerHeight && onPage(".pf-note").classList.contains("pf-flash");
-  }, null, { timeout: 3000 }).catch(() => problems.push("phone: after deleting, the window does not go up to the note that says so, lit up"));
+    const box = onPage(".wait-note")?.getBoundingClientRect();
+    const bar = onPage(".bottomnav")?.getBoundingClientRect();
+    return Boolean(box) && scrollY > 0 && box.top >= 0 && box.bottom <= (bar?.top ?? innerHeight) + 1 && /gelöscht/.test(onPage(".wait-note").textContent);
+  }, null, { timeout: 3000 }).catch(() => problems.push("phone: after deleting, no note that waits says so over the bottom bar, or the window moved"));
   await context.close();
 }
 

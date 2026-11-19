@@ -33,11 +33,13 @@ use crate::i18n;
 use folia_stores::myprogram::MyProgram;
 use folia_design::nav;
 use folia_stores::studyplan::Saved;
-use folia_plans::studyplan::{PlanUndo, SavedPlan};
+use folia_plans::studyplan::PlanUndo;
+use folia_design::waitnote::Mark;
 use folia_design::modal::{Modal, ModalHead, ModalSize, Sheet};
 use folia_design::ui::Icon;
 use super::calendars::CalendarsGroup;
 use super::export::CalendarGroup;
+use super::note::PlanNote;
 use super::share_dialog::{ShareOpen, ShareTab};
 use super::{key_of, PlanCtx};
 
@@ -46,10 +48,6 @@ const SHARE_ID: &str = "sp-share";
 
 /// The id of „Ersetzen" when loading a saved plan would replace an unsaved one.
 const LOAD_ID: &str = "sp-load-yes";
-
-/// How the note of a saved plan loaded begins (`PlanCtx::undo`, which the page's notes share): a
-/// mark of its own, never shown.
-const LOADED: &str = "Plan geladen: ";
 
 /// The question of „Ersetzen" with its answers, which a sheet of a phone brings into sight as it
 /// unfolds (`nav::show_in_sheet`).
@@ -131,6 +129,8 @@ pub(super) fn ExportSheet(ctx: PlanCtx) -> impl IntoView {
                 <CalendarGroup ctx/>
                 <ShareGroup ctx/>
             </div>
+            // What is done in the sheet (a new address copied) is said at its foot (`note.rs`).
+            <PlanNote ctx shown=open/>
         </Modal>
     }
 }
@@ -162,32 +162,24 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
     let any = Memo::new(move |_| held.with(|held| held.0));
     let marked = Memo::new(move |_| held.with(|held| held.1.clone()));
     let entries = Memo::new(move |_| saved.with(|saved| saved.plans.iter().map(|p| (p.name.clone(), p.modules())).collect::<Vec<_>>()));
-    // The plan the bin took last, at its place, until „Rückgängig" puts it back (every bin of the
-    // page answers with its note) or the mode is left.
-    let removed = RwSignal::new(None::<(usize, SavedPlan)>);
-    Effect::new(move |_| {
-        if !ctx.edit.get() {
-            removed.set(None);
-        }
-    });
-    let shown = Memo::new(move |_| ctx.edit.get() && (entries.with(|entries| !entries.is_empty()) || removed.with(Option::is_some)));
+    let shown = Memo::new(move |_| ctx.edit.get() && entries.with(|entries| !entries.is_empty()));
 
     // Loading: at once where nothing unsaved is lost, else after „Ersetzen". The row is marked in
     // the next frame (`said`); the plan follows after it (R21).
     let asking = RwSignal::new(None::<String>);
     let said = RwSignal::new(None::<String>);
     let mark = Memo::new(move |_| said.get().or_else(|| marked.get()));
-    // A load replaces the semester's modules and Termine of the study: it answers with a note and
-    // „Rückgängig" (as every change of the page that takes something away), which puts back the
-    // semester and the Standort as they were — „Ersetzen" had none, and what it replaced was gone.
-    let town_before = StoredValue::new(None);
+    // A load replaces the semester's modules and Termine of the study: it answers with the page's
+    // note and „Rückgängig" (as every change of the page that takes something away), which puts back
+    // the semester and the Standort as they were — „Ersetzen" had none, and what it replaced was
+    // gone; a note that lasts (`note.rs`).
     let load_now = move |which: String| {
         let Some(chosen) = saved.with_untracked(|saved| saved.get(&which).cloned()) else { return };
         asking.set(None);
         said.set(Some(which.clone()));
         ctx.undo.set(None);
-        let (key, plan, mine, undo) = (ctx.key.get_untracked(), ctx.plan, ctx.mine, ctx.undo);
-        town_before.set_value(mine.map(|mine| untrack(|| mine.town())));
+        let (key, plan, mine) = (ctx.key.get_untracked(), ctx.plan, ctx.mine);
+        let town = mine.map(|mine| untrack(|| mine.town()));
         nav::after_paint(move || {
             if let Some(mine) = mine {
                 mine.set_town(chosen.town);
@@ -198,22 +190,16 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
                     doc.put_semester(key, &chosen.doc);
                     PlanUndo::of(before, doc.clone())
                 });
-                let _ = undo.try_set(Some((format!("{LOADED}{}", (s.loaded)(&which)), done)));
+                ctx.say_undoable("check", Mark::Done, (s.loaded)(&which), move || {
+                    if let (Some(mine), Some(town)) = (mine, town) {
+                        mine.set_town(town);
+                    }
+                    let done = done.clone();
+                    plan.update_after_paint(move |doc| done.restore(doc));
+                });
             }
             let _ = said.try_set(None);
         });
-    };
-    let loaded = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(LOADED).map(str::to_string))));
-    let unload = move |_| {
-        let Some((_, before)) = ctx.undo.get_untracked() else { return };
-        ctx.undo.set(None);
-        let (plan, mine, town) = (ctx.plan, ctx.mine, town_before.get_value());
-        if let (Some(mine), Some(town)) = (mine, town) {
-            mine.set_town(town);
-        }
-        if let Some(plan) = plan {
-            plan.update_after_paint(move |doc| before.restore(doc));
-        }
     };
     let load = move |which: String| {
         if any.get_untracked() && marked.with_untracked(Option::is_none) {
@@ -236,18 +222,19 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
             saved.remove(&which);
             Some((at, plan))
         });
-        removed.set(gone);
-    };
-    let undo = move |_| {
-        if let Some((at, plan)) = removed.get_untracked() {
+        // The page's note says so with „Rückgängig", which puts it back at its place (`note.rs`; a
+        // note that lasts: until 2026-11-19 a line under the saved plans).
+        let Some((at, plan)) = gone else { return };
+        let name = plan.name.clone();
+        ctx.say_undoable("trash-2", Mark::Out, (t.studyplan_calendars.removed)(&name), move || {
+            let plan = plan.clone();
             saved.update(|saved| {
                 if saved.get(&plan.name).is_none() {
                     let at = at.min(saved.plans.len());
                     saved.plans.insert(at, plan);
                 }
             });
-        }
-        removed.set(None);
+        });
     };
 
     move || {
@@ -293,18 +280,6 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
                             }
                         }
                     />
-                    {move || loaded.get().map(|said| view! {
-                        <p class="sp-cal-note sp-loaded-note" role="status">
-                            <span>{said}</span>
-                            <button data-haptic="tap" class="mini hit" type="button" on:click=unload>{t.common.undo}</button>
-                        </p>
-                    })}
-                    {move || removed.with(|removed| removed.as_ref().map(|(_, plan)| plan.name.clone())).map(|name| view! {
-                        <p class="sp-cal-note" role="status">
-                            <span>{(t.studyplan_calendars.removed)(&name)}</span>
-                            <button data-haptic="tap" class="mini hit" type="button" on:click=undo>{t.common.undo}</button>
-                        </p>
-                    })}
                 </div>
             }
         })
