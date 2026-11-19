@@ -47,6 +47,12 @@ const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANN
 const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
+// Betula's select (`combobox::Select`, since 2026-11-19 in the Termin's forms): its button, then
+// the entry of that value in the list it opens, as a hand picks it.
+const pick = async (page, button, value) => {
+  await page.click(button);
+  await page.click(`${button} ~ .combo-pop [role="option"][data-value="${value}"]`);
+};
 const shots = process.env.SMOKE_SHOTS;
 const only = (process.argv.find((arg) => arg.startsWith("--only=")) ?? "").slice("--only=".length);
 const block = (name) => !only || only.split(",").includes(name);
@@ -357,12 +363,12 @@ if (block("own")) {
   check((await none()) === "keine Termine in QIS · Termin eintragen", `editing, PBS: „${await none()}"`);
   check((await page.getAttribute('.sp-mod[data-id="12104"] .sp-own-add', "aria-label").catch(() => null)) === "Termin für EvS eintragen", "EvS's „+ Termin“ is not named for it");
   await click(page, '.sp-mod[data-id="12104"] .sp-own-add', "„+ Termin“ of EvS");
-  await until(page, "the form for EvS", () => onPage("dialog.own-form[open] #own-module")?.value === "12104" && Boolean(onPage("dialog.own-form[open] #own-kind")));
+  await until(page, "the form for EvS", () => onPage("dialog.own-form[open] #own-module")?.dataset.value === "12104" && Boolean(onPage("dialog.own-form[open] #own-kind")));
   const sub = await page.evaluate(() => onPage("dialog.own-form[open] .st-dlg-head p")?.textContent.trim());
   check(sub === "Für EvS · WiSe 2026/27", `the form's line: „${sub}"`);
   const labels = await page.evaluate(() => [...(onPage("dialog.own-form[open] .own-body")?.children ?? [])].map((field) => field.querySelector("label, .own-lb")?.textContent.trim() ?? ""));
   check(labels.indexOf("Art") === labels.indexOf("Gehört zu") + 1 && labels.indexOf("Art") > 0, `the form's „Art“ after „Gehört zu“: ${JSON.stringify(labels)}`);
-  check((await page.evaluate(() => onPage("dialog.own-form[open] #own-kind")?.value)) === "", "the form's „Art“ is not „Termin“ at first");
+  check((await page.evaluate(() => onPage("dialog.own-form[open] #own-kind")?.dataset.value)) === "", "the form's „Art“ is not „Termin“ at first");
   await rest(page);
   await page.keyboard.press("Escape");
   await until(page, "the form closed", () => !document.querySelector("dialog.own-form[open]"));
@@ -437,7 +443,7 @@ if (block("calendar")) {
   await click(page, ".sp-cal-mods .sp-own-add", "„+ Termin“ of „Lena“");
   await until(page, "the form in „Lena“", () => Boolean(onPage("dialog.own-form[open] #own-what")));
   await page.fill("dialog.own-form[open] #own-what", "Lerngruppe");
-  await page.selectOption("dialog.own-form[open] #own-day", "3");
+  await pick(page, "dialog.own-form[open] #own-day", "3");
   await page.fill('dialog.own-form[open] .own-two input[type="time"] >> nth=0', "18:00");
   await page.fill('dialog.own-form[open] .own-two input[type="time"] >> nth=1', "19:30");
   await click(page, "dialog.own-form[open] .st-dlg-foot .primary", "„Anlegen“");

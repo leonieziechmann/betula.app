@@ -432,7 +432,7 @@ if (block("edit")) {
   await page.waitForTimeout(600);
   const at = await spot(page, 1, 9 * 60);
   if (at) await page.mouse.click(at.x, at.y);
-  await until(page, "a free stretch opens the form", () => Boolean(document.querySelector("dialog.own-form[open]")) && document.querySelector("dialog.own-form[open] #own-day")?.value === "1");
+  await until(page, "a free stretch opens the form", () => Boolean(document.querySelector("dialog.own-form[open]")) && document.querySelector("dialog.own-form[open] #own-day")?.dataset.value === "1");
   await rest(page);
   await page.keyboard.press("Escape");
   await until(page, "Esc closes the form alone", () => !document.querySelector("dialog.own-form[open]") && location.search === "?edit=1" && Boolean(onPage(".sp-editbar")));

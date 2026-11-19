@@ -4,11 +4,11 @@
 // Fr 13:45).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node choice-sheet.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // - A wide screen: a click on a hatched group of the week opens its card and ticks nothing; the card's
-//   large action is „Diese Gruppe anhaken" and has the keyboard; its „Vergleichen ›" takes the choice
-//   into focus inside the edit mode (`edit=1&wahl=e148370&vergleich=1`, „noch keine angehakt"), where a
-//   click on a group ticks it („1 von 4 angehakt", one `c` line).
+//   large action is „Diese Gruppe auswählen" and has the keyboard; its „Vergleichen ›" takes the choice
+//   into focus inside the edit mode (`edit=1&wahl=e148370&vergleich=1`, „noch keine ausgewählt"), where a
+//   click on a group ticks it („1 von 4 ausgewählt", one `c` line).
 // - A phone: the amber line „3 Wahlen offen" leads into the mode with its rows open; the row of the
-//   Praktikum opens the sheet („noch keine angehakt"), a tap on a tile ticks it; nothing under the head
+//   Praktikum opens the sheet („noch keine ausgewählt"), a tap on a tile ticks it; nothing under the head
 //   says what is hidden.
 // - A finger moves the sheet: up from its head, the tiles on their way to „Vergleichen" while it
 //   touches (`.morph`, `--p` between half up and all up, a card for each group); let go all up, the
@@ -71,11 +71,11 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   const group = page.locator('.sp-week a.slot.alt[href$="termin=148370-eb017"]', { hasText: "Prak PP" });
   check(await group.count() === 1, "wide: no hatched group of the Praktikum to click");
   await group.click().catch(() => problems.push("wide: the hatched group could not be clicked"));
-  await until(page, "wide: its card", () => location.search === "?termin=148370-eb017" && document.activeElement?.matches("dialog[open] .tm-big[data-action='tick']") && document.activeElement.textContent === "Diese Gruppe anhaken");
+  await until(page, "wide: its card", () => location.search === "?termin=148370-eb017" && document.activeElement?.matches("dialog[open] .tm-big[data-action='tick']") && document.activeElement.textContent === "Diese Gruppe auswählen");
   check(await ticks(page) === 0, `wide: the click ticked a group: ${await ticks(page)}`);
   check(await page.evaluate(() => !document.querySelector(".sp-week [data-pre]")), "wide: a slot still preselects");
   await page.click("dialog[open] a.go2[data-action='compare']").catch(() => problems.push("wide: the card has no „Vergleichen ›“"));
-  await until(page, "wide: the choice in focus", () => location.search === "?edit=1&wahl=e148370&vergleich=1" && document.querySelector(".sp-focusbar") && /noch keine angehakt/.test(document.querySelector(".sp-focusbar .what small")?.textContent ?? ""));
+  await until(page, "wide: the choice in focus", () => location.search === "?edit=1&wahl=e148370&vergleich=1" && document.querySelector(".sp-focusbar") && /noch keine ausgewählt/.test(document.querySelector(".sp-focusbar .what small")?.textContent ?? ""));
   await page.click('.sp-week button.slot.pick[title*="Mo 11:30"]').catch(() => problems.push("wide: no group of Monday in focus"));
   await until(page, "wide: the group clicked ticked", () => /1 von 4/.test(document.querySelector(".sp-focusbar .what small")?.textContent ?? ""));
   check(await ticks(page) === 1, `wide: not one tick kept: ${await ticks(page)}`);
@@ -124,7 +124,7 @@ const ticks = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "")
   await page.tap("a.sp-open-line").catch(() => problems.push("phone: no amber line to tap"));
   await until(page, "phone: the mode with the rows open", () => location.search === "?edit=1" && document.querySelectorAll("details.sp-open-line[open] .sp-open-row").length === 3);
   await page.tap('details.sp-open-line .sp-open-row[href$="wahl=e148370"]').catch(() => problems.push("phone: no row of the Praktikum"));
-  await until(page, "phone: the sheet", () => location.search === "?edit=1&wahl=e148370" && liveSheet() && /noch keine angehakt/.test(liveSheet().querySelector(".grp-h .r")?.textContent ?? ""));
+  await until(page, "phone: the sheet", () => location.search === "?edit=1&wahl=e148370" && liveSheet() && /noch keine ausgewählt/.test(liveSheet().querySelector(".grp-h .r")?.textContent ?? ""));
   await page.tap("section.sp-pick .sp-pick-body > .grp .gs.pick >> nth=0").catch(() => problems.push("phone: no tile to tap"));
   await until(page, "phone: the tile tapped ticked", () => liveSheet()?.querySelector(".grp-h .r")?.textContent.includes("1 von 4"));
   let s = await sheet();

@@ -93,6 +93,10 @@
   --sk: rgba(15, 23, 42, .07);
   --sk-shine: rgba(255, 255, 255, .6);
   --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  /* A frame, the line that marks an element (the keyboard's focus, what is current, chosen or open,
+     where a drop lands; „Frames" below, R26): how wide, its colour, how far inside the element's
+     edge. */
+  --frame-w: 2px; --frame: var(--accent); --frame-in: 0px;
   --ease: cubic-bezier(.2, .7, .2, 1);
   --spring: cubic-bezier(.3, 1.35, .5, 1); /* quick, a little past the mark and back */
   --rail: 52px; --w-filters: 272px; --gap: 8px;
@@ -281,7 +285,38 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 button, input, select { font: inherit; color: inherit; letter-spacing: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 table { border-collapse: collapse; width: 100%; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-s); }
+/* ---------- frames ----------
+   A frame marks an element: the keyboard's focus, what is current, chosen or open, where a drop
+   lands. It lies inside the element's own edge, never around it (R26; owner, 2026-11-19: „ein
+   fehler, der wirklich immer und immer wieder in betula auftaucht sind abgeschnittene borders. Das
+   hat zwei ursachen. Zum einen wie hier, wo der zindex nicht passt und dann zum anderen, weil der
+   parent container die border abschneidet. Bitte löse das problem nachhaltig"). Around an element a
+   frame lay over its neighbours, and whichever of them was painted after it covered it — the
+   Gesamtplan's next semester covered the head before it —, and a parent that scrolls or clips cut
+   it off at its edge — the box of the heads cut off their feet. Inside, the frame is the element's
+   own: what lies beside the element does not reach it, and what clips the element clips its frame
+   only where it clips the element too. Until Folia 1.113.0 the focus was a ring 2 px around every
+   control, and 26 rules had moved it inside for their own elements, one at a time.
+   A frame is an outline, which the browser draws over the element's content (a shadow inside is
+   drawn under it, under a child with a ground of its own), `--frame-w` wide at the edge, in
+   `--frame`, in the element's own corners: the focus no longer rounds them, which turned a cell of
+   the Gesamtplan into a card. An element filled in a colour of its own (the accent, a module's
+   colour in the week) keeps its edge and takes the frame a step further in (`--frame-in`), in the
+   colour of its text, where a frame in the accent would vanish. Where a frame stands at a distance
+   or an element's content reaches its edge, the element makes the room in itself — a transparent
+   border (with `background-clip: padding-box`) or padding, taken back by the same negative margin —
+   and nothing moves. A child on a layer of its own (positioned) with a ground of its own covers
+   the frame of the element that holds it: the frame goes on that child, or on a `::before` of its
+   own over it. Where something must lie around an element, it is not a frame: a gap around a
+   badge, a soft glow, the 1 px edge of a panel. e2e/frames.mjs looks at every
+   frame of the app's views, the focus of every control and every frame at rest, side by side: a
+   side not seen where its element is, or a frame outside its edge, fails it. */
+:focus-visible { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * (var(--frame-w) + var(--frame-in))); }
+/* A control of words alone reaches its edge with them: it makes 4 px of room in itself, padding
+   taken back by the same margin, so that its frame stands off its letters where the ring around it
+   stood until 1.113.0 (`.st-link`, a list's heads, a summary, the breadcrumbs). So does a link in a
+   line of text, on every line it runs over. */
+:where(p, td, th, dd, small, address, figcaption, .photo-credit) > a:not([class]) { margin: -4px; padding: 4px; border-radius: var(--r-ctl); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .num { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--mono); font-size: 12px; letter-spacing: 0; }
@@ -320,7 +355,7 @@ table { border-collapse: collapse; width: 100%; }
 .seg a:first-child, .seg button:first-child { --hit-l: 3px; }
 .seg a:last-child, .seg button:last-child { --hit-r: 3px; }
 .tag a { --hit-y: 5px; --hit-l: 6px; --hit-r: 6px; }
-.cols a { --hit-y: 8px; --hit-x: 8px; }          /* columns are 16px apart */
+.cols a { --hit-y: 4px; --hit-x: 4px; }          /* columns are 16px apart; 4 px of the link are room */
 .ghost { --hit-y: 4px; --hit-x: 1px; }
 .rail .nav, .rail .icon-btn { --hit-x: 6px; --hit-y: 1px; }   /* the rail is 52px wide, its items 2px apart */
 .combo-clear { --hit-y: 6px; --hit-x: 3px; }
@@ -332,7 +367,7 @@ table { border-collapse: collapse; width: 100%; }
    96, 7px at 32px). In the rail it is as large as the buttons under it (owner, the same day: „so
    groß wie die nav icons"), 40px on their edges, and as high as the top bar beside it, whose
    middle it shares with the wordmark; the buttons stay where they were. */
-.logo { --hit: 4px; width: 32px; height: 32px; margin: 4px 0 10px; border-radius: 7px; display: block; flex: none; box-shadow: var(--shadow-panel); }
+.logo { --hit: 4px; width: 32px; height: 32px; margin: 4px 0 10px; border-radius: 7px; display: block; flex: none; box-shadow: var(--shadow-panel); --frame: var(--logo-leaf); --frame-in: var(--frame-w); }
 .rail .logo { width: 40px; height: 40px; margin: 0 0 6px; border-radius: 8.75px; }
 .mark { display: block; width: 100%; height: 100%; }
 .mark rect { fill: var(--logo-tile); }
@@ -367,7 +402,11 @@ table { border-collapse: collapse; width: 100%; }
   .nav:hover:not([aria-current="page"]) .ind { transition: background .15s, color .15s; }
 }
 .nav[aria-current="page"] { color: var(--text); }
-.nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); }
+.nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
+/* A tab's frame (R26) on its mark: the mark is laid over the tab (for its badge) and covered the
+   tab's own frame, and the current tab's dark ground hid it. */
+.rail .nav:focus-visible { outline: none; }
+.rail .nav:focus-visible .ind { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * (var(--frame-w) + var(--frame-in))); }
 .rail nav { display: grid; gap: 2px; }
 .nav.soon { opacity: .4; pointer-events: none; }
 .rail-end { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
@@ -377,8 +416,8 @@ table { border-collapse: collapse; width: 100%; }
    in the profile (shell/src/languages.rs): the rail has no switch of its own any more. */
 .profile-btn .icon { width: 19px; height: 19px; }
 .profile-btn:hover { text-decoration: none; }
-.profile-btn[aria-current="page"]:not(:has(.avatar)) { background: var(--invert); color: var(--on-invert); }
-.profile-btn[aria-current="page"] .avatar { outline: 2px solid var(--tone); outline-offset: 2px; }
+.profile-btn[aria-current="page"]:not(:has(.avatar)) { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
+.profile-btn[aria-current="page"] .avatar { box-sizing: content-box; margin: -4px; border: 4px solid transparent; background-clip: padding-box; outline: var(--frame-w) solid var(--tone); outline-offset: calc(-1 * var(--frame-w)); }
 .theme-toggle .icon-sun { display: none; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
@@ -409,7 +448,7 @@ span.js-only { display: contents; }
 .crumb.brand { align-self: stretch; padding-top: 9px; }
 .crumb.brand h1 { line-height: 1; }
 .search { flex: 1; max-width: 760px; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--panel); border-radius: var(--r-ctl); box-shadow: var(--shadow-panel); color: var(--text-3); cursor: text; }
-.search:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.search:has(input:focus) { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
 .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 15px; color: var(--text); text-overflow: ellipsis; }
 .search input::placeholder { color: var(--text-3); }
 .ghost kbd { margin-left: 2px; padding: 2px 6px; }
@@ -832,11 +871,11 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
 .btn { min-height: 44px; padding: 0 16px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 620; font-size: 14px; text-decoration: none; transition: transform .12s, filter .12s, background .12s; }
 .btn:hover { text-decoration: none; }
 .btn:active { transform: scale(.98); }
-.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.primary { background: var(--accent); color: var(--on-accent); --frame: currentColor; --frame-in: var(--frame-w); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.secondary { background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .btn.secondary:hover { background: var(--panel-2); }
-.button { min-height: 44px; padding: 0 16px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; font-weight: 620; background: var(--accent); color: var(--on-accent); text-decoration: none; }
+.button { min-height: 44px; padding: 0 16px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; font-weight: 620; background: var(--accent); color: var(--on-accent); --frame: currentColor; --frame-in: var(--frame-w); text-decoration: none; }
 .button:hover { filter: brightness(1.08); text-decoration: none; }
 .button-quiet { background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .label { font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
@@ -870,11 +909,11 @@ body:not(:has(> .main > .content > .page-stage.front > .work > .ground)) > .grou
 .filters .body { padding: 0 10px 12px; }
 .fgroup { padding: 10px 2px 0; }
 .fgroup + .fgroup { border-top: 1px solid var(--line); margin-top: 10px; }
-details.fgroup > summary { cursor: pointer; min-height: 24px; display: flex; align-items: center; justify-content: space-between; list-style: none; }
+details.fgroup > summary { cursor: pointer; min-height: 24px; display: flex; align-items: center; justify-content: space-between; list-style: none; margin: -4px; padding: 4px; border-radius: var(--r-ctl); }
 details.fgroup > summary::-webkit-details-marker { display: none; }
 details.fgroup > summary::after { content: "+"; font-size: 15px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
 details.fgroup[open] > summary::after { content: "–"; }
-details.fgroup[open] > summary { margin-bottom: 7px; }
+details.fgroup[open] > summary { margin-bottom: 3px; }
 details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight: 650; font-size: 11.5px; }
 .flabel { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
 .flabel > span { text-transform: none; letter-spacing: 0; font-weight: 550; color: var(--text-2); }
@@ -937,7 +976,7 @@ html.tap-ticks .tap-tick { display: block; position: absolute; inset: 0; z-index
 .chip[data-state="with"] > .chip-more { transform: rotate(90deg); }
 .box { flex: none; width: 15px; height: 15px; border-radius: 4px; display: inline-grid; place-items: center; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); color: transparent; transition: background .12s, box-shadow .12s; }
 .box .icon { grid-area: 1 / 1; width: 11px; height: 11px; stroke-width: 3.2; display: none; }
-.chip[data-state="with"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.chip[data-state="with"] { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .chip[data-state="with"] > .icon { color: inherit; }
 .chip[data-state="with"] .box, .box.with { background: var(--on-invert); box-shadow: none; color: var(--invert); }
 .box.with { background: var(--invert); color: var(--on-invert); }
@@ -972,8 +1011,8 @@ html:not(.js) .fit-chip { display: none; }
 .seg.mini a { min-height: 26px; padding: 0; border-radius: 5px; --hit-y: 8px; }
 .seg.mini a:first-child { --hit-l: 7px; }
 .seg.mini a .icon { width: 14px; height: 14px; stroke-width: 2.6; }
-.seg.mini a.plus[aria-checked="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
-.seg.mini a.cross[aria-checked="true"] { background: var(--no); color: var(--panel); box-shadow: none; }
+.seg.mini a.plus[aria-checked="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
+.seg.mini a.cross[aria-checked="true"] { background: var(--no); color: var(--panel); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .person .remove { flex: none; width: 34px; height: 34px; }
 .person .remove .icon { width: 15px; height: 15px; }
 .person .remove:hover { color: var(--no); }
@@ -1094,7 +1133,7 @@ i.alt { margin: 0 5px; }
    outside it (the catalog's scroll area, whose mask keeps the list's corners round, ends a pixel
    past the panel), and on a screen of 125 % or 150 % that pixel was a fraction (owner, 2026-10-26:
    „die border hier ist abgeschnitten"). */
-:root[data-kb] [data-mode]:focus-within { outline: 2px solid var(--invert); outline-offset: -2px; }
+:root[data-kb] [data-mode]:focus-within { outline: var(--frame-w) solid var(--invert); outline-offset: calc(-1 * var(--frame-w)); }
 /* A picker of the mode open: Esc closes the picker, not the mode, and the tag would lie over its
    list (owner, the same day: „Ich glaube es sollte über der Border liegen"). */
 :root:has([data-mode] .combo[data-open]) .mode-tag[data-on] { display: none; }
@@ -1133,14 +1172,14 @@ i.alt { margin: 0 5px; }
 ::highlight(find-hit) { background-color: var(--hit); }
 .chip[data-state="with"] .chip-label::highlight(find-hit) { background-color: color-mix(in srgb, #f0c14b 55%, transparent); }
 ::highlight(find-like) { text-decoration: underline dotted 2px var(--warn); }
-[data-find-target=""] { outline: 2px dashed var(--accent); outline-offset: 2px; }
+[data-find-target=""] { outline: var(--frame-w) dashed var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
 /* The bar at the foot of a mode: only what no button carries, at the control the keyboard is at. */
 .key-bar { display: none; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--panel-2); border-radius: 0 0 var(--r-panel) var(--r-panel); color: var(--text-2); font-size: 11.5px; }
 .key-bar > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .key-bar kbd { padding: 1px 5px; font-size: 10.5px; }
 :root[data-kb] [data-mode]:focus-within > .key-bar[data-on] { display: flex; }
 /* The field for a number above a knob of the credits, which a digit opens (catalog.rs `Credits`). */
-.slider .lp-edit { position: absolute; z-index: 7; bottom: calc(100% + 2px); left: clamp(32px, calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at, 0)), calc(100% - 32px)); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-pop), 0 0 0 2px var(--accent); color: var(--text-3); font-size: 11px; font-weight: 650; }
+.slider .lp-edit { position: absolute; z-index: 7; bottom: calc(100% + 2px); left: clamp(32px, calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at, 0)), calc(100% - 32px)); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-pop); outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); color: var(--text-3); font-size: 11px; font-weight: 650; }
 .slider .lp-edit input { position: static; width: 36px; height: 22px; border: 0; border-radius: 5px; background: var(--panel-2); color: var(--text); font: 600 13px/1 var(--mono); text-align: center; appearance: auto; pointer-events: auto; outline: none; }
 /* The overview of the keys (folia/crates/shell/src/keys.rs): what they do everywhere and at the
    page's places, where the keyboard was first; the switch for the single keys under them. */
@@ -1168,7 +1207,6 @@ i.alt { margin: 0 5px; }
 .cmd-btn .icon { width: 15px; height: 15px; }
 .cmd-btn kbd { padding: 2px 6px; }
 @media (hover: hover) { .cmd-btn:hover { background: var(--row-hover); color: var(--text); } }
-.cmd-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 1100px) { .cmd-btn-label { display: none; } }
 @media (max-width: 900px) { .cmd-btn { display: none; } }
 .cmd-dialog { position: fixed; inset: 12vh 0 auto; width: min(640px, calc(100vw - 32px)); max-width: none; max-height: min(560px, 76vh); margin: 0 auto; padding: 0; border: 0; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); overflow: hidden; }
@@ -1241,7 +1279,7 @@ i.alt { margin: 0 5px; }
 .tag .icon { width: 13px; height: 13px; }
 .cols, .row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 150px 56px 110px 46px 100px; align-items: center; column-gap: 16px; }
 .cols { padding: 8px 58px 8px 23px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
-.cols a { color: inherit; text-decoration: none; }
+.cols a { color: inherit; text-decoration: none; margin: -4px; padding: 4px; border-radius: var(--r-ctl); }
 .cols a:hover, .cols a[aria-current="true"] { color: var(--text); }
 .cols .c-lp, .row .lp { text-align: right; }
 .narrow-only { display: none; }
@@ -1322,7 +1360,7 @@ i.alt { margin: 0 5px; }
 .app .pager { display: none; }
 .app .keys { display: inline-flex; align-items: center; gap: 4px; color: var(--text-3); font-size: 12px; margin-right: 6px; white-space: nowrap; }
 .keys kbd { padding: 2px 5px; }
-.row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--row-hover); }
+.row:focus-visible { background: var(--row-hover); }
 .row { scroll-margin: 44px 0 16px; }
 /* Rows that are off screen are not laid out (their last height is remembered). What the page
    costs to lay out no longer grows with the rows that are loaded: a resize stays live and an
@@ -1499,7 +1537,7 @@ html:not(.js) .mark-toggle { display: none; }
 .coll-item { position: relative; display: flex; align-items: center; min-height: 32px; border-radius: 8px; }
 .coll-item > a { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--text); font-size: 13.5px; font-weight: 560; text-decoration: none; }
 .coll-item > a:hover { background: var(--row-hover); text-decoration: none; }
-.coll-item > a[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.coll-item > a[aria-current="page"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .coll-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .coll-count { flex: none; color: var(--text-3); font-size: 12px; font-weight: 500; }
 .coll-item > a[aria-current="page"] .coll-count { color: color-mix(in srgb, var(--on-invert) 68%, transparent); }
@@ -1604,7 +1642,7 @@ button.coll-item.add:hover { background: var(--row-hover); }
   .coll-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13.5px; font-weight: 600; white-space: nowrap; text-decoration: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   .coll-chip:hover { text-decoration: none; }
   .coll-chip > .num { color: var(--text-3); font-weight: 500; }
-  .coll-chip[aria-current="page"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+  .coll-chip[aria-current="page"] { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
   .coll-chip[aria-current="page"] > .num { color: color-mix(in srgb, var(--on-invert) 68%, transparent); }
   .coll-chip.derived:not([aria-current]) { color: var(--text-3); }
   button.coll-chip.add { padding: 0 10px; border: 0; color: var(--accent-ink); font: inherit; cursor: pointer; }
@@ -1724,7 +1762,7 @@ html:not(.js) .hero-line > .switches { display: none; }
 .mark-switch .icon { width: 16px; height: 16px; }
 .mark-switch > span:first-of-type { min-width: 70px; text-align: left; }
 .mark-switch kbd { padding: 2px 6px; }
-.mark-switch[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.mark-switch[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .mark-switch[aria-pressed="true"] kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
 /* „Einplanen" keeps the width of „Eingeplant". What it says beyond that in the app (the
    placeholder it plans for, the other semesters the module is planned in) is its small line: one
@@ -1770,7 +1808,7 @@ button.action:hover { background: var(--panel-3); }
 .mini:hover { background: var(--panel-2); }
 .mini.danger { background: var(--no); color: var(--panel); box-shadow: none; }
 .mini.danger:hover { filter: brightness(1.08); background: var(--no); }
-.mini.primary { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.mini.primary { background: var(--accent); color: var(--on-accent); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .mini.primary:hover { filter: brightness(1.08); background: var(--accent); }
 /* A list that arrives in a link from another device: the page asks before it adds anything.
    The box starts where the number of the list's head starts. */
@@ -1965,7 +2003,7 @@ a.slot { text-decoration: none; }
 }
 /* A module of the Studienplan, in its tint (`t-…`): a card, full with white words — what one has
    to attend. */
-.slot.tinted { background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--lift); }
+.slot.tinted { background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--lift); --frame: currentColor; --frame-in: var(--frame-w); }
 /* Single dates: they do not happen every week, so they do not look like what does. */
 .slot.once { background: var(--panel-2); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
 /* An option of a choice not yet made: hatched in its tone and ringed. On a texture (what one
@@ -1977,8 +2015,10 @@ a.slot { text-decoration: none; }
 /* A clash: a red ring inside the card (the Stundenplan's mark, „A slot that overlaps"). A slot in
    a red frame with the slot it clashes with keeps its own look. */
 .slot.clash:not(.framed) { box-shadow: inset 0 0 0 2px var(--no), var(--lift); }
-/* The slot of what is open beside the grid: a ring at a distance, and it lifts. */
-.slot[aria-current="true"] { --lift: var(--lift-shadow); z-index: 2; outline: 2px solid var(--mod-fill); outline-offset: 2px; }
+/* The slot of what is open beside the grid: it lifts, and a frame a step inside its edge in the
+   colour of its words (until Folia 1.113.0 a ring at a distance, which the next slot or the edge of
+   the week could cut). */
+.slot[aria-current="true"] { --lift: var(--lift-shadow); z-index: 2; outline: var(--frame-w) solid currentColor; outline-offset: calc(-2 * var(--frame-w)); }
 /* The courses of a module held at two campuses or more (module.rs, courses.rs; owner, 2026-10-19:
    „mit klarer Erkennbarkeit, dass die einen in Cottbus sind und die anderen in Senftenberg"):
    where its page shows every course, each has its colour — a stripe on its slots, a dot before its
@@ -2007,7 +2047,7 @@ a.slot { text-decoration: none; }
    card, which carries the „!"; the Termin open beside the week has a ring at a distance and
    lifts. Another course's or another program's option stays faint and dashed. */
 #termine .week { background: none; box-shadow: none; padding: 2px 0 calc(12px + var(--spill, 0) * 12px); }
-#termine .slot { z-index: 1; background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--card-shadow); font-weight: 680; }
+#termine .slot { z-index: 1; background: var(--mod-fill); color: var(--on-mod); --frame: currentColor; --frame-in: var(--frame-w); box-shadow: var(--card-shadow); font-weight: 680; }
 #termine .slot small { opacity: .86; }
 #termine .slot.once { background: color-mix(in oklch, var(--mod) var(--mod-once), var(--panel)); color: var(--text); }
 #termine .slot.alt { --plate: var(--mod-tint); background-color: var(--mod-tint); background-image: var(--mod-hatch); color: var(--mod-ink); box-shadow: inset 0 0 0 1.5px var(--mod), var(--card-shadow); }
@@ -2020,7 +2060,7 @@ a.slot { text-decoration: none; }
 #termine .slot.faint { background: var(--panel-2); background-image: none; color: var(--text-3); box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 #termine .slot.faint.clash { outline-color: var(--no); }
 #termine .slot.clash:not(.planned, .faint)::after { content: "!"; position: absolute; top: 3px; right: 3px; width: 13px; height: 13px; border-radius: 50%; background: var(--no); color: var(--panel); font-size: 10px; font-weight: 800; line-height: 13px; text-align: center; box-shadow: 0 0 0 1.5px var(--panel); }
-#termine .slot[aria-current="true"] { outline: 2px solid var(--mod-fill); outline-offset: 2px; box-shadow: var(--lift-shadow); }
+#termine .slot[aria-current="true"] { outline: var(--frame-w) solid currentColor; outline-offset: calc(-2 * var(--frame-w)); box-shadow: var(--lift-shadow); }
 #termine .slot.alt[aria-current="true"] { box-shadow: inset 0 0 0 1.5px var(--mod), var(--lift-shadow); }
 /* The courses of a module held at two campuses or more, each in its colour (below): a stripe at
    the card's left edge. */
@@ -2058,7 +2098,7 @@ a.slot { text-decoration: none; }
 .choice-head.extra::before { border-radius: 2px; background: transparent; outline: 1px dotted var(--text-3); outline-offset: -1px; }
 .course-head + .choice-head { margin-top: 4px; }
 .evlist > .ev.gap { margin-top: 6px; }
-.evmore > summary { display: inline-flex; align-items: center; min-height: 36px; list-style: none; cursor: pointer; color: var(--accent-ink); font-weight: 620; font-size: 12.5px; -webkit-user-select: none; user-select: none; }
+.evmore > summary { display: inline-flex; align-items: center; min-height: 36px; margin: 0 -4px; padding: 0 4px; border-radius: var(--r-ctl); list-style: none; cursor: pointer; color: var(--accent-ink); font-weight: 620; font-size: 12.5px; -webkit-user-select: none; user-select: none; }
 .evmore > summary::-webkit-details-marker { display: none; }
 .evmore > summary:hover { color: var(--text); }
 .evmore[open] > summary { display: none; }
@@ -2089,7 +2129,7 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
    finger's target. It unfolds and folds as a thing does (enhance.js „a module's Termine"); a slot of
    the week unfolds it and marks itself (aria-current) and its lines (.picked), which light up a
    moment (.lit). The exam dates stay open. */
-.evfold > summary { display: flex; align-items: center; gap: 5px; min-height: 44px; margin-bottom: -4px; list-style: none; cursor: pointer; color: var(--text-2); font-weight: 580; font-size: 13.5px; -webkit-user-select: none; user-select: none; }
+.evfold > summary { display: flex; align-items: center; gap: 5px; min-height: 44px; margin: 0 -4px -4px; padding: 0 4px; border-radius: var(--r-ctl); list-style: none; cursor: pointer; color: var(--text-2); font-weight: 580; font-size: 13.5px; -webkit-user-select: none; user-select: none; }
 .evfold > summary::-webkit-details-marker { display: none; }
 .evfold > summary:hover { color: var(--text); }
 .evfold > summary .num { color: var(--text-3); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -2186,7 +2226,7 @@ html.js .linklist.runout:not(.all) > :nth-child(5) { -webkit-mask-image: linear-
 @container prose (width < 23em) {
   .prose p { text-align: start; }
 }
-details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560; font-size: 13px; min-height: 36px; display: inline-flex; align-items: center; }
+details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560; font-size: 13px; min-height: 36px; margin: 0 -4px; padding: 0 4px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; }
 .plain th, .plain td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
 .plain th { color: var(--text-3); font-weight: 600; font-size: 12px; }
 .source { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 12.5px; }
@@ -2200,7 +2240,7 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .prog-head { padding: 12px 24px 16px; }
 .prog-head .hero-top { margin: 0 0 2px -10px; min-height: 34px; }
 .crumbs { margin-left: auto; display: flex; align-items: center; color: var(--text-3); font-size: 12.5px; }
-.crumbs a { color: var(--text-3); }
+.crumbs a { color: var(--text-3); margin: -4px; padding: 4px; border-radius: var(--r-ctl); }
 .crumbs a + a::before { content: "/"; margin: 0 7px; color: var(--line-strong); }
 /* The views of a program in its head: a phone's, where the sidebar ends the page (program.rs
    `ProgramViews`); a wider screen has them in the sidebar. */
@@ -2262,7 +2302,7 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .tabs { display: flex; gap: 4px; padding: 6px; }
 .tab { min-height: 40px; padding: 0 16px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 600; font-size: 13.5px; text-decoration: none; }
 .tab:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
-.tab.active { background: var(--invert); color: var(--on-invert); }
+.tab.active { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 /* A page of sections opens like the catalog's list: the number, then what it counts. */
 .summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
 .summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
@@ -2516,12 +2556,20 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
    the pointer through to what lies under that edge (the tabs), the pictures take it. The current
    picture is 52 % of the frame wide, so that its neighbours reach out to the panel's edges; at
    most 832 px, 52 % of the start page's widest column (1600 px). */
-.carousel { --room-t: 14px; --room-b: 44px; position: relative; container-type: inline-size; overflow: hidden; margin: calc(-1 * var(--room-t)) 0 calc(-1 * var(--room-b)); padding: var(--room-t) 0 var(--room-b); pointer-events: none; touch-action: pan-y; outline-offset: -2px; --w: min(52cqw, 832px); }
+.carousel { --room-t: 14px; --room-b: 44px; position: relative; container-type: inline-size; overflow: hidden; margin: calc(-1 * var(--room-t)) 0 calc(-1 * var(--room-b)); padding: var(--room-t) 0 var(--room-b); pointer-events: none; touch-action: pan-y; --w: min(52cqw, 832px); }
+/* Its frame (R26) around its place, not around the room above and below it, where the tabs lie
+   over its edge: on a layer of its own over the pictures. */
+.carousel:focus-visible { outline: none; }
+.carousel:focus-visible::before { content: ""; position: absolute; z-index: 10; inset: var(--room-t) 0 var(--room-b); border-radius: var(--r-panel); outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); pointer-events: none; }
 .cslide, .show-arrow { pointer-events: auto; }
 .cslide { position: absolute; top: var(--room-t); left: 50%; width: var(--w); display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; background: var(--panel); box-shadow: 0 0 0 1px var(--line), 0 14px 34px -24px rgba(15, 23, 42, .55); color: inherit; text-decoration: none; z-index: var(--z, 3); transform: translateX(calc(-50% + var(--at, 0) * var(--w) / 2)) scale(var(--scale, 1)); transition: transform .5s var(--spring), translate .25s var(--spring), opacity .3s, box-shadow .2s, z-index .5s linear; user-select: none; -webkit-user-drag: none; }
 /* What lies behind is veiled in the colour of the panel. */
 .cslide::after { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; background: var(--panel); opacity: 0; pointer-events: none; transition: opacity .3s; }
 .cslide:hover { text-decoration: none; }
+/* Its frame (R26) on a layer of its own over its picture, which lies on a layer of its own (with its
+   ground) over the slide's outline. */
+.cslide:focus-visible { outline: none; }
+.cslide:focus-visible::before { content: ""; position: absolute; z-index: 5; inset: 0; border-radius: inherit; outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); pointer-events: none; }
 .cslide.spacer { position: relative; top: 0; left: auto; margin: 0 auto; transform: none; visibility: hidden; }
 .cslide.is-side { --scale: .84; --z: 2; cursor: pointer; }
 .cslide.is-side::after { opacity: .42; }
@@ -2592,9 +2640,9 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 @keyframes cap-in { from { opacity: 0; transform: translateY(8px); } }
 .cslide.is-current:hover .cap-go { color: var(--text); }
 .cap-link { flex: none; display: inline-flex; align-items: center; gap: 2px; min-height: 34px; padding: 0 8px 0 12px; border-radius: var(--r-ctl); color: var(--text); font-weight: 600; white-space: nowrap; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-decoration: none; }
-.cap-link:hover { background: var(--invert); color: var(--on-invert); box-shadow: none; text-decoration: none; }
+.cap-link:hover { background: var(--invert); color: var(--on-invert); box-shadow: none; text-decoration: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .cap-link .icon { width: 16px; height: 16px; }
-.cap-link.picked { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.cap-link.picked { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .cap-link.picked:hover { background: var(--pick, var(--accent)); }
 .cap-close { flex: none; width: 34px; height: 34px; border: 0; border-radius: var(--r-ctl); display: grid; place-items: center; background: transparent; color: var(--text-2); cursor: pointer; }
 .cap-close:hover { background: var(--panel-3); color: var(--text); }
@@ -2621,7 +2669,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 @keyframes show-progress { to { transform: scaleX(1); } }
 .showcase.paused .show-progress { animation-play-state: paused !important; }
 .show-play { justify-self: start; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-3); color: var(--text-2); transition: background .12s, color .12s, transform .25s var(--spring); }
-.show-play:hover { background: var(--invert); color: var(--on-invert); }
+.show-play:hover { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .show-play:active { transform: scale(.86); transition-duration: .08s; }
 .show-play .icon { width: 14px; height: 14px; fill: currentColor; }
 @media (prefers-reduced-motion: reduce) { .show-progress { animation: show-progress 7s linear forwards !important; } }
@@ -2906,7 +2954,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .board-all:not(:checked) ~ .board > .bgroup:not(.key) { display: none; }
   .board-more { display: flex; margin: 0 0 12px; cursor: pointer; }
   .board-all:checked ~ .board-more { display: none; }
-  .board-all:focus-visible ~ .board-more { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .board-all:focus-visible ~ .board-more { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
   /* A phone's count stands at the left, clear of „Nach oben" in the corner: that one reaches 54 px
      in from the edge of the view, the picture 32 px. Its words may take two lines there. */
   .board-foot { justify-content: flex-start; padding-right: 30px; }
@@ -3159,7 +3207,7 @@ section > .was-anchor { position: absolute; top: 0; left: 0; margin: 0; scroll-m
 
 /* A table of contents that follows the page (`data-spy`, the legal pages): the part the page is
    at inverted. */
-.toc a[aria-current="location"] { background: var(--invert); color: var(--on-invert); }
+.toc a[aria-current="location"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .legal-toc a > .icon { width: 16px; height: 16px; color: var(--text-3); }
 .legal-toc a[aria-current] > .icon { color: inherit; }
 
@@ -3319,6 +3367,7 @@ section > .was-anchor { position: absolute; top: 0; left: 0; margin: 0; scroll-m
 /* A row of the plan that names no module of the catalog: still a link (it says what the plan
    states about it), but quieter than a module. */
 .ptable .c-name a.unstated { color: var(--text-2); font-weight: 520; }
+.ptable .c-name a { margin: -4px; padding: 4px; border-radius: var(--r-ctl); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .ptable .c-name .flag { margin-left: 6px; }
 .ptable .c-id { font-family: var(--mono); font-size: 12px; color: var(--text-3); white-space: nowrap; }
 .ptable .num { text-align: right; white-space: nowrap; }
@@ -3440,7 +3489,7 @@ section > .was-anchor { position: absolute; top: 0; left: 0; margin: 0; scroll-m
 .toc .flabel { padding-left: 2px; }
 .toc a { min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: var(--r-s); color: var(--text-2); font-weight: 550; font-size: 13px; text-decoration: none; }
 .toc a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
-.toc a[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.toc a[aria-current="page"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .toc a b { flex: none; font-weight: 650; color: var(--text); white-space: nowrap; }
 .toc a .toc-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toc a .toc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-weight: 450; font-size: 12.5px; }
@@ -3998,7 +4047,7 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-open-row > .go .icon { width: 15px; height: 15px; }
 .sp-open-row.warn { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
 .sp-open-row.warn small { color: var(--warn); }
-.sp-open-row.current { background: var(--invert); box-shadow: none; color: var(--on-invert); }
+.sp-open-row.current { background: var(--invert); box-shadow: none; color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 /* A line decided while the plan is edited stays in its place, pale, saying what became of it
    (a.sp-open-row.done; open.rs `keep`), until the mode is left. */
 .sp-open-row.done { background: none; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); }
@@ -4229,7 +4278,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 /* On a full card the marks are white, in the card's colour, as the tick of one's own group. */
 .slot.tinted:not(.alt, .extra, .visit, .conflict) > :is(.slot-own, .slot-pen) { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
 .sp-body .slot.conflict:not(.clash) { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
-.sp-body .sp-week .week .col { cursor: copy; }
 .sp-body .sp-week .week .col :is(.slot, .band) { cursor: pointer; }
 /* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
 .sp-carousel .week { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
@@ -4261,7 +4309,12 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .own-fld.wide { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .own-fld > label, .own-fld > .own-lb { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
 .own-fld input[type="text"], .own-fld input[type="time"], .own-fld input[type="date"], .own-fld select { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px var(--font); }
-.own-fld :is(input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+/* Its picks are Betula's select (`combobox::Select`; owner, 2026-11-19: „Außerdem style bitte die
+   dropdowns richtig im Betula style"), as tall as the fields beside it and on their ground. */
+.own-fld .combo-trigger { min-height: 36px; border-radius: 9px; background: var(--panel); font: 500 14px var(--font); }
+.own-fld .combo-trigger:hover { background: var(--panel-2); }
+/* Its label stays beside its button where the list opens in place under it (the narrow layout). */
+.own-fld:has(> .combo) > .own-lb { align-self: start; line-height: 36px; }
 .own-fld .seg.own-seg { margin-top: 0; }
 .own-two { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; color: var(--text-3); font-size: 12.5px; }
 .own-dates { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -4316,14 +4369,18 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .is-termin .chg-fld > label, .is-termin .chg-fld > .chg-lb { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
 .is-termin .chg-fld :is(input, select) { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px var(--font); }
 .is-termin .chg-fld.changed :is(input, select) { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.is-termin .chg-fld :is(input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+/* „Tag" is Betula's select (owner, 2026-11-19: „Außerdem style bitte die dropdowns richtig im Betula
+   style"), as tall as the fields beside it, ringed as they are where it says other than QIS. */
+.is-termin .chg-fld .combo-trigger { min-height: 36px; border-radius: 9px; background: var(--panel); font: 500 14px var(--font); }
+.is-termin .chg-fld .combo-trigger:hover { background: var(--panel-2); }
+.is-termin .chg-fld:has(> .combo) > .chg-lb { align-self: start; line-height: 36px; }
+.is-termin .chg-fld.changed .combo:not([data-open]) .combo-trigger:not(:focus-visible) { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .is-termin .seg.chg-seg { margin: 0; }
 .is-termin .chg-two { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; color: var(--text-3); font-size: 12.5px; }
 .is-termin .chg-qis { margin: 0; color: var(--text-2); font-size: 13px; }
 .is-termin .crow small.tm-note-text { color: var(--text); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .is-termin .tm-note { display: flex; flex-direction: column; gap: 8px; margin-top: -4px; }
 .is-termin .tm-note textarea { width: 100%; min-height: 72px; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px/1.4 var(--font); resize: vertical; }
-.is-termin .tm-note textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
 @media (max-width: 560px) {
   .is-termin .chg-fld { grid-template-columns: minmax(0, 1fr); gap: 5px; }
 }
@@ -4331,7 +4388,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
    dark, in two lines the choice with its dot and how many are ticked, and whether its groups fit
    and what to do (span.fb-text); „Weiter: …", „Vergleichen" (pressed while compared) and „Fertig"
    with Esc at its right. */
-.sp-focusbar { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 5px 6px 5px 12px; border-radius: 10px; background: var(--invert); color: var(--on-invert); }
+.sp-focusbar { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 5px 6px 5px 12px; border-radius: 10px; background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .sp-focusbar .fb-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .sp-focusbar .what { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; }
 .sp-focusbar .what i { width: 9px; height: 9px; border-radius: 50%; background: var(--tint); }
@@ -4421,7 +4478,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-editbar .btn { flex: none; min-height: 32px; padding: 0 11px; border-radius: 7px; gap: 6px; background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 12.5px; font-weight: 650; }
 .sp-editbar .btn:hover { background: var(--panel-2); }
 .sp-editbar .btn .icon { width: 14px; height: 14px; }
-.sp-editbar .sp-done { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.sp-editbar .sp-done { background: var(--accent); color: var(--on-accent); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .sp-editbar .sp-done:hover { background: var(--accent); filter: brightness(1.08); }
 .sp-editbar .sp-done kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-accent) 55%, transparent); color: var(--on-accent); }
 .sp-open-under .sp-open-rows { gap: 6px; }
@@ -4467,7 +4524,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-cals-head > .flabel { margin: 0; }
 .sp-cals-head > .sp-cal-add { width: auto; min-height: 28px; margin: 0; padding: 0 9px; outline: none; color: var(--accent-ink); }
 /* Its dashed outline (or none, in the head) is its look, not the keyboard's: the ring comes back. */
-.sp-cal-add:focus-visible, .sp-cals-head > .sp-cal-add:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sp-cal-add:focus-visible, .sp-cals-head > .sp-cal-add:focus-visible { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
 .sp-cal > .sp-cal-end { display: grid; place-items: center; width: 32px; height: 32px; }
 .sp-cal-newrow { display: grid; gap: 6px; }
 .sp-cal-newrow > .sp-cal-add { margin-top: 0; }
@@ -4504,9 +4561,14 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 }
 /* A span drawn on a free stretch of the week while the plan is edited (own.rs `Drag`; owner,
    2026-11-18: „drag placement um gleich eine Zeitspanne zu machen"): no text is selected by the
-   press, and while it is drawn (.sp-week.drawing) the pointer says it stretches. */
+   press. Over a free stretch the pointer is the normal one while nothing is done, and while a span
+   is drawn (.sp-week.drawing, and .sp-carousel.drawing of the narrow layout under a mouse) the
+   whole week has the one of moving, the four arrows, over slots and bands as well (owner,
+   2026-11-19: „Verwende, so lange man nichts macht bitte den normalen cursor und wenn man dragged
+   den move cursor mit den 4 pfeilen in alle richtungen, wie bei gcal."). Slots and bands keep their
+   hand while nothing is drawn. */
 .sp-edit .sp-week .week { -webkit-user-select: none; user-select: none; }
-.sp-week.drawing, .sp-week.drawing * { cursor: ns-resize; }
+.sp-week.drawing, .sp-week.drawing *, .sp-carousel.drawing, .sp-carousel.drawing * { cursor: move !important; }
 /* While it is drawn the span lies over its column, not in its lanes, so that no slot under it changes
    its width (div.sp-sketch, own.rs `SketchView`; its box from `drawn_at` as --x --y --w --h in the
    week's pixels); its times written in it only where they fit whole (13 px lines, a narrow column
@@ -4525,7 +4587,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-body button.slot { text-align: left; }
 .sp-body .slot.pick { z-index: 1; --plate: var(--mod-tint); background-color: var(--mod-tint); background-image: var(--mod-hatch); color: var(--mod-ink); box-shadow: inset 0 0 0 1.5px var(--mod), var(--lift); transition: background-color .12s, box-shadow .12s; }
 .sp-body .slot.pick:not(.on):hover { --plate: color-mix(in oklch, var(--mod) 18%, var(--panel)); background-color: var(--plate); }
-.sp-body .slot.pick.on { --lift: var(--lift-shadow); background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--lift); }
+.sp-body .slot.pick.on { --lift: var(--lift-shadow); background: var(--mod-fill); color: var(--on-mod); box-shadow: var(--lift); --frame: currentColor; --frame-in: var(--frame-w); }
 /* A group of a visit gives way where it meets the plan: its ring yellow, never red. */
 .sp-body .slot.pick.gives { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
 .slot > .pick-box { position: absolute; right: 4px; bottom: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--mod); color: var(--panel); }
@@ -4602,7 +4664,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-pick .grp .gs.on { box-shadow: inset 0 0 0 1.5px var(--tint); }
 .sp-pick .grp .gs > .ck { background: var(--tint); color: var(--panel); }
 .sp-pick .grp .gs.pick:hover > .cb { box-shadow: inset 0 0 0 1.5px var(--tint), 0 0 0 2px var(--panel-3); }
-.sp-pick .big { flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; padding: 0 20px; border-radius: 13px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 680; text-decoration: none; }
+.sp-pick .big { flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; padding: 0 20px; border-radius: 13px; background: var(--accent); color: var(--on-accent); --frame: currentColor; --frame-in: var(--frame-w); font-size: 15px; font-weight: 680; text-decoration: none; }
 .sp-pick .big:hover { filter: brightness(1.06); text-decoration: none; }
 .sp-pick .big .icon { width: 17px; height: 17px; }
 .sp-pick-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 2px 4px 4px; }
@@ -4630,7 +4692,7 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .sp-body .slot.faint.clash { box-shadow: none; outline-color: var(--no); }
 .sp-body .slot.faint.clash::after { opacity: .7; }
 /* A faint slot whose card is open is marked as the open one, as a firm and a hatched one are. */
-.sp-body .slot.faint[aria-current="true"] { outline: 2px solid var(--mod-fill); outline-offset: 2px; }
+.sp-body .slot.faint[aria-current="true"] { outline: var(--frame-w) solid var(--mod-fill); outline-offset: calc(-1 * var(--frame-w)); }
 /* What the page derived, under the calendar: small and muted. */
 .sp-body > .sp-derived { margin-top: 0; font-size: 12px; }
 /* Where the plan has no fixed time: „Ohne feste Zeit" (h3.label) and its lines. */
@@ -4674,7 +4736,7 @@ a.slot:hover { filter: brightness(.96); }
 /* An extra beside a module's compulsory part (week.rs, `Event::extra`): lighter, its edge dotted. */
 .sp-daylist a.extra { background: transparent; color: var(--text-2); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
 .sp-daylist a.clash { background: var(--no-soft); box-shadow: inset 3px 0 0 var(--no); }
-.sp-daylist a[aria-current="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sp-daylist a[aria-current="true"] { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
 .sp-daylist a.faint { background: transparent; box-shadow: inset 3px 0 0 color-mix(in oklch, var(--tint, var(--text-3)) 45%, transparent), inset 0 0 0 1px var(--line); color: var(--text-2); }
 .sp-daylist a.faint.clash { box-shadow: inset 3px 0 0 var(--no), inset 0 0 0 1px var(--line); }
 /* A row's buttons (div.sp-dayrow > a + div.slot-acts, --acts of them) at its right end, each as
@@ -4829,7 +4891,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .go2 { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; color: var(--accent-ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .is-termin .go2 .icon { width: 15px; height: 15px; }
 /* „In den Kalender": the one action of a Termin outside the plan. */
-.is-termin .tm-big { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 16px; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 650; text-decoration: none; }
+.is-termin .tm-big { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 16px; border-radius: 12px; background: var(--accent); color: var(--on-accent); --frame: currentColor; --frame-in: var(--frame-w); font-size: 15px; font-weight: 650; text-decoration: none; }
 .is-termin .tm-big:hover { filter: brightness(1.06); text-decoration: none; }
 .is-termin .tm-big[aria-disabled="true"] { opacity: .6; pointer-events: none; }
 .is-termin .tm-big .icon { width: 18px; height: 18px; }
@@ -5010,7 +5072,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tg.on > i { left: 21px; }
 .is-termin .sw { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 620; white-space: nowrap; }
 .is-termin .sw:hover { background: var(--row-hover); }
-.is-termin .sw[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.is-termin .sw[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 /* „Der Tag": a ribbon from 7 to 19, this Termin filled in its tint; a picture, which picks nothing. */
 .is-termin .rib { position: relative; height: 36px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
 .is-termin .rb { position: absolute; display: flex; align-items: center; padding: 0 6px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 24%, var(--panel)); box-shadow: inset 2px 0 0 var(--tint); color: var(--text); font: 650 10.5px/1 var(--mono); white-space: nowrap; overflow: hidden; text-decoration: none; }
@@ -5040,7 +5102,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .sd.cancel::after { content: ""; position: absolute; left: 1px; right: 1px; top: 6.25px; height: 1.5px; background: var(--no); transform: rotate(-45deg); }
 .is-termin .sd.off { height: 4px; border-radius: 2px; background: var(--line-strong); box-shadow: none; }
 .is-termin .sd.today::before { content: ""; position: absolute; left: 50%; top: -8px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
-.is-termin .sd.sel { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--text); }
+.is-termin .sd.sel { box-sizing: content-box; margin: -4px; border: 4px solid transparent; background-clip: padding-box; outline: var(--frame-w) solid var(--text); outline-offset: calc(-1 * var(--frame-w)); }
 .is-termin .sd.sel:not(.past):not(.note):not(.cancel):not(.hid) { background: var(--text); }
 .is-termin .mrow { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto 14px; gap: 12px; align-items: center; width: 100%; padding: 9px 10px; border-radius: 11px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; text-decoration: none; }
 .is-termin a.mrow:hover { background: var(--row-hover); text-decoration: none; }
@@ -5133,7 +5195,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .tm-card .tm-group > span { flex: 0 1 auto; min-width: 0; }
 .tm-card button.tm-big { flex: 1 1 auto; border: 0; font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; }
 /* It has the keyboard as the card opens (a click, then Enter): its ring says so. */
-.tm-card button.tm-big:focus { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.tm-card button.tm-big:focus { --frame: currentColor; --frame-in: var(--frame-w); outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * (var(--frame-w) + var(--frame-in))); }
 .tm-card .tm-act .go2 { margin-left: auto; }
 .tm-card .tm-hide { display: flex; flex-direction: column; gap: 4px; }
 .tm-card .tm-hide > h4 { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
@@ -5167,7 +5229,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    and time in one row (each its label above it), so that it is no taller than the card can grow
    where it stands (card.rs `BODY_CHANGE`). */
 .tm-card .chg { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: 10px 10px; padding: 0; background: none; box-shadow: none; }
-.tm-card .chg-fld :is(input[type="time"], select) { padding: 0 6px; }
+.tm-card .chg-fld :is(input[type="time"], select), .tm-card .chg-fld .combo-trigger { padding: 0 6px; }
 .tm-card .chg-two { gap: 4px; }
 .tm-card .chg > * { grid-column: 1 / -1; }
 .tm-card .chg > h4 { display: none; }
@@ -5278,7 +5340,6 @@ html:not(.js) .plan-toggle { display: none; }
 .wait-note-close > .icon { width: 16px; height: 16px; }
 @media (hover: hover) { .wait-note-close:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); opacity: 1; } }
 .wait-note-close:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
-.wait-note :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 900px) {
   /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
   .wait-note { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); border-radius: 14px; box-shadow: var(--toast-ring); animation-name: wait-note-rise; }
@@ -5556,7 +5617,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 .gate-panel > p.gate-why { margin-bottom: 12px; }
 .gate-panel label { display: block; color: var(--text-2); font-size: 12px; font-weight: 550; margin-bottom: 5px; }
 .gate-panel input[type="password"] { width: 100%; height: 48px; padding: 0 14px; border: 0; outline: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 16px; }
-.gate-panel input[type="password"]:focus { box-shadow: 0 0 0 2px var(--accent); }
+.gate-panel input[type="password"]:focus { box-shadow: inset 0 0 0 var(--frame-w) var(--frame); }
 .gate-panel input[aria-invalid="true"]:not(:focus) { box-shadow: inset 0 0 0 1px var(--no); }
 .gate-problem { margin-top: 8px; padding: 9px 12px; border-radius: var(--r-ctl); background: var(--no-soft); color: var(--no); font-size: 13px; font-weight: 550; }
 .gate-panel .button { width: 100%; min-height: 48px; margin-top: 14px; justify-content: center; font-size: 15px; }
@@ -5991,7 +6052,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .toc.views .flabel { display: none; }
   .toc.views a { justify-content: center; min-height: 42px; padding: 0 6px; text-align: center; font-size: 13.5px; background: var(--panel-3); }
   /* The view one is on stays the inverted one; the row above must not take its background. */
-  .toc.views a[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+  .toc.views a[aria-current="page"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
   .actions.fgroup { padding-top: 6px; }
   .action { min-height: 46px; font-size: 15px; }
   .person { min-height: 50px; }
@@ -6246,7 +6307,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-sub .warn, .st-chip.warn .icon, .warn > .icon { color: var(--warn); }
 .st-sub .ok, .ok { color: var(--ok); }
 .st-dot { flex: none; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--text-3)); }
-.st-link { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.st-link { display: inline-flex; align-items: center; gap: 6px; margin: -4px; padding: 4px; border-radius: var(--r-ctl); border: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .st-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .st-link .icon { width: 15px; height: 15px; }
 .st-link.danger { color: var(--no); }
@@ -6436,7 +6497,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-open, .st-open:hover { color: inherit; text-decoration: none; outline: none; -webkit-tap-highlight-color: transparent; }
 .st-open::after { content: ""; position: absolute; inset: 0; }
 .st-find.st-open { color: var(--accent-ink); }
-.row:has(.st-open:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--row-hover); }
+.row:has(.st-open:focus-visible) { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); background: var(--row-hover); }
 .row.st-inert { cursor: default; }
 .st-row .st-link { position: relative; z-index: 1; font-size: 12.5px; }
 /* The words of a row that are no mark: „nicht bestanden · wieder im WiSe 2026/27", and in the
@@ -6492,7 +6553,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .cols > .st-sel { left: 12px; }
   .st-selbar > .st-sel { position: static; flex: none; margin: 0; }
   .row-wrap:hover > .st-sel, .row-wrap:focus-within > .st-sel, .cols:hover > .st-sel, .st-table.is-selecting .st-sel, .list:has(> .pick-bar) .st-sel, .st-sel[aria-checked="true"], .st-sel:focus-visible { opacity: 1; }
-  .st-sel:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .st-sel-mark { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text-3); transition: background .12s, box-shadow .12s; }
   .st-sel-mark > .icon { display: none; width: 12px; height: 12px; stroke-width: 3.2; }
   .st-sel:hover > .st-sel-mark { box-shadow: inset 0 0 0 1.5px var(--text-2); }
@@ -6570,7 +6630,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 /* „Module hinzufügen": a row under the others, its „+" where their names begin. */
 .st-add { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 15px; border: 0; border-radius: var(--r-row); background: transparent; color: var(--accent-ink); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; transition: background .12s; }
 .st-add:hover { background: var(--row-hover); }
-.st-add:focus-visible { outline-offset: -2px; }
 .st-add-icon { display: grid; place-items: center; }
 .st-add-icon .icon { width: 18px; height: 18px; }
 /* The bar of the rows selected, in the place of the columns' heads. */
@@ -6821,8 +6880,7 @@ div.st-col-head.past { cursor: default; }
    placeholder) turns solid. */
 .st-rm-p:hover { box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--c) 72%, var(--text)); }
 .st-rm-p.passed:hover { box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--c) 60%, var(--text)), inset 0 0 0 3.5px color-mix(in srgb, var(--panel) 80%, transparent); }
-.st-rm-p:focus-visible { outline-offset: -2px; }
-.st-rm-p:is(.open, .is-ph):is(:hover, :focus-visible) { box-shadow: none; outline: 2px solid color-mix(in oklab, var(--c) 85%, var(--text)); outline-offset: -2px; }
+.st-rm-p:is(.open, .is-ph):is(:hover, :focus-visible) { box-shadow: none; outline: var(--frame-w) solid color-mix(in oklab, var(--c) 85%, var(--text)); outline-offset: calc(-1 * var(--frame-w)); }
 .st-rm-p.open:hover, .st-rm-p.open:focus-visible { background: color-mix(in oklab, var(--c) 8%, var(--panel)); color: var(--text); }
 .st-rm-p.sum-open { flex: none; }
 .st-rm-p.sum { min-width: 0; overflow: hidden; }
@@ -6852,7 +6910,7 @@ div.st-col-head.past { cursor: default; }
 .st-rm-add .icon { width: 11px; height: 11px; }
 .st-rm-cell:is(:hover, :has(:focus-visible)) > .st-cell-add.st-rm-add { pointer-events: auto; transition: opacity .12s .14s, background-color .12s, border-color .12s, color .12s; }
 .st-rm-cell:is(:hover, :has(:focus-visible)):has(> .st-rm-add) { z-index: 1; }
-.st-rm-cell > .st-cell-add.st-rm-add:is(:hover, :focus-visible) { border-color: var(--accent); background: var(--accent); color: var(--on-accent); transition-delay: 0s; }
+.st-rm-cell > .st-cell-add.st-rm-add:is(:hover, :focus-visible) { border-color: var(--accent); background: var(--accent); color: var(--on-accent); transition-delay: 0s; --frame: currentColor; --frame-in: var(--frame-w); }
 .st-rm-cell:is(:hover, :has(:focus-visible)) > .st-cell-add, .st-cell-add:focus-visible { opacity: 1; }
 /* None while a module is dragged: a drag takes no click, and the cell it was taken from (focused, or
    under the pointer as it began) would show its „+" over the hole. */
@@ -7197,7 +7255,7 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-areas-page > .st-areas-in, .st-area-page > .st-area-body { padding: 0 20px 18px; }
 .st-area-h { display: flex; align-items: center; gap: 8px; }
 .st-area-h > .st-dot { width: 10px; height: 10px; }
-.st-area-page > .st-view-head .st-link { flex: none; margin-top: 2px; }
+.st-area-page > .st-view-head .st-link { flex: none; margin-top: -2px; }
 .st-area-t { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .st-area-t > .st-dot { width: 9px; height: 9px; }
 .st-area-t > b { flex: 1; min-width: 0; font-size: 14.5px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; hyphens: auto; }
@@ -7312,7 +7370,7 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-sz-step { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .st-sz-step > .icon-btn { width: 40px; height: 40px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); }
 .st-sz-num { display: inline-flex; align-items: baseline; gap: 6px; height: 40px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); }
-.st-sz-num:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.st-sz-num:focus-within { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
 .st-sz-num input { width: 3.2ch; padding: 0; border: 0; background: none; color: var(--text); font: inherit; font-size: 20px; font-weight: 700; line-height: 38px; text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; outline: 0; }
 .st-sz-num input::-webkit-inner-spin-button, .st-sz-num input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .st-sz-num span { color: var(--text-2); font-size: 13px; font-weight: 600; }
@@ -7419,13 +7477,13 @@ a.st-area-row:hover { background: var(--row-hover); text-decoration: none; }
 .st-vl:hover { background: var(--panel-3); text-decoration: none; }
 .st-vl .icon { width: 16px; height: 16px; color: var(--text-2); }
 .st-vl small { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
-.st-vl[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.st-vl[aria-current="page"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .st-vl[aria-current="page"] .icon, .st-vl[aria-current="page"] small { color: color-mix(in oklab, var(--on-invert) 72%, transparent); }
 .st-ways .action > span small, .st-way > span small { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-ways .action:has(small) { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
 /* „Ordnungen & Dokumente" is a view as well (documents.rs): its way in the sidebar's „Studiengang"
    is marked as the views' are while it is shown. */
-.st-ways .action[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.st-ways .action[aria-current="page"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .st-ways .action[aria-current="page"] .icon, .st-ways .action[aria-current="page"] small { color: color-mix(in oklab, var(--on-invert) 72%, transparent); }
 
 /* The head of a view's panel: its title and what it is, a switch at its end. */
@@ -7960,7 +8018,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-chiprow.small { margin: 14px -12px 0; padding: 0 12px 2px; }
   .st-fchip { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
   .st-fchip small { font-size: 12px; font-weight: 600; color: var(--text-3); }
-  .st-fchip[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); }
+  .st-fchip[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
   .st-fchip[aria-pressed="true"] small { color: color-mix(in oklab, var(--on-invert) 70%, transparent); }
   .st-chiprow.small .st-fchip { height: 34px; padding: 0 13px; font-size: 13.5px; }
   .st-wcards { display: grid; gap: 8px; margin-top: 12px; }
@@ -8458,7 +8516,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
 .pf-danger { box-shadow: 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent), var(--shadow-panel); }
 .pf-danger > h2, .pf-danger > h2 .icon { color: var(--no); }
 .pf-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 2px 6px 8px; color: var(--text-3); font-size: 12px; }
-.pf-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--text-2); }
+.pf-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--text-2); margin: -4px; padding: 4px; border-radius: var(--r-ctl); }
 .pf-foot-note { flex-basis: 100%; }
 .pf-foot .icon { width: 13px; height: 13px; }
 /* The sidebar: the profiles, „Profil hinzufügen" and its three ways. On a phone a row of chips,
@@ -8575,7 +8633,7 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .pf-pick::-webkit-scrollbar { display: none; }
   .pf-pick .pf-list { display: flex; flex: none; gap: 8px; max-height: none; overflow: visible; -webkit-mask-image: none; mask-image: none; }
   .pf-pick .pf-item { flex: none; width: auto; min-height: 44px; padding: 0 14px 0 6px; border-radius: 22px; background: var(--panel); box-shadow: 0 0 0 1px var(--line-strong); }
-  .pf-pick .pf-item[aria-checked="true"] { background: var(--panel); box-shadow: 0 0 0 2px var(--accent); }
+  .pf-pick .pf-item[aria-checked="true"] { background: var(--panel); box-shadow: none; outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * var(--frame-w)); }
   .pf-pick .pf-item-text small, .pf-pick .pf-item > .icon:last-child { display: none; }
   .pf-pick .pf-item .avatar { width: 30px; height: 30px; font-size: 12px; }
   .pf-pick .pf-add-way { padding: 0 14px 0 12px; }
@@ -9118,7 +9176,9 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 /* The fifth box: its radio on the left, on the right its Fachsemester, to type or to count. */
 .ob-other { grid-template-columns: minmax(0, 1fr) auto; padding: 6px 8px 6px 12px; }
 .ob-other-pick { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 0 12px; align-items: center; min-width: 0; align-self: stretch; text-align: left; }
-.ob-other-pick:focus-visible { outline-offset: 4px; }
+/* Its radio and words reach its edge: 4 px of room inside it for the frame, with the same margin
+   out, so that nothing moves. */
+.ob-other-pick { margin: -4px; padding: 4px; border-radius: var(--r-ctl); }
 .ob-step { display: inline-flex; align-items: center; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .ob-step button { width: 34px; height: 34px; color: var(--text); font-size: 18px; line-height: 1; touch-action: manipulation; }
 .ob-step button:first-child { border-radius: 8px 0 0 8px; }
@@ -9136,7 +9196,7 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .ob-fill .ob-note { margin: 2px 0 8px; }
 .ob-plans { display: flex; flex-wrap: wrap; gap: 6px; }
 .ob-plan { min-height: 30px; padding: 0 10px; border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
-.ob-plan[aria-checked="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.ob-plan[aria-checked="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; --frame: currentColor; --frame-in: var(--frame-w); }
 .ob-mods { display: grid; gap: 2px; }
 .ob-mod { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 9px; text-align: left; }
 .ob-mod:hover { background: var(--panel-2); }
@@ -9208,7 +9268,7 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-chip .icon { width: 12px; height: 12px; }
 .day-chip.warn { background: var(--warn-soft); color: var(--warn); }
 .day-chip.acc { background: var(--accent-soft); color: var(--accent-ink); }
-.day-chip.ink { background: var(--invert); color: var(--on-invert); }
+.day-chip.ink { background: var(--invert); color: var(--on-invert); --frame: currentColor; --frame-in: var(--frame-w); }
 .day-list { display: grid; gap: 2px; padding: 2px 8px 10px; }
 .day-ev { position: relative; display: grid; grid-template-columns: 62px 4px minmax(0, 1fr) auto; align-items: center; gap: 0 12px; padding: 9px 10px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
 .day-ev:hover { background: var(--row-hover); text-decoration: none; }
@@ -9238,7 +9298,7 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-wk-d.today .day-wk-col { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .day-wk-col > :is(i, a) { position: absolute; left: 3px; right: 3px; border-radius: 3px; background: var(--tint); opacity: .85; }
 /* A Termin's bar opens it over the page (`TerminOver`). */
-.day-wk-col > a:hover { opacity: 1; box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3px var(--tint); }
+.day-wk-col > a:hover { opacity: 1; box-shadow: inset 0 0 0 1.5px var(--tint), inset 0 0 0 3px var(--panel); }
 .day-wk-col > :is(i, a).open { opacity: .35; }
 .day-wk-col > :is(i, a).exam { background: repeating-linear-gradient(135deg, var(--tint) 0 3px, transparent 3px 6px); }
 .day-exl, .day-bml { display: grid; gap: 2px; padding: 2px 8px 10px; }

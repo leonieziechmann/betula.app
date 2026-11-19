@@ -49,7 +49,7 @@ use super::PlanCtx;
 // ---------- what the parts show ----------
 
 /// A line of „Offen": the choice by its kind and module („Übung MIT1"), what to do („eine von 3
-/// anhaken"), its module's tone, and where a click leads (the choice into focus, or the module
+/// auswählen"), its module's tone, and where a click leads (the choice into focus, or the module
 /// beside the plan).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) struct Line {
@@ -367,7 +367,7 @@ pub(super) struct Focus {
     pub state: String,
     /// „Hake eine oder mehrere an. Alle 3 passen."
     pub hint: String,
-    /// „Bis du eine anhakst, stehen alle 3 schraffiert im Stundenplan." while none is ticked.
+    /// „Bis du eine auswählst, stehen alle 3 schraffiert im Stundenplan." while none is ticked.
     pub note: Option<String>,
     /// By weekday and time.
     pub groups: Vec<Group>,
@@ -1315,14 +1315,14 @@ mod tests {
         fn said(lines: &[Line]) -> Vec<(&str, &str, &str, bool)> {
             lines.iter().map(|line| (line.name.as_str(), line.say.as_str(), line.href.as_str(), line.current)).collect()
         }
-        assert_eq!(said(&lines(&table, &short(), &plain(), None, &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&edit=1&wahl=e148370", false)]);
-        assert_eq!(said(&lines(&table, &short(), &plain(), Some(e), &i18n::EN)), [("Practical EvS", "tick one of 4", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
+        assert_eq!(said(&lines(&table, &short(), &plain(), None, &i18n::DE)), [("Praktikum EvS", "eine von 4 auswählen", "/studyplan?sem=2026W&edit=1&wahl=e148370", false)]);
+        assert_eq!(said(&lines(&table, &short(), &plain(), Some(e), &i18n::EN)), [("Practical EvS", "choose one of 4", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
         // Ticked, it is no longer open, but stays in the list while it is in focus.
         let key_of = table.events[e].rows[0].key.unwrap();
         doc.tick(key(), key_of, true);
         let ticked = plan_table(&doc);
         assert!(lines(&ticked, &short(), &plain(), None, &i18n::DE).is_empty());
-        assert_eq!(said(&lines(&ticked, &short(), &plain(), Some(e), &i18n::DE)), [("Praktikum EvS", "eine von 4 anhaken", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
+        assert_eq!(said(&lines(&ticked, &short(), &plain(), Some(e), &i18n::DE)), [("Praktikum EvS", "eine von 4 auswählen", "/studyplan?sem=2026W&edit=1&wahl=e148370", true)]);
     }
 
     #[test]
@@ -1333,9 +1333,9 @@ mod tests {
         let e = practical(&table);
         let url = plain().with_wahl(Some("e148370"));
         let focus = focus_of(&table, e, &short(), &url, &i18n::DE).unwrap();
-        assert_eq!((focus.name.as_str(), focus.chip.as_str(), focus.kind.as_str(), focus.state.as_str()), ("Praktikum EvS", "EvS", "Praktikum", "noch keine angehakt"));
-        assert_eq!(focus.hint, "3 von 4 passen, die anderen überschneiden sich. Anhaken geht trotzdem.");
-        assert_eq!(focus.note.as_deref(), Some("Bis du eine anhakst, stehen alle 4 schraffiert im Stundenplan."));
+        assert_eq!((focus.name.as_str(), focus.chip.as_str(), focus.kind.as_str(), focus.state.as_str()), ("Praktikum EvS", "EvS", "Praktikum", "noch keine ausgewählt"));
+        assert_eq!(focus.hint, "3 von 4 passen, die anderen überschneiden sich. Auswählen geht trotzdem.");
+        assert_eq!(focus.note.as_deref(), Some("Bis du eine auswählst, stehen alle 4 schraffiert im Stundenplan."));
         // By weekday: QIS's name of each group, what it meets, what it does to its day.
         let groups: Vec<(&str, Option<&str>, Option<&str>, &str)> = focus
             .groups
@@ -1365,7 +1365,7 @@ mod tests {
         doc.tick(key(), first, true);
         let ticked = plan_table(&doc);
         let focus = focus_of(&ticked, e, &short(), &url.with_vergleich(true), &i18n::DE).unwrap();
-        assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str(), focus.tiles.as_str()), ("1 von 4 angehakt", None, true, "/studyplan?sem=2026W&edit=1&wahl=e148370", "/studyplan?sem=2026W&edit=1&wahl=e148370"));
+        assert_eq!((focus.state.as_str(), focus.note.clone(), focus.comparing, focus.compare.as_str(), focus.tiles.as_str()), ("1 von 4 ausgewählt", None, true, "/studyplan?sem=2026W&edit=1&wahl=e148370", "/studyplan?sem=2026W&edit=1&wahl=e148370"));
         assert!(focus.groups[0].ticked && focus.groups[0].day.as_ref().is_some_and(|day| day.bars.iter().any(|bar| bar.own && bar.ticked)));
         assert_eq!(focus.groups.iter().filter(|group| group.ticked).count(), 1);
     }
@@ -1400,7 +1400,7 @@ mod tests {
     /// one that comes again takes its place back; looking, the lines are as they are.
     #[test]
     fn a_line_decided_while_editing_keeps_its_place() {
-        let line = |id: &str| Line { id: id.into(), name: format!("Übung {id}"), say: "eine von 4 anhaken".into(), hue: "t-ice", href: format!("/studyplan?edit=1&wahl={id}"), current: false, warn: false, module: false, gives: false, change: None, changed: false };
+        let line = |id: &str| Line { id: id.into(), name: format!("Übung {id}"), say: "eine von 4 auswählen".into(), hue: "t-ice", href: format!("/studyplan?edit=1&wahl={id}"), current: false, warn: false, module: false, gives: false, change: None, changed: false };
         let fates: BTreeMap<String, String> = [("e1".to_string(), "Mo 15:30 ✓".to_string()), ("e2".to_string(), "ausgeblendet".to_string())].into();
         let first = keep(&[], &[line("e1"), line("e2"), line("e3")], &fates, "erledigt", true);
         // The first ticked, the second hidden: both stay where they were.

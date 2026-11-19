@@ -112,8 +112,10 @@ services:
     # itself: swarm does not take security_opt).
     cap_drop: [ALL]
     cap_add: [NET_ADMIN, SETUID, SETGID]
-    # IPv6: the firewall drops all of it, and Xylem sends none. No sysctl
-    # net.ipv6.conf.all.disable_ipv6: on a kernel without IPv6 the task would not start at all.
+    # IPv6: the firewall drops all of it, and Xylem sends none; the kernel's own neighbour
+    # discovery on docker_gwbridge (IPv6 since 2026-11) it drops without counting it
+    # (xylem/deploy/firewall.nft). No sysctl net.ipv6.conf.all.disable_ipv6: on a kernel without
+    # IPv6 the task would not start at all.
     networks:
       in: {}
       out: {}
