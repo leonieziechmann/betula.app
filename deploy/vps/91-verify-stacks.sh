@@ -1028,8 +1028,8 @@ check_canary() {
 }
 
 check_loki() {
-  section "Loki (ready, fed by Alloy with the contract's labels, ruler storing the visitor numbers)"
-  local body value i want have failing
+  section "Loki (ready, fed by Alloy with the contract's labels, the access log within 7 days, ruler storing the visitor numbers)"
+  local body value i want have failing now hours
   if ! find_prometheus; then
     fail "no running monitoring_prometheus container to query from (docker service ps monitoring_prometheus)"
     return 0
@@ -1068,6 +1068,21 @@ check_loki() {
     pass "no access log lines under {job=\"journal\"} (Alloy drops the journal's copy of container lines)"
   else
     fail "${value} access log lines under {job=\"journal\"} in the last 15 minutes, kept 30 days there: loki.relabel \"journal\" in config/monitoring/alloy/config.alloy (40-stacks.sh monitoring)"
+  fi
+  # The compactor deletes the access log at retention_stream's period (163h, config/monitoring/
+  # loki.yml), whole chunks at a time: nothing queryable may be older than the privacy notice's 7 days.
+  now="$(date +%s)"
+  body="$(mon_get "http://monitoring_loki:3100/loki/api/v1/query_range?query=$(urlencode '{service="edge_traefik"}')&start=$((now - 30 * 86400))000000000&end=${now}000000000&limit=1&direction=forward" || true)"
+  value="$(jq -r '.data.result[0].values[0][0] // empty' <<<"${body}" 2>/dev/null || true)"
+  if [[ "${value}" =~ ^[0-9]+$ ]]; then
+    hours=$(((now - value / 1000000000) / 3600))
+    if [[ "${hours}" -lt 168 ]]; then
+      pass "the oldest line of {service=\"edge_traefik\"} is ${hours} h old (retention_stream, within the 7 days of the privacy notice)"
+    else
+      fail "the oldest line of {service=\"edge_traefik\"} is ${hours} h old, more than the 7 days of the privacy notice: retention_stream in config/monitoring/loki.yml; is the compactor running (docker service logs monitoring_loki 2>&1 | grep -i retention)?"
+    fi
+  else
+    warning "cannot read the oldest line of {service=\"edge_traefik\"} from Loki"
   fi
   # The ruler counts the visitors (config/monitoring/loki-rules) and writes the numbers to
   # Prometheus; the dashboard "Visitors" reads nothing else.

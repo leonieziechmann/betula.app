@@ -531,7 +531,7 @@ at `https://betula.app/`.
 | Where | What | How long |
 |---|---|---|
 | Traefik access log -> the host journal (the service logs through the journald driver, `stacks/edge.yml`) | client IP and port, URL with query string, user agent, time | **7 days** (`MaxRetentionSec` + `MaxFileSec` in `vps/files/journald-betula.conf`: journald deletes them at 6 to 7 days). Earlier only when the journal reaches its cap of 16 GB (`SystemMaxUse`): about 9 days of the traffic of 2026-11-19, which wrote 1.7 GB of journal a day, nearly all of it Traefik's (`90-verify-host.sh journald` warns when the cap decides) |
-| the same lines in Loki, stream `{service="edge_traefik"}` | same | **7 days** (`retention_stream` in `config/monitoring/loki.yml`) |
+| the same lines in Loki, stream `{service="edge_traefik"}` | same | **7 days** at most: `retention_stream` in `config/monitoring/loki.yml` deletes them at 163 h, whole chunks of up to 2 h at a time and their files 2 h later (`91-verify-stacks.sh loki` checks the oldest queryable line) |
 | sshd and the port filter in the journal; rsyslog copies sshd's lines to `/var/log/auth.log` and the port filter's (kernel) to `/var/log/kern.log` and `/var/log/syslog` | addresses of ssh clients and of dropped packets | journal 7 days; Loki 30 days; rsyslog's files the week they are written in and 4 more (logrotate, weekly) |
 | fail2ban's own log `/var/log/fail2ban.log`, and its copy in Loki, stream `{job="fail2ban"}` | addresses of ssh clients fail2ban counted or banned | file: 4 weeks (logrotate, weekly); Loki 30 days |
 | Grafana's own log in Loki | address of whoever logs in to Grafana | 30 days |

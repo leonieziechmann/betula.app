@@ -138,7 +138,8 @@ groups:
   - name: visitors-1h
     interval: 1h
     rules:
-      # Visitors of the last 7 days (as long as Loki keeps the access log), by device and browser.
+      # Visitors of the last 7 days (as long as Loki keeps the access log: 163 h, so the window's
+      # first 5 hours are gone), by device and browser.
       - record: betula:visitors:7d
         expr: |
           count by (device, browser) (sum by (device, browser, host, ua) (count_over_time(
