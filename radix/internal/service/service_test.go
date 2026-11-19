@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -771,3 +772,53 @@ func (h logCapture) Handle(_ context.Context, r slog.Record) error {
 
 func (h logCapture) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h logCapture) WithGroup(string) slog.Handler      { return h }
+
+// A release whose migration adds no content (schema 25) exports again all the same: the Folia of
+// the release reads only the new schema, and a snapshot of the old one would stay published until
+// the content changed — on a colour that does not crawl, never.
+func TestASnapshotOfAnOlderSchemaIsExportedAgain(t *testing.T) {
+	site := newFakeBTU(t)
+	svc, cfg := newTestService(t, site)
+	ctx := context.Background()
+	if r := svc.RunCycle(ctx); !r.Published {
+		t.Fatalf("setup cycle = %+v", r)
+	}
+	before, _ := catalogdb.ReadSnapshotPointer(cfg.SnapshotDir)
+	// The snapshot an older release exported instead: the same content, the schema before, a file
+	// of its own, current.json pointing at it.
+	body, err := os.ReadFile(filepath.Join(cfg.SnapshotDir, before.File))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(cfg.SnapshotDir, before.File)); err != nil {
+		t.Fatal(err)
+	}
+	older := catalogdb.Snapshot{File: "catalog-older-release.db", ETag: `"older"`, Bytes: int64(len(body)), ExportedAt: before.ExportedAt}
+	if err := os.WriteFile(filepath.Join(cfg.SnapshotDir, older.File), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, err := sql.Open("sqlite", filepath.Join(cfg.SnapshotDir, older.File))
+	if err != nil {
+		t.Fatal(err)
+	}
+	schema, _ := svc.db.SchemaVersion()
+	if _, err := old.Exec(fmt.Sprintf("PRAGMA user_version = %d", schema-1)); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	pointer, _ := json.Marshal(older)
+	if err := os.WriteFile(filepath.Join(cfg.SnapshotDir, catalogdb.SnapshotPointer), pointer, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := svc.RunCycle(ctx)
+	if !r.Published || stage(r, "export").Skipped != "" {
+		t.Fatalf("a snapshot of the older schema was kept: %+v", stage(r, "export"))
+	}
+	if v, err := catalogdb.PublishedSchemaVersion(cfg.SnapshotDir); err != nil || v != schema {
+		t.Errorf("published schema %d (err %v), want %d", v, err, schema)
+	}
+	if r := svc.RunCycle(ctx); r.Published {
+		t.Error("the snapshot of the current schema was exported again without a change")
+	}
+}

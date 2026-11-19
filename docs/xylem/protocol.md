@@ -146,7 +146,10 @@ bytes, what one push message carries.
 
 ## 5. What Folia's part does
 
-Not built yet (xylem.md, „Not yet"); this is what the contract asks of it.
+Built with Folia 1.112.0 (`folia/assets/enhance.js`, „notifications"; `folia/assets/sw.js`; the
+row of the menu of the profiles, `folia/crates/shell/src/chrome.rs`; docs/folia/frontend.md,
+„Notifications"), where the site offers it (Folia's `--push`). This is what the contract asks of
+it, and how it does it.
 
 **Subscribing**, from a tap (every browser asks for the permission only then; on an iPhone only
 in the web app on the home screen):
@@ -155,12 +158,15 @@ in the web app on the home screen):
 2. `registration.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key})`.
 3. `PUT /push/v1/subscription` with `{...subscription.toJSON(), lang, topics}`.
 
-**At every start**, where the permission is granted and topics are chosen: read the key again,
-and if the subscription was made with another one (`subscription.options.applicationServerKey`),
+**At a start**, where the permission is granted and topics are chosen: read the key again, and if
+the subscription was made with another one (`subscription.options.applicationServerKey`),
 `unsubscribe()` and subscribe anew; then `PUT` the subscription again. That one request is how a
-Xylem that lost its database (and with it its key) has every browser again without anybody doing
-anything, and how a change of language reaches it. A `pushsubscriptionchange` in the service
-worker does the same for the new subscription and deletes the old endpoint.
+Xylem that lost its database (and with it its key), or was brought back from a backup of a day
+ago, has every browser again without anybody doing anything, and how a change of language reaches
+it. Folia does it at most twice a day per browser, and at once after the language changed, a
+choice could not be sent, or the browser lost its subscription. A `pushsubscriptionchange` in the service worker does the same for the
+new subscription and deletes the old endpoint, with the topics and the language the page left for
+it.
 
 **Changing the topics**: `PUT` again. **Turning it off**: `DELETE`, then
 `subscription.unsubscribe()`.
@@ -188,7 +194,10 @@ self.addEventListener("notificationclick", (event) => {
 ```
 
 A `push` must always end in a notification: a browser that is woken and shows nothing takes the
-subscription away (Safari) or shows a notice of its own (Chrome).
+subscription away (Safari) or shows a notice of its own (Chrome). Folia's worker shows one for a
+message it cannot read as well („Betula", opening the start page), opens only an address of its
+own site, and brings a window that shows the page already to the front instead of opening
+another.
 
 **The privacy notice** names what section 2 lists, and that the message goes through the
 browser's push service (Google, Mozilla, Apple or Microsoft, whichever the browser uses).

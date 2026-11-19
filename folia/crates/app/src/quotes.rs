@@ -126,6 +126,11 @@ mod tests {
                 (legal.calendar.disclosure, quoted(t.studyplan_export.google)),
                 (legal.calendar.ending, quoted(dialog.stop)),
                 (legal.rights.finding, quoted(sync.stop)),
+                // Notifications: the row of the menu of the profiles, and the part's own heading.
+                (legal.push.intro, quoted(t.app.push)),
+                (legal.push.ending, quoted(t.app.push)),
+                (legal.rights.finding, quoted(t.app.push)),
+                (text(legal.hosting.texts, 0), quoted(legal.push.heading)),
             ];
             for (text, label) in pairs {
                 assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
