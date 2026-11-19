@@ -261,8 +261,13 @@ pub(super) fn WeekView(ctx: PlanCtx) -> impl IntoView {
         view! {
             // The week holds the pointer of a press on a free stretch (`setPointerCapture`), and
             // the span drawn lies over it (`SketchView`).
+            // For the keyboard a table of its Termine (enhance.js, `data-stop="grid"`): one stop of
+            // Tab, the arrows from Termin to Termin as the eye sees them (← → to the day beside,
+            // at the time nearest), Enter its card; `?` says what the keys do here.
             <div
                 class="sp-week"
+                data-stop="grid"
+                data-keys-place="week"
                 class:drawing=move || ctx.sketch.with(Option::is_some)
                 on:click=act
                 on:pointerdown=move |ev| drag.down(&ev)
@@ -615,14 +620,16 @@ pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>, #[prop(optional)] short: bool) 
         // Beside the week on a wider screen both words stand, and the head shows „A · B · A/B"
         // (the phone's) where it has no room for the long ones, so that it never wraps (app.css).
         view! {
-            <button type="button" role="radio" aria-checked=move || if weeks.get() == week { "true" } else { "false" } aria-label=name on:click=move |_| weeks.set(week)>
+            <button type="button" role="radio" aria-checked=move || if weeks.get() == week { "true" } else { "false" } aria-label=name data-command="" data-command-state=move || (weeks.get() == week).then_some(t.studyplan_keys.shown) on:click=move |_| weeks.set(week)>
                 <span class="seg-label">{label}</span>
                 {(!short).then(|| view! { <span class="seg-brief" aria-hidden="true">{brief}</span> })}
             </button>
         }
     };
     let switch = view! {
-        <div class="seg hug sp-weeks" role="radiogroup" aria-label=w.week>
+        // One stop of Tab, entered at the week shown, ← → choose (enhance.js, an option group that
+        // is a stop).
+        <div class="seg hug sp-weeks" role="radiogroup" aria-label=w.week data-stop="x">
             {WEEKS.into_iter().map(choice).collect_view()}
         </div>
     };

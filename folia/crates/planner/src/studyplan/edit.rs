@@ -297,10 +297,10 @@ fn EditBar(ctx: PlanCtx) -> impl IntoView {
                 <span class="figs">{figures}</span>
             </span>
             <ClashFigure ctx/>
-            <button class="btn" type="button" data-action="own-add" title=t.studyplan_own.add_title on:click=move |_| super::own::ask_today(ctx, 0, None)>
+            <button class="btn" type="button" data-action="own-add" title=t.studyplan_own.add_title data-command=t.studyplan_own.form_new data-command-group=t.studyplan.title on:click=move |_| super::own::ask_today(ctx, 0, None)>
                 <Icon name="plus"/>{t.studyplan_own.add}
             </button>
-            <a class="btn sp-done" href=done data-action="close-focus" data-back=move || back.get() data-noscroll="" on:click=move |ev| { born.swallows(&ev); }>
+            <a class="btn sp-done" href=done data-action="close-focus" data-back=move || back.get() data-noscroll="" data-command=t.studyplan_open.done data-command-group=t.studyplan.title data-command-keys="Esc" on:click=move |ev| { born.swallows(&ev); }>
                 {t.studyplan_open.done}
                 <Shortcut keys="Esc"/>
             </a>
