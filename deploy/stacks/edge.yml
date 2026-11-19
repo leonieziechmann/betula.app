@@ -72,10 +72,12 @@
 #               host journal, because Traefik logs through the journald driver (see "logging" below;
 #               MaxRetentionSec in vps/files/journald-betula.conf), and in Loki, stream
 #               {service="edge_traefik"} (retention_stream in config/monitoring/loki.yml; every other stream
-#               is kept 30 days). Not in Docker's local log files: they rotate by size only, so on a quiet site
+#               is kept 30 days). Not in rsyslog's files, which get every journal entry: rsyslog stops the
+#               tag (vps/files/rsyslog-betula-containers.conf), or /var/log/syslog would keep it 5 weeks.
+#               Not in Docker's local log files: they rotate by size only, so on a quiet site
 #               they kept addresses for months (40-stacks.sh removes Traefik's stopped containers that still
 #               have such files). The privacy notice of the site names the fields and the 7 days
-#               ("Zugriffsprotokoll" in folia/crates/app/src/i18n/legal.rs, in every language): change it with them. Traefik cannot shorten
+#               ("Zugriffsprotokoll" in folia/crates/home/src/i18n/legal.rs, in every language): change it with them. Traefik cannot shorten
 #               addresses; the levers are dropped fields (see the accessLog flags) and the retention.
 # ipv6          The host has a global IPv6 address, betula.app, www and canary have AAAA records, and
 #               Docker publishes 80/443 on [::] too. Host-mode ports arrive on docker_gwbridge, Docker's
@@ -270,7 +272,8 @@ services:
     # The access log holds the visitors' addresses: through the journald driver it goes to the host
     # journal, which deletes what is older than 7 days, instead of Docker's local files, which rotate
     # by size only (see "privacy" above). "docker service logs" (vps/55-switch.sh) and Alloy's
-    # loki.source.docker read it as before; Alloy leaves the journal's copy alone.
+    # loki.source.docker read it as before; Alloy leaves the journal's copy alone, and rsyslog stops
+    # the tag (vps/files/rsyslog-betula-containers.conf, which a new tag needs a line in).
     logging:
       driver: journald
       options:

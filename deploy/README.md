@@ -504,7 +504,7 @@ Loki keeps the long-term copy (Grafana > dashboard "Logs"; labels `stack`, `serv
 for containers, `job="journal"` and `unit` for the host; `job="fail2ban"`, `job="packages"` and
 `job="hostfiles"` with `path` for the host files of the dashboard "Security"). Traefik logs through the journald driver,
 so its lines, the access log with visitors' addresses, are in the host journal as well (7 days,
-section 9); `docker service logs edge_traefik` reads them from there.
+section 9), but not in `/var/log/syslog`; `docker service logs edge_traefik` reads them from the journal.
 
 ## 8. What happens without you
 
@@ -530,9 +530,9 @@ at `https://betula.app/`.
 
 | Where | What | How long |
 |---|---|---|
-| Traefik access log -> the host journal (the service logs through the journald driver, `stacks/edge.yml`) | client IP and port, URL with query string, user agent, time | **7 days** (`MaxRetentionSec` + `MaxFileSec` in `vps/files/journald-betula.conf`), earlier when the journal reaches 500 MB |
+| Traefik access log -> the host journal (the service logs through the journald driver, `stacks/edge.yml`) | client IP and port, URL with query string, user agent, time | **7 days** (`MaxRetentionSec` + `MaxFileSec` in `vps/files/journald-betula.conf`: journald deletes them at 6 to 7 days). Earlier only when the journal reaches its cap of 16 GB (`SystemMaxUse`): about 9 days of the traffic of 2026-11-19, which wrote 1.7 GB of journal a day, nearly all of it Traefik's (`90-verify-host.sh journald` warns when the cap decides) |
 | the same lines in Loki, stream `{service="edge_traefik"}` | same | **7 days** (`retention_stream` in `config/monitoring/loki.yml`) |
-| sshd and the port filter in the journal; rsyslog copies to `/var/log/auth.log` | addresses of ssh clients and of dropped packets | journal 500 MB / 7 days; Loki 30 days; `auth.log` per logrotate |
+| sshd and the port filter in the journal; rsyslog copies sshd's lines to `/var/log/auth.log` and the port filter's (kernel) to `/var/log/kern.log` and `/var/log/syslog` | addresses of ssh clients and of dropped packets | journal 7 days; Loki 30 days; rsyslog's files the week they are written in and 4 more (logrotate, weekly) |
 | fail2ban's own log `/var/log/fail2ban.log`, and its copy in Loki, stream `{job="fail2ban"}` | addresses of ssh clients fail2ban counted or banned | file: 4 weeks (logrotate, weekly); Loki 30 days |
 | Grafana's own log in Loki | address of whoever logs in to Grafana | 30 days |
 | fail2ban database | banned addresses | 8 days |
@@ -543,10 +543,14 @@ host journal; a subscribed calendar appears there on every poll (Google about da
 ruler counts from these lines for the dashboards "Visitors" and "Security" (`config/monitoring/loki-rules`) reaches
 Prometheus as numbers only, without addresses, user agents or calendar codes. Alloy ships the
 journal without the lines of containers (`loki.relabel "journal"`), or Traefik's would be kept 30
-days as `{job="journal"}`. Not in Docker's local log files, which only rotate by size: Traefik's
+days as `{job="journal"}`. journald hands every entry to rsyslog as well, whose stock rules would
+write Traefik's lines to `/var/log/syslog`, kept 5 weeks by logrotate: `vps/files/rsyslog-betula-containers.conf`
+(`10-base.sh`) stops the lines of containers before those rules, so rsyslog's files hold none of them (until
+2026-11-19 they held 5 weeks, 9 GB). Not in Docker's local log files, which only rotate by size: Traefik's
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
 removes them (`91-verify-stacks.sh accesslog` checks; `90-verify-host.sh journald` checks the oldest
-journal entry). The placeholder's nginx writes no access log. The privacy notice of the site names the
+journal entry, `90-verify-host.sh syslog` rsyslog's rule and that no line of a container older than
+7 days is in its files). The placeholder's nginx writes no access log. The privacy notice of the site names the
 first two rows („Zugriffsprotokoll" in `folia/crates/home/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
 `stacks/edge.yml` (loses abuse analysis) or shorten the period, in `loki.yml` and
 `vps/files/journald-betula.conf` together.
@@ -558,8 +562,21 @@ User-Agent.
 Applying this to a server that ran Traefik on the `local` driver, in this order, so that no line
 reaches Loki under `{job="journal"}` and the journal keeps nothing older than 7 days:
 `bash 40-stacks.sh monitoring` (Alloy drops the journal's copy), `sudo bash 10-base.sh` (journald:
-7 days), `bash 40-stacks.sh edge` (Traefik through journald, old containers removed), then both
-verify scripts.
+7 days; rsyslog: no lines of containers), `bash 40-stacks.sh edge` (Traefik through journald, old
+containers removed), then both verify scripts.
+
+A server whose rsyslog ran without `rsyslog-betula-containers.conf` (betula.app until 2026-11-19)
+still has Traefik's lines in `/var/log/syslog*`, and `90-verify-host.sh syslog` names each file with
+how old its oldest one is. After `sudo bash 10-base.sh` no new ones arrive; then delete the rotated
+files that hold them and take them out of the current file, which rsyslog reopens:
+
+```bash
+sudo rm -f /var/log/syslog.1 /var/log/syslog.[2-9].gz      # whole weeks, almost all of it Traefik's lines
+sudo sh -c 'f=/var/log/syslog; grep -v -E "^[^ ]+ [^ ]+ edge_traefik(\[[0-9]+\])?: " "$f" >"$f.betula-new"; [ $? -le 1 ] &&
+  chown syslog:adm "$f.betula-new" && chmod 0640 "$f.betula-new" && mv "$f.betula-new" "$f" && /usr/lib/rsyslog/rsyslog-rotate'
+```
+
+The host's other lines from those weeks are in Loki for 30 days.
 
 ## 10. Break-glass
 
