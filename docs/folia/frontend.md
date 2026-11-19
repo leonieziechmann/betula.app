@@ -8415,7 +8415,10 @@ What `cargo test` checks:
   `folia-search`'s `tests/ranking.rs` where what is meant lands, capitals as typed and the other
   title, lecturers written alike, the same modules for everyone and a program's first);
   `SCHEMA_VERSION` is the number of Radix's newest migration, and the snapshot of the tests is not
-  older.
+  older. A program's two lists each with its own filters, the other's kept for the way back
+  (`a_list_of_a_program_leaves_the_others_filters_out`); every choice of Informatik's FÜS list
+  leaving out as many modules in the SQL as `FuesChoice` counts; the titles of the whole snapshot
+  in the order of `folia_search::order_key`, both ways round (`titles_are_ordered_by_their_letters`).
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate, brotli; 304 →
   no download; pages render, cache (`hit`/`miss`), revalidate; equal filters share a cache key;
   404 is never cached; pages and files in brotli, gzip or plain as the client takes them, files
