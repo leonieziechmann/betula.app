@@ -68,12 +68,32 @@ pub struct Texts {
     pub abbrev: &'static str,
 
     // ---- the sidebar of the page ----
-    /// „Auf dieser Seite": the jumps to the sections, their heading and name.
-    pub on_this_page: &'static str,
+    /// „Aktionen": the actions under the module on a phone.
     pub actions: &'static str,
     pub copy_link: &'static str,
     /// The link to the module's page at the BTU.
     pub original_at_btu: &'static str,
+    /// „In Informatik B.Sc.": where the module stands in Mein Studiengang, on a wide screen; the
+    /// value is the program.
+    pub place_in: fn(&str) -> String,
+    /// „1. Semester laut Regelstudienplan": where that program's plan places it; the value is the
+    /// semester, written already.
+    pub place_plan: fn(&str) -> String,
+    /// A prerequisite against the visitor's plan, on a wide screen: passed, planned before the
+    /// module, planned no earlier than the module, not in the plan. The values are semesters,
+    /// written already.
+    pub required_passed: fn(&str) -> String,
+    pub required_planned: fn(&str) -> String,
+    pub required_late: fn(&str) -> String,
+    pub required_missing: &'static str,
+
+    // ---- the facts in a row, in the head of the page on a wide screen ----
+    /// The labels of the credits and of the turnus („Leistungspunkte", „Angebot"); the others are
+    /// those of „Auf einen Blick".
+    pub credits_label: &'static str,
+    pub offered: &'static str,
+    /// The module counts as fachübergreifendes Studium.
+    pub counts_as_fues: &'static str,
 
     // ---- the sections, as their headings and the sidebar's jumps name them ----
     /// „Termine": the week and the list of the module's teaching dates.
@@ -336,10 +356,18 @@ pub const DE: Texts = Texts {
     close_preview_title: "Vorschau schließen (Esc)",
     abbrev: "Kürzel",
 
-    on_this_page: "Auf dieser Seite",
     actions: "Aktionen",
     copy_link: "Link kopieren",
     original_at_btu: "Original bei der BTU",
+    place_in: |program| format!("In {program}"),
+    place_plan: |semester| format!("{semester} laut Regelstudienplan"),
+    required_passed: |semester| format!("bestanden im {semester}"),
+    required_planned: |semester| format!("eingeplant im {semester}"),
+    required_late: |semester| format!("erst im {semester} eingeplant"),
+    required_missing: "nicht in deinem Plan",
+    credits_label: "Leistungspunkte",
+    offered: "Angebot",
+    counts_as_fues: "Auch als FÜS anrechenbar",
 
     dates: "Termine",
     exam_dates: "Prüfungstermine",
@@ -523,10 +551,18 @@ pub const EN: Texts = Texts {
     close_preview_title: "Close preview (Esc)",
     abbrev: "Abbreviation",
 
-    on_this_page: "On this page",
     actions: "Actions",
     copy_link: "Copy link",
     original_at_btu: "Original at BTU",
+    place_in: |program| format!("In {program}"),
+    place_plan: |semester| format!("{semester} of the curriculum"),
+    required_passed: |semester| format!("passed in {semester}"),
+    required_planned: |semester| format!("planned for {semester}"),
+    required_late: |semester| format!("planned only for {semester}"),
+    required_missing: "not in your plan",
+    credits_label: "Credits",
+    offered: "Offered",
+    counts_as_fues: "Also counts as FÜS",
 
     dates: "Dates",
     exam_dates: "Exam dates",

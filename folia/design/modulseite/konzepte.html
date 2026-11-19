@@ -25,7 +25,20 @@
      program. The study is an example: Informatik B.Sc. (PO 2008), begun in WiSe 2026/27, with
      12102, 12104 (EvS), 12107 (EEG) and 11112 (MIT1) planned into WiSe 2026/27. Tokens are
      Betula's (folia/assets/app.css), the week's look its `.slot`; Inter comes from Google Fonts
-     here, the app self-hosts it. Design only: nothing is built. -->
+     here, the app self-hosts it.
+     Decided the same day: B with the switches of A (owner: „Ich glaube ich würde die seitenleiste
+     von a mit dem layout von b verbinden wollen. Also was ich auf keinen fall ändern wollen würde
+     sind wie die buttons einplanen und merken sich verhalten. Das sollte in der ganzen app
+     konsistent sein. Also sogar mostly leaning to B, nur mit den Buttons von A."), built in Folia
+     1.114.0 (folia/crates/widgets/src/module.rs `ModuleFull`, `Sidebar`, `Glance`, `Requires`,
+     `Place`). Built otherwise than drawn here: „Einplanen" and „Merken" at the top of the sidebar are
+     the app's switches with their arrows and keys, no list of semesters; the note under them only
+     where there is one; the line of „Passt"/„Überschneidet sich" stays over the week (owner,
+     2026-11-04) and is not in the sidebar again; the sidebar's heading stays „Modul"; the place in
+     Mein Studiengang stands last in the sidebar, as it comes with the app; the Termine keep their
+     lines, without the module's name where a Termin is named as the module, and the Studiengänge
+     keep theirs, all of them, at the end of the texts' column; the texts stay one column on 1920 px as
+     well. On a phone the page is as it was but for the list of the Termine and the literature, open. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@500&display=swap">
@@ -180,6 +193,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 100px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .sec > header { display: flex; flex-direction: column; gap: 8px; }
 .sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec h2 .chosen { margin-left: 8px; padding: 3px 8px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 650; letter-spacing: 0; vertical-align: 4px; white-space: nowrap; }
 .sec h2 .tag { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-right: 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 760; vertical-align: 2px; }
 .sec .sub { max-width: 86ch; color: var(--text-2); text-wrap: pretty; }
 .sec .sub b { color: var(--text); font-weight: 620; }
@@ -525,9 +539,10 @@ table.t td .was { display: block; color: var(--text-3); font-size: 12.5px; font-
 <div class="page">
   <section class="intro" aria-labelledby="top-title">
     <div>
-      <p class="kicker">Folia · Modulseite am Rechner · 19. November 2026 · gelesen in Folia 1.110.0</p>
+      <p class="kicker">Folia · Modulseite am Rechner · 19. November 2026 · gelesen in Folia 1.110.0 · entschieden: B mit den Knöpfen aus A, gebaut in Folia 1.114.0</p>
       <h1 id="top-title">Die Modulseite am Rechner</h1>
       <p class="lead">Heute zeigt die Seite eines Moduls am Rechner viel Rahmen und wenig Inhalt. Die Seitenleiste springt nur zu Abschnitten einer kurzen Seite, der Kopf nimmt ein Drittel des Bildschirms, und die Fakten kommen erst nach dem ersten Scrollen. Hier sind drei Konzepte. Alle drei räumen die Seite auf dieselbe Weise auf (rechts), aber jedes beantwortet die Frage <b>„Was soll beim Scrollen immer zu sehen sein?“</b> anders: <b>A</b> stellt den Steckbrief des Moduls in die Seitenleiste, <b>B</b> dein Studium mit dem Modul, <b>C</b> seine Woche. Jedes ist ein Bildschirm zum Anklicken und Scrollen, mit drei echten Modulen und drei Bildschirmgrößen.</p>
+      <p class="quote"><b>Entschieden: B mit den Knöpfen aus A.</b> „Ich glaube ich würde die seitenleiste von a mit dem layout von b verbinden wollen. Also was ich auf keinen fall ändern wollen würde sind wie die buttons einplanen und merken sich verhalten. Das sollte in der ganzen app konsistent sein. Also sogar mostly leaning to B, nur mit den Buttons von A.“ <span>— du, am selben Tag.</span> Gebaut in Folia 1.114.0. Anders als hier gezeichnet: Einplanen und Merken oben in der Seitenleiste sind die Knöpfe der App mit Pfeil und Taste, keine Liste der Semester. „Passt“ oder „Überschneidet sich“ bleibt über der Woche (wie am 4. November entschieden). Wo das Modul in deinem Studiengang steht, kommt als Letztes in der Seitenleiste, weil es erst mit der App kommt. Die Termine behalten ihre Zeilen, ohne den Modulnamen, wo ein Termin so heißt wie das Modul, und die Studiengänge stehen alle am Ende der Textspalte. Die Texte bleiben auch auf 1920 px eine Spalte. Am Handy bleibt die Seite, wie sie war, nur die Liste der Termine und die Literatur sind dort jetzt auch offen.</p>
       <p class="quote">„Hey claude, wir müssen unbedingt nochmal die volle modulseite auf dem PC überarbeiten. Irgendwie sieht die müllig aus. Infromationen werden nicht effizient dargestellt. Wir haben an der seite eine unnütze übersicht like ich brauche keine navigation für eine seite mit nur 1000px zum scrollen. Wir brauchen eine bessere visual hirarchy eine sinnvolle nutzung der Seitenleiste und keine verschwendung von platz. Alles muss hier eingebettet sein.“ <span>— du</span></p>
     </div>
     <div class="rules">
@@ -660,7 +675,7 @@ table.t td .was { display: block; color: var(--text-3); font-size: 12.5px; font-
   <section class="sec" id="b" aria-labelledby="b-title">
     <header>
       <p class="kicker">Konzept B</p>
-      <h2 id="b-title"><span class="tag">B</span>Dein Studium in der Seitenleiste</h2>
+      <h2 id="b-title"><span class="tag">B</span>Dein Studium in der Seitenleiste <small class="chosen">gewählt, mit den Knöpfen aus A</small></h2>
       <p class="sub">Die Seitenleiste zeigt, <b>was das Modul für dein Studium heißt</b>: in welches Semester du es legst (die Semester stehen offen zur Wahl statt in einem Menü), ob es in deinen Stundenplan passt, wo es in deinem Studiengang steht und ob du seine Voraussetzungen eingeplant hast. Die Fakten wandern als <b>Zeile mit Kennzahlen</b> in den Kopf. Darunter stehen die Texte links und die Termine rechts nebeneinander.</p>
     </header>
     <div class="stage" data-concept="b">
