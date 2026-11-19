@@ -20,7 +20,7 @@ What it says on the wire, and what Folia's part has to do, is the contract in
 | | |
 |---|---|
 | code | `xylem/`, a Go module of its own (`cmd/xylem`, `internal/{server,store,webpush,metrics,oplog,dotenv,version}`), the standard library and SQLite (`modernc.org/sqlite`) alone |
-| version | `xylem/internal/version/version.go` (0.3.0); `xylem version`, `xylem status` and `xylem_build_info` show it with the build (the start of the executable's SHA-256) |
+| version | `xylem/internal/version/version.go` (0.3.1); `xylem version`, `xylem status` and `xylem_build_info` show it with the build (the start of the executable's SHA-256) |
 | builds | `nix build .#xylem` (the binary, its tests run in the build), `nix build .#xylem-image` (the image `betula-xylem`: the binary, its firewall, `nft` and the CA certificates; no shell) |
 | on the server | one stack per site, `xylem` and `xylem-canary` (`deploy/stacks/xylem.yml`, `deploy/ship-xylem.sh`): „On the server" below, and section 17 of `deploy/README.md` |
 
