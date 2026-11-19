@@ -480,13 +480,48 @@ configure_unattended_upgrades() {
 }
 
 configure_journald() {
-  step "journald: persistent, capped at 500 MB and 7 days"
+  step "journald: persistent, capped at 7 days and 16 GB"
   install_file "${BETULA_FILES_DIR}/journald-betula.conf" /etc/systemd/journald.conf.d/50-betula.conf 0644
   if [[ "${INSTALL_CHANGED}" -eq 1 ]]; then
     systemctl restart systemd-journald.service
     # A shorter retention applies at once, not only when journald next starts a file: the old
     # files go now (6d = MaxRetentionSec in files/journald-betula.conf).
     journalctl --rotate --vacuum-time=6d >/dev/null 2>&1 || warn "journalctl --vacuum-time failed; journald deletes old files when it next starts one"
+  fi
+}
+
+# journald hands every entry to rsyslog, whose stock rules copy it into /var/log/syslog for 5 weeks
+# (logrotate): without files/rsyslog-betula-containers.conf that includes Traefik's access log,
+# which the privacy notice deletes after 7 days. Lines written before it stay in those files until
+# somebody removes them (README.md section 9; 90-verify-host.sh syslog reports them).
+configure_rsyslog() {
+  step "rsyslog: the lines of containers stay in the journal, out of /var/log/syslog"
+  local changed out backup started
+  if ! pkg_installed rsyslog; then
+    log "rsyslog is not installed: nothing copies the journal into files under /var/log"
+    return 0
+  fi
+  install_file "${BETULA_FILES_DIR}/rsyslog-betula-containers.conf" "${RSYSLOG_CONTAINERS_CONF}" 0644
+  changed="${INSTALL_CHANGED}"
+  if [[ "${changed}" -eq 1 ]] && ! out="$(rsyslogd -N1 2>&1)"; then
+    printf '%s\n' "${out}" >&2
+    backup="$(backup_path_of "${RSYSLOG_CONTAINERS_CONF}")"
+    if [[ -n "${backup}" ]]; then cp -a -- "${backup}" "${RSYSLOG_CONTAINERS_CONF}"; else rm -f -- "${RSYSLOG_CONTAINERS_CONF}"; fi
+    die "rsyslog's configuration does not validate with the new ${RSYSLOG_CONTAINERS_CONF} (rsyslogd -N1); the previous state is back and the running rsyslog was not touched"
+  fi
+  if ! unit_active rsyslog.service; then
+    warn "rsyslog.service is not running; it reads ${RSYSLOG_CONTAINERS_CONF} when it starts"
+    return 0
+  fi
+  # rsyslog reads its rules only when it starts (a HUP merely reopens its files). Restarted after
+  # installing the file, and when it still runs on older rules (a run that died in between).
+  # Nothing is lost meanwhile: syslog.socket holds what journald forwards.
+  started="$(unit_started_at rsyslog.service)"
+  if [[ "${changed}" -eq 1 || -z "${started}" || "${started}" -lt "$(stat -c %Y "${RSYSLOG_CONTAINERS_CONF}")" ]]; then
+    systemctl restart rsyslog.service
+    log "rsyslog restarted: the lines of containers no longer reach /var/log/syslog"
+  else
+    log "rsyslog already runs with ${RSYSLOG_CONTAINERS_CONF}"
   fi
 }
 
@@ -724,6 +759,7 @@ configure_firewall
 configure_fail2ban
 configure_unattended_upgrades
 configure_journald
+configure_rsyslog
 configure_sysctl
 configure_swap
 disable_unneeded_units
