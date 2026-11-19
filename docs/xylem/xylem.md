@@ -41,6 +41,10 @@ XYLEM_SITE=https://betula.app XYLEM_ORIGINS=http://127.0.0.1:8080 XYLEM_DATA=xyl
 ```
 
 - It listens on `127.0.0.1:8300` (`XYLEM_ADDR`): the API at http://127.0.0.1:8300/push/v1/.
+- Folia offers notifications and finds it there with `FOLIA_PUSH=on
+  FOLIA_PUSH_URL=http://127.0.0.1:8300/push/v1/` (docs/folia/frontend.md, „Notifications"). The
+  row of the menu and the subscription work with `scripts/dev.sh` as well; the service worker of
+  `--live-assets` shows no notification, so to see one arrive the server runs without it.
 - `XYLEM_SITE` is the origin a notification opens (its `navigate`): always https, so on a
   development machine a notification opens the real site, or canary's.
 - `XYLEM_FEED=http://127.0.0.1:8080/api/announcements` lets it read what the dev server's
@@ -453,15 +457,18 @@ XYLEM_LIVE_DIR="$dir" go test ./internal/server -run TestLiveThroughMozilla -cou
 `live/autopush.mjs` subscribes at Mozilla's push service as a Firefox would, with the key the
 test wrote; the test is Xylem as `serve` runs it, makes an announcement, and opens what the
 service delivered. Passed on 2026-11-18: the service took the request (201) and delivered the
-message, which opened to the notification that was announced. Google's, Apple's and Microsoft's
-services take the same request by the same RFCs, but only a browser subscribes at them: they are
-checked with Folia's part, on a phone.
+message, which opened to the notification that was announced. Again on 2026-11-19 from Xylem's
+container, as its stack runs it and through its firewall: the subscription put through Traefik's
+router, the announcement made with `docker exec`, the message delivered and opened; and none of
+it tripped a counter of the firewall. Google's, Apple's and Microsoft's services take the same
+request by the same RFCs, but only a browser subscribes at them: they are checked with Folia's
+part, on a phone.
 
 ## Not yet
 
-- **Folia's part**: asking for the permission, the topics as settings, the service worker's
-  `push` and `notificationclick`, the privacy notice (protocol.md section 5). Until then nothing
-  subscribes.
+- **A real phone.** Folia's part is there (protocol.md section 5), checked in a browser against
+  a Xylem that runs; Google's, Apple's and Microsoft's push services, the browsers' own
+  permission dialogs and an iPhone's home-screen app are tried on canary once Xylem runs there.
 - **A dashboard.** The numbers are in Prometheus (job `xylem`) and the alerts are there
   (group `betula-xylem`); a dashboard of its own beside „Sync" is not.
 - **More that Betula could announce by itself.** The feed names what the catalog's dates say.

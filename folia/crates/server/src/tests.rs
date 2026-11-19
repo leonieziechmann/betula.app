@@ -226,6 +226,7 @@ fn state(store: Arc<SnapshotStore>) -> AppState {
         changes: None,
         sync: None,
         parts: None,
+        push: None,
         leptos: LeptosOptions::builder().output_name("folia-app").site_root("no-site").build(),
     }
 }
@@ -345,6 +346,30 @@ async fn a_page_offers_betula_sync_only_where_the_server_does() {
         for path in ["/", "/profile", "/en/catalog", folia_routes::url::CONNECT] {
             let page = head(request(&on, path, &[]).await.2);
             assert!(page.contains(&format!("<meta name=\"{}\" {content}>", folia_stores::sync::META)), "{path}: {page}");
+        }
+    }
+}
+
+/// Notifications are offered only where the server is told so (`--push`): then every page names
+/// in its head where the browser reaches Xylem (`folia_app::PUSH_META`), empty for `/push/v1/` of
+/// the page's own host, the same for everybody (R9); off, no page says a word of it. A Xylem on a
+/// host of its own may be reached (`connect-src`); on the page's own it needs no name there.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_page_offers_notifications_only_where_the_server_does() {
+    let head = |page: Vec<u8>| String::from_utf8(page).unwrap().split("</head>").next().unwrap_or_default().to_string();
+    let off = crate::router(state(SnapshotStore::new(temp_dir("push-off")).unwrap()));
+    for path in ["/", "/profile", "/en/profile"] {
+        let page = head(request(&off, path, &[]).await.2);
+        assert!(!page.contains(folia_app::PUSH_META), "{path}: {page}");
+    }
+    for (url, content) in [("", "content=\"\""), ("http://127.0.0.1:8300/push/v1/", "content=\"http://127.0.0.1:8300/push/v1/\"")] {
+        let on = crate::router(AppState { push: Some(url.into()), ..state(SnapshotStore::new(temp_dir("push-on")).unwrap()) });
+        for path in ["/", "/profile", "/en/catalog"] {
+            let (_, headers, body) = request(&on, path, &[]).await;
+            let page = head(body);
+            assert!(page.contains(&format!("<meta name=\"{}\" {content}>", folia_app::PUSH_META)), "{path}: {page}");
+            let policy = headers.get("content-security-policy").unwrap().to_str().unwrap();
+            assert_eq!(policy.contains("http://127.0.0.1:8300"), !url.is_empty(), "{path}: {policy}");
         }
     }
 }
