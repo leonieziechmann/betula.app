@@ -45,6 +45,7 @@ pub const ICONS: &[(&str, &str)] = &[
     ("circle-help", r#"<circle cx="12" cy="12" r="10"/> <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/> <path d="M12 17h.01"/>"#),
     ("clipboard-list", r#"<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/> <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/> <path d="M12 11h4"/> <path d="M12 16h4"/> <path d="M8 11h.01"/> <path d="M8 16h.01"/>"#),
     ("clock-3", r#"<circle cx="12" cy="12" r="10"/> <polyline points="12 6 12 12 16.5 12"/>"#),
+    ("cloud-off", r#"<path d="m2 2 20 20"/> <path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/> <path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>"#),
     ("code", r#"<polyline points="16 18 22 12 16 6"/> <polyline points="8 6 2 12 8 18"/>"#),
     ("copy", r#"<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/> <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>"#),
     ("database", r#"<ellipse cx="12" cy="5" rx="9" ry="3"/> <path d="M3 5V19A9 3 0 0 0 21 19V5"/> <path d="M3 12A9 3 0 0 0 21 12"/>"#),
