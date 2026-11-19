@@ -2945,9 +2945,10 @@
       if (href !== link.getAttribute("href")) link.setAttribute("href", href);
     }
   };
-  // Light or dark (`theme`: what the switch in the rail chose), or the system's (`system`): on the
-  // document at once, kept for the next page (the head script applies it before the first paint),
-  // the browser's own chrome with it, and told to the page (`betula:theme`), whose choice shows it.
+  // Light or dark (`theme`: what the menu of the profiles or „Befehle“ chose), or the system's
+  // (`system`): on the document at once, kept for the next page (the head script applies it before
+  // the first paint), the browser's own chrome with it, and told to the page (`betula:theme`), whose
+  // choice shows it.
   const setTheme = (theme) => {
     const chosen = theme === "light" || theme === "dark" ? theme : null;
     if (chosen) root.dataset.theme = chosen;
@@ -2973,13 +2974,8 @@
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
     switch (target?.dataset.action) {
-      case "theme": {
-        const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-        setTheme(dark ? "light" : "dark");
-        break;
-      }
       case "theme-set":
-        // Light, dark or the system's, as the profile page offers them (folia/crates/profile).
+        // Light, dark or the system's, as the menu of the profiles offers them (chrome.rs `Preferences`).
         setTheme(target.dataset.themeValue);
         break;
       case "letters-set":

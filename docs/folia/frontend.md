@@ -4304,11 +4304,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **Not yet**: changing a Termin in a calendar of one's own (its Termine open no card yet);
     a change across Termine of several keys at once.
 - **Tokens:** `folia/assets/app.css` starts with the token block (colors, radii, shadows); everything
-  below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
-  overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
-  primary actions and the marker of the open row; selected chips are neutral (inverted). The
-  accent is a muted birch-leaf green, `oklch(.53 .07 149)` in both themes (owner, 2026-09-22,
-  replacing the blue: "wir nennen das ding betula"): the hue of the owner's favourite tone
+  below uses tokens only. One look, light and dark: dark follows the system, a choice in the menu of
+  the profiles or „Befehle“ overrides it (`data-theme` on `<html>`, remembered in `localStorage`).
+  Accent color only for primary actions and the marker of the open row; selected chips are neutral
+  (inverted). The accent is a muted birch-leaf green, `oklch(.53 .07 149)` in both themes (owner,
+  2026-09-22, replacing the blue: "wir nennen das ding betula"): the hue of the owner's favourite tone
   `oklch(.6867 .0996 149)`, deep enough for white labels. Labels on the accent are always white —
   dark text on the green was "grauenhaft" — and the owner prefers toned-down colours to saturated
   ones.
@@ -6732,9 +6732,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   Studiengang“ of the active profile for `html.mine`.
 - **The way to it** (`chrome::ProfileButton`): the profile's badge (its initial in one of the
   eight soft hues `--t-*`; a person while there is one profile without a name) at the end of the
-  rail above the switch between light and dark, and on a phone, which has no rail, a box at the
-  right of the search at the head of every page (owner, 2026-10-14: „für die mobile Version noch
-  ein Konzept wie man an sein Profil rankommt“), as high and as wide as the search is high, in
+  rail, and on a phone, which has no rail, a box at the right of the search at the head of every
+  page (owner, 2026-10-14: „für die mobile Version noch ein Konzept wie man an sein Profil
+  rankommt“), as high and as wide as the search is high, in
   its style — as the way back of a page is a box at the search's left (`TopBack`), to which it
   gives way while that is there (owner, 2026-10-15). Beside
   it the search keeps its words on a phone 390 px wide (a little less room around its icon and
@@ -6784,8 +6784,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   the page scrolls to and lights up once; under it the active profile's state: with how many other
   devices, offline, „Nur auf diesem Gerät“, a failure), a row of what every profile shares — light,
   dark or the system's as three small buttons with their icons (`chrome::Preferences`, set by
-  `enhance.js` as the rail's switch is, `data-action="theme-set"`, which says so with
-  `betula:theme`; the menu stays open), the language by its code („DE“, „EN“;
+  `enhance.js`, `data-action="theme-set"`, which says so with `betula:theme`; the menu stays open;
+  the rail's switch between light and dark is gone since 2026-11-19, owner: „den theme switcher aus
+  der sidebar raus nehmen, den gibts jetzt ja im profile“), the language by its code („DE“, „EN“;
   `languages::LanguageChoice`: this page in it, a page load) — and at its foot the Impressum and
   the Datenschutz. A phone chooses light or dark here alone. A mouse resting on the rail's
   way for 160 ms opens it beside the way, growing up from its foot, without moving the focus; it
@@ -7058,7 +7059,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `<head>`. So does the language (`betula.language`, `docs/folia/i18n.md`): the first script of the head
   opens the page in it, which is a page load, because a language is an address. They are the
   browser's, the same in every profile (the menu of the profiles sets light, dark or the system's
-  and the language since 2026-11-08, the profile page until then; the rail's switch light or dark).
+  and the language since 2026-11-08, the profile page until then; the rail's switch light or dark
+  until 2026-11-19).
 - **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
   an invisible layer that belongs to the control itself (a wrapper element would receive the click
   instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;
@@ -9102,8 +9104,8 @@ under `betula.p2.…` alone); a switch in the sidebar bringing a profile's marks
 another tab whose Merkliste and rail follow a switch; „Profil leeren“ and „Rückgängig“; the menu of
 the profiles (a mouse resting on the rail's way: the profiles, the page, the other language, a
 profile chosen; a right click: the focus on the active profile, one chosen with the keyboard, Esc);
-light, dark and the system's with the rail's switch and the browser's chrome; a profile as a file
-(its name, its JSON) and a profile made of it, a file that is none; deleting the active profile and
+light, dark and the system's in the menu, kept when it opens again, the rail without a switch of
+its own, and the browser's chrome; a profile as a file (its name, its JSON) and a profile made of it, a file that is none; deleting the active profile and
 „Rückgängig“; the script in `<head>` reading the active profile's program. Privacy: no request
 carries a profile's name or a mark, none leaves the site. English; on a phone the box at the head
 (as high as the search, at its right, nothing on the brand line), a finger held on it (the menu, a
