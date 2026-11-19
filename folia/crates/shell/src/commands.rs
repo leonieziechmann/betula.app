@@ -23,7 +23,8 @@
 //! - `data-commands` on a container names its commands' group („Filter", „Für „Analysis I“"); `go`,
 //!   `settings` and `help` are the palette's own groups, and `data-command-group` on an element
 //!   puts it into one. `data-commands-when="focus"`: only while the keyboard was in it (a row of a
-//!   list). `data-commands-typed`: found by typing only (the filters, which are many).
+//!   list), and then first of all. `data-commands-typed`: found by typing only (the filters, which
+//!   are many).
 //! - `data-command-of` on a container names what its commands' names are of: „Prüfung: Klausur".
 //!
 //! The palette has the settings itself (light, dark, the other language, the single keys) and asks
@@ -562,11 +563,19 @@ mod page {
             }
             let name = el.get_attribute("data-command-group").or_else(|| container.as_ref().and_then(|c| c.get_attribute("data-commands"))).unwrap_or_default();
             let typed = container.as_ref().is_some_and(|c| c.has_attribute("data-commands-typed"));
-            // The groups of the page stand in the order in which they first come.
-            let first = firsts.iter().position(|known| *known == name).unwrap_or_else(|| {
-                firsts.push(name.clone());
-                firsts.len() - 1
-            });
+            // The groups of the page stand in the order in which they first come; the group of where
+            // the keyboard is (a row's, `data-commands-when="focus"`) before them all, as what it is
+            // at is what it most likely wants to act on („Mein Studium": the row before the
+            // sidebar's and the semester's commands).
+            let at_focus = el.get_attribute("data-command-group").is_none() && container.as_ref().is_some_and(|c| c.get_attribute("data-commands-when").as_deref() == Some("focus"));
+            let first = if at_focus {
+                0
+            } else {
+                1 + firsts.iter().position(|known| *known == name).unwrap_or_else(|| {
+                    firsts.push(name.clone());
+                    firsts.len() - 1
+                })
+            };
             let (place, heading) = group(&name, first, typed, t);
             let own = el.get_attribute("data-command").filter(|name| !name.trim().is_empty()).unwrap_or_else(|| name_of(&el));
             if own.is_empty() {

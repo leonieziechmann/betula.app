@@ -204,7 +204,9 @@ fn SemesterPick(ctx: StudyCtx, semester: SemesterKey, id: String, label: String)
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded=move || if open.get() { "true" } else { "false" }
+                aria-keyshortcuts="ArrowLeft ArrowRight"
                 title=t.study.choose_semester
+                data-command=t.study.choose_semester
                 on:click=move |ev: MouseEvent| menu::open_under_button(ctx, MenuFor::Pick(semester), &ev)
             >
                 <span>{label}</span>
@@ -271,11 +273,32 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
             ev.prevent_default();
         }
     };
+    // ← and → at the name of the semester turn to the one before and after, as ‹ and › do, and the
+    // keyboard stays at the name of the one turned to (folia/design/tastatur/konzept.html, „Die
+    // anderen Seiten": „an seinem Kopf wählen ← → das Semester (heute ‹ ›)"). The card is another
+    // one then: the name is the new card's.
+    let turn_key = move |ev: KeyboardEvent, previous: Option<SemesterKey>, next: Option<SemesterKey>| {
+        if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.shift_key() || !dom::on_pick(&ev) {
+            return;
+        }
+        let to = match ev.key().as_str() {
+            "ArrowLeft" => previous,
+            "ArrowRight" => next,
+            _ => return,
+        };
+        ev.prevent_default();
+        if to.is_some() && !ev.repeat() {
+            go(to);
+            dom::focus_soon(".st-card-sem .st-sem-pick");
+        }
+    };
     view! {
         <article class="st-card-sem" class:is-now=move || head.with(|head| head.as_ref().is_some_and(|head| head.now)) class:split=open_here aria-labelledby=format!("st-sem-{}", semester.key())>
             {move || head.get().map(|head| view! {
-                <header class="st-sem-head">
-                    <button class="icon-btn st-turn hit" type="button" aria-label=s.previous disabled=head.previous.is_none() on:click=move |_| go(head.previous)><Icon name="chevron-left"/></button>
+                // ‹ and › are the pointer's: the keyboard turns with ← → at the name, so they are
+                // no stops of Tab; in „Befehle" they are commands of the page.
+                <header class="st-sem-head" on:keydown=move |ev: KeyboardEvent| turn_key(ev, head.previous, head.next)>
+                    <button class="icon-btn st-turn hit" type="button" tabindex="-1" aria-label=s.previous data-command=s.previous disabled=head.previous.is_none() on:click=move |_| go(head.previous)><Icon name="chevron-left"/></button>
                     <div class="st-sem-title">
                         <div class="st-sem-name">
                             <SemesterPick ctx semester id=format!("st-sem-{}", semester.key()) label=head.label.clone()/>
@@ -304,11 +327,12 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                         aria-haspopup="menu"
                         aria-label=(s.more_about)(&head.label)
                         title=(s.more_about)(&head.label)
+                        data-command=(s.more_about)(&head.label)
                         on:click=move |ev: MouseEvent| menu::open_at_button(ctx, MenuFor::Semester(semester), &ev)
                     >
                         <Icon name="ellipsis"/>
                     </button>
-                    <button class="icon-btn st-turn hit" type="button" aria-label=s.next disabled=head.next.is_none() on:click=move |_| go(head.next)><Icon name="chevron-right"/></button>
+                    <button class="icon-btn st-turn hit" type="button" tabindex="-1" aria-label=s.next data-command=s.next disabled=head.next.is_none() on:click=move |_| go(head.next)><Icon name="chevron-right"/></button>
                 </header>
             })}
             <div class="st-table" class:is-selecting=selecting>
@@ -337,8 +361,11 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     }
                     .into_any()
                 })}
+                // The rows are one stop of Tab, ↑ and ↓ go from row to row and on to „Module
+                // hinzufügen" (enhance.js, „the keyboard"), as the Merkliste's.
                 <ul
                     class="st-rows"
+                    data-stop="y"
                     on:pointermove=move |ev: PointerEvent| draw.moved(ctx, semester, keys, &ev)
                     on:pointerup=move |_| draw.end()
                     on:pointercancel=move |_| draw.end()
@@ -351,7 +378,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                             <li class="st-empty">
                                 <span class="st-empty-icon" aria-hidden="true"><Icon name="layout-list"/></span>
                                 <p>{s.no_modules}</p>
-                                <button class="btn primary st-empty-add" type="button" aria-pressed=pressed on:click=move |_| add()>
+                                <button class="btn primary st-empty-add" type="button" aria-pressed=pressed data-command=s.add_modules on:click=move |_| add()>
                                     <Icon name="plus"/><span>{s.add_modules}</span>
                                 </button>
                             </li>
@@ -360,7 +387,7 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     } else {
                         view! {
                             <li class="st-addrow">
-                                <button class="st-add" type="button" aria-pressed=pressed on:click=move |_| add()>
+                                <button class="st-add" type="button" aria-pressed=pressed data-command=s.add_modules on:click=move |_| add()>
                                     <span class="st-add-icon" aria-hidden="true"><Icon name="plus"/></span>
                                     <span>{s.add_modules}</span>
                                 </button>
@@ -909,7 +936,10 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         }
     };
     // The space bar on the row selects it or lets it go (Enter opens it; on a phone, while rows are
-    // selected, it does what a tap does); Shift and ↑ ↓ take in the next row (`step`).
+    // selected, it does what a tap does); Shift and ↑ ↓ take in the next row (`step`). Entf (⌫ on a
+    // Mac) takes it out of the semester, or the rows selected, with „Rückgängig", as „Entfernen" of
+    // its menu and of the bar (folia/design/tastatur/konzept.html, „Die anderen Seiten": „Entf
+    // herausnehmen"); the keyboard goes on to the row after it.
     let keys = move |ev: KeyboardEvent| {
         if !dom::on_open(&ev) || ev.ctrl_key() || ev.meta_key() || ev.alt_key() {
             return;
@@ -918,6 +948,11 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
             " " if !ev.shift_key() => {
                 ev.prevent_default();
                 toggle(ctx, semester, &key.get_value());
+                return;
+            }
+            "Delete" | "Backspace" if !ev.shift_key() && !ev.repeat() => {
+                ev.prevent_default();
+                remove_at(ctx, semester, &order.get_untracked(), &key.get_value(), true, t);
                 return;
             }
             "ArrowDown" if ev.shift_key() => 1,
@@ -975,9 +1010,13 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         None => view! { <span class="st-name">{move || name.get()}</span> }.into_any(),
     };
     view! {
+        // What „Befehle" offers while the keyboard is in the row (folia_shell::commands): its menu
+        // (Shift + F10), selecting it (the space bar), passed, taking it out (Entf).
         <li
             class="st-row row-wrap"
             data-key=key.get_value()
+            data-commands=move || (t.ui.commands_for)(&name.get())
+            data-commands-when="focus"
             style=move || row.with(|row| row.as_ref().map(|row| format!("--c: {}", row.tone)))
             class:is-passed=move || status.get() == Status::Passed
             class:is-failed=move || status.get() == Status::Failed
@@ -998,6 +1037,10 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                     draggable="false"
                     aria-checked=move || if selected.get() { "true" } else { "false" }
                     aria-label=move || (s.select_row)(&name.get())
+                    data-command=s.select_one
+                    data-command-icon="list-checks"
+                    data-command-keys="Space"
+                    data-command-state=move || selected.get().then_some(s.is_selected)
                     on:click=tick
                 >
                     <TickMark/>
@@ -1053,20 +1096,62 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                 <span class="lp num">{move || row.with(|row| row.as_ref().and_then(|row| row.credits.clone()))}<small>{t.common.credits_unit}</small></span>
                 {move || row.with(|row| row.as_ref().map(|row| row.facts.trail()))}
             </div>
+            // Not one of the stops of Tab: Shift + F10 at the row opens its menu, as a right click
+            // does (the row's `contextmenu`).
             <button
                 class="st-status"
                 type="button"
+                tabindex="-1"
                 aria-haspopup="menu"
                 aria-expanded=move || if menu_open.get() { "true" } else { "false" }
                 aria-label=move || (s.status_of)(status.get().word(t), &name.get())
+                aria-keyshortcuts="Shift+F10"
                 title=move || status.get().word(t)
+                data-command=t.study_keys.row_menu
+                data-command-icon="ellipsis"
+                data-command-keys="Shift+F10"
                 on:click=move |ev: MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: false }, &ev)
             >
                 <Glyph status=status/>
             </button>
+            <RowCommands ctx semester key=key.get_value() passed=Signal::derive(move || status.get() == Status::Passed) order/>
         </li>
     }
     .into_any()
+}
+
+/// What the menu of a row does first and last as commands of „Befehle" while the keyboard is in the
+/// row (`folia_shell::commands`, `data-command-by="event"`): „Als bestanden markieren" (or taking
+/// that back) and „Entfernen" with its key. Nothing a pointer or a screen reader meets: they do
+/// what the menu's entries do, which are there for both.
+#[component]
+fn RowCommands(ctx: StudyCtx, semester: SemesterKey, key: String, passed: Signal<bool>, order: Memo<Vec<String>>) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.study;
+    let key = StoredValue::new(key);
+    let pass = move |_: leptos::web_sys::Event| menu::act(ctx, Act::Passed { semester, keys: vec![key.get_value()], passed: !passed.get_untracked() }, t);
+    let remove = move |_: leptos::web_sys::Event| remove_at(ctx, semester, &order.get_untracked(), &key.get_value(), false, t);
+    view! {
+        <span class="visually-hidden" aria-hidden="true" data-command=move || if passed.get() { s.unmark_passed } else { s.mark_passed } data-command-icon=move || if passed.get() { "rotate-ccw" } else { "circle-check-big" } data-command-by="event" on:betula-command=pass></span>
+        <span class="visually-hidden" aria-hidden="true" data-command=s.remove data-command-icon="trash-2" data-command-keys="Del" data-command-by="event" on:betula-command=remove></span>
+    }
+}
+
+/// Takes the row `key` of semester `s` out with „Rückgängig" (`Act::Remove`), or with `selection`
+/// the rows selected there where there are any (Entf, as the Merkliste's: what is selected is
+/// what the keys act on); the keyboard goes on to the row after them, or before them where they
+/// were the last, or to „Module hinzufügen" where none is left.
+fn remove_at(ctx: StudyCtx, s: SemesterKey, order: &[String], key: &str, selection: bool, t: &'static Texts) {
+    let selected = if selection { menu::selected_keys(ctx, s) } else { Vec::new() };
+    let keys = if selected.is_empty() { vec![key.to_string()] } else { selected };
+    let at = order.iter().position(|one| one == key).unwrap_or(0);
+    let left = |one: &&String| !keys.contains(*one);
+    let next = order.get(at + 1..).and_then(|after| after.iter().find(left)).or_else(|| order.get(..at).and_then(|before| before.iter().rev().find(left))).cloned();
+    menu::act(ctx, Act::Remove { semester: s, keys }, t);
+    match next {
+        Some(next) => request_animation_frame(move || dom::focus_row(&next)),
+        None => dom::focus_soon(".st-card-sem .st-add, .st-card-sem .st-empty-add"),
+    }
 }
 
 /// A module only visited in the semester (`study::VisitItem`; folia/design/kalender/konzepte.html,
@@ -1117,8 +1202,26 @@ fn VisitRow(ctx: StudyCtx, semester: SemesterKey, id: String) -> impl IntoView {
             menu::open_at_pointer(ctx, MenuFor::Visit { semester, id: id.clone() }, &ev);
         }
     };
+    // Entf at its name takes the visit out (as „Entfernen" of its menu), with „Rückgängig"; the
+    // keyboard goes on to „Module hinzufügen" after the rows.
+    let unvisit = {
+        let id = id.clone();
+        move || {
+            menu::act(ctx, Act::Unvisit { semester, id: id.clone() }, t);
+            dom::focus_soon(".st-card-sem .st-add, .st-card-sem .st-empty-add");
+        }
+    };
+    let keys = {
+        let unvisit = unvisit.clone();
+        move |ev: KeyboardEvent| {
+            if dom::on_open(&ev) && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && !ev.shift_key() && !ev.repeat() && matches!(ev.key().as_str(), "Delete" | "Backspace") {
+                ev.prevent_default();
+                unvisit();
+            }
+        }
+    };
     view! {
-        <li class="st-row row-wrap st-visit" data-key=format!("v:{id}") on:contextmenu=context>
+        <li class="st-row row-wrap st-visit" data-key=format!("v:{id}") data-commands=move || (t.ui.commands_for)(&name.get()) data-commands-when="focus" on:contextmenu=context on:keydown=keys>
             <div class="row" aria-current=move || current.get().then_some("true")>
                 <div class="t">
                     <b>
@@ -1137,9 +1240,10 @@ fn VisitRow(ctx: StudyCtx, semester: SemesterKey, id: String) -> impl IntoView {
                 <span class="lp num">"–"</span>
                 {move || facts.with(|facts| facts.trail())}
             </div>
-            <button class="st-status" type="button" aria-haspopup="menu" aria-expanded=move || if menu_open.get() { "true" } else { "false" } aria-label=move || (s.status_of)(s.status_visit, &name.get()) title=s.status_visit on:click=open_menu>
+            <button class="st-status" type="button" tabindex="-1" aria-haspopup="menu" aria-expanded=move || if menu_open.get() { "true" } else { "false" } aria-label=move || (s.status_of)(s.status_visit, &name.get()) aria-keyshortcuts="Shift+F10" title=s.status_visit data-command=t.study_keys.row_menu data-command-icon="ellipsis" data-command-keys="Shift+F10" on:click=open_menu>
                 <span class="st-glyph visit" aria-hidden="true"></span>
             </button>
+            <span class="visually-hidden" aria-hidden="true" data-command=s.remove data-command-icon="trash-2" data-command-keys="Del" data-command-by="event" on:betula-command=move |_: leptos::web_sys::Event| unvisit()></span>
         </li>
     }
 }
