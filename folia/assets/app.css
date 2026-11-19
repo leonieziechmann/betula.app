@@ -4197,7 +4197,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 /* On a full card the marks are white, in the card's colour, as the tick of one's own group. */
 .slot.tinted:not(.alt, .extra, .visit, .conflict) > :is(.slot-own, .slot-pen) { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
 .sp-body .slot.conflict:not(.clash) { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
-.sp-body .sp-week .week .col { cursor: copy; }
 .sp-body .sp-week .week .col :is(.slot, .band) { cursor: pointer; }
 /* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
 .sp-carousel .week { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
@@ -4229,6 +4228,12 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .own-fld.wide { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .own-fld > label, .own-fld > .own-lb { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
 .own-fld input[type="text"], .own-fld input[type="time"], .own-fld input[type="date"], .own-fld select { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px var(--font); }
+/* Its picks are Betula's select (`combobox::Select`; owner, 2026-11-19: „Außerdem style bitte die
+   dropdowns richtig im Betula style"), as tall as the fields beside it and on their ground. */
+.own-fld .combo-trigger { min-height: 36px; border-radius: 9px; background: var(--panel); font: 500 14px var(--font); }
+.own-fld .combo-trigger:hover { background: var(--panel-2); }
+/* Its label stays beside its button where the list opens in place under it (the narrow layout). */
+.own-fld:has(> .combo) > .own-lb { align-self: start; line-height: 36px; }
 .own-fld .seg.own-seg { margin-top: 0; }
 .own-two { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; color: var(--text-3); font-size: 12.5px; }
 .own-dates { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -4283,6 +4288,12 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 .is-termin .chg-fld > label, .is-termin .chg-fld > .chg-lb { color: var(--text-2); font-size: 12.5px; font-weight: 650; }
 .is-termin .chg-fld :is(input, select) { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 500 14px var(--font); }
 .is-termin .chg-fld.changed :is(input, select) { box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* „Tag" is Betula's select (owner, 2026-11-19: „Außerdem style bitte die dropdowns richtig im Betula
+   style"), as tall as the fields beside it, ringed as they are where it says other than QIS. */
+.is-termin .chg-fld .combo-trigger { min-height: 36px; border-radius: 9px; background: var(--panel); font: 500 14px var(--font); }
+.is-termin .chg-fld .combo-trigger:hover { background: var(--panel-2); }
+.is-termin .chg-fld:has(> .combo) > .chg-lb { align-self: start; line-height: 36px; }
+.is-termin .chg-fld.changed .combo:not([data-open]) .combo-trigger:not(:focus-visible) { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .is-termin .seg.chg-seg { margin: 0; }
 .is-termin .chg-two { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; color: var(--text-3); font-size: 12.5px; }
 .is-termin .chg-qis { margin: 0; color: var(--text-2); font-size: 13px; }
@@ -4469,9 +4480,14 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 }
 /* A span drawn on a free stretch of the week while the plan is edited (own.rs `Drag`; owner,
    2026-11-18: „drag placement um gleich eine Zeitspanne zu machen"): no text is selected by the
-   press, and while it is drawn (.sp-week.drawing) the pointer says it stretches. */
+   press. Over a free stretch the pointer is the normal one while nothing is done, and while a span
+   is drawn (.sp-week.drawing, and .sp-carousel.drawing of the narrow layout under a mouse) the
+   whole week has the one of moving, the four arrows, over slots and bands as well (owner,
+   2026-11-19: „Verwende, so lange man nichts macht bitte den normalen cursor und wenn man dragged
+   den move cursor mit den 4 pfeilen in alle richtungen, wie bei gcal."). Slots and bands keep their
+   hand while nothing is drawn. */
 .sp-edit .sp-week .week { -webkit-user-select: none; user-select: none; }
-.sp-week.drawing, .sp-week.drawing * { cursor: ns-resize; }
+.sp-week.drawing, .sp-week.drawing *, .sp-carousel.drawing, .sp-carousel.drawing * { cursor: move !important; }
 /* While it is drawn the span lies over its column, not in its lanes, so that no slot under it changes
    its width (div.sp-sketch, own.rs `SketchView`; its box from `drawn_at` as --x --y --w --h in the
    week's pixels); its times written in it only where they fit whole (13 px lines, a narrow column
@@ -5132,7 +5148,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    and time in one row (each its label above it), so that it is no taller than the card can grow
    where it stands (card.rs `BODY_CHANGE`). */
 .tm-card .chg { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: 10px 10px; padding: 0; background: none; box-shadow: none; }
-.tm-card .chg-fld :is(input[type="time"], select) { padding: 0 6px; }
+.tm-card .chg-fld :is(input[type="time"], select), .tm-card .chg-fld .combo-trigger { padding: 0 6px; }
 .tm-card .chg-two { gap: 4px; }
 .tm-card .chg > * { grid-column: 1 / -1; }
 .tm-card .chg > h4 { display: none; }

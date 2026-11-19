@@ -162,7 +162,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
     the links have set.
     **A choice of a few entries** (a Studienbeginn, a study direction, the plan's semester in
-    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder) is `combobox::Select`
+    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder, and since 1.112.1
+    the fields of a Termin's forms: „Kalender", „Gehört zu", „Art" and „Tag" of one's own,
+    `#own-cal`, `#own-module`, `#own-kind`, `#own-day`, and „Tag" of „Ändern", `#chg-day`; owner,
+    2026-11-19: „Außerdem style bitte die dropdowns richtig im Betula style") is `combobox::Select`
     (owner, 2026-10-16: „Dropdown menus allgemein sind im browser styling passe das mal an, so dass
     das mehr mit der combobox matcht"): the combobox's button and popup without its search field,
     in place of the browser's `<select>`, whose list Windows drew as a blue bar on grey and a phone
@@ -170,7 +173,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     ARIA patterns): ↑ ↓, Pos1, Ende, Bild ↑ ↓ mark an entry, Enter or the space bar takes it, Esc
     closes the popup and nothing else (in a dialog the dialog stays open), letters jump to the entry
     they begin; an entry's detail stands beside it („WiSe 2025/26 · jetzt 3. FS" is „WiSe 2025/26"
-    and „jetzt 3. FS"). On a phone it opens in place, as the combobox does. `small` is the button
+    and „jetzt 3. FS"). On a phone it opens in place, as the combobox does, and brings its list into
+    sight (`nav::show_in_sheet`: a sheet half up comes all up, what scrolls as little as shows it;
+    since 1.112.1, where „Art" of the form opened below the sheet's fold). `small` is the button
     of a bar of tools (34 px, 46 on a phone); the button and its entries carry their value in
     `data-value` (the checks read it, as they read a `select`'s value).
   - **The areas of a program** („Bereich", with a program selected, curriculum only): of the
@@ -1546,7 +1551,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     window, on a phone a sheet. A click beside it in the first 0.4 s after it opened — the second
     click of a slow double click on what opened it („+ Termin") — neither closes it nor takes the
     keyboard (`nav::Newborn`, which „3 Wahlen offen ›" (after the mode was left) and „Fertig" of the Stundenplan's mode and the
-    card's large action and „Haken wegnehmen" use as well: a control that came where the pointer just
+    card's large action and „Auswahl aufheben" use as well: a control that came where the pointer just
     clicked takes no click of a pointer for 0.4 s — the card's, after a click of one of them, not as
     the card opens; a key's click always counts). Each dialog wrote its
     own showing, closing and click beside it before; „Mein Studium"'s, the keys', „Einplanen"'s and the collections' are `Modal` now, the map
@@ -3595,7 +3600,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Studium“ einplanen" in the place of „Übernehmen", without the question „In deinen Stundenplan
     übernehmen?".
   - **Decided against what was decided before**: a hatched group opens its card, whose large action
-    „Diese Gruppe anhaken" has the keyboard (a click, then Enter), instead of taking its choice into
+    „Diese Gruppe auswählen" has the keyboard (a click, then Enter), instead of taking its choice into
     focus with the group ticked (owner, 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die
     Preselected sein, so dass man einfach direkt auf Fertig klicken kann"; `data-pre` goes): one
     click, one meaning, the same in both states; the focus is entered from „Offen" („Wählen") and
@@ -3641,8 +3646,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     moved, „Am Fr 20.11. ausgeblendet · Einblenden", „Von dir geändert … · Zurücksetzen"); who, only
     where the Termin itself names somebody („verantwortet das Modul" is the overview's: under an
     exercise it named the wrong person); QIS's remark; the note („Notiz: …" with „Bearbeiten"); of a
-    group its state and the one large action — „Diese Gruppe anhaken" (the keyboard on it as the
-    card opens), ticked „Haken wegnehmen", faint „Nur diese Gruppe" · „Auch diese", hidden
+    group its state and the one large action — „Diese Gruppe auswählen" (the keyboard on it as the
+    card opens; a group is chosen, „auswählen", „ausgewählt", in every text since 1.112.1, where it
+    was ticked, „anhaken", „angehakt"; owner, 2026-11-19: „gruppe anhaken ist ja mal definitiv der
+    falsche begriff. Das sollte eher gruppe auswählen sein."), chosen „Auswahl aufheben", faint „Nur diese Gruppe" · „Auch diese", hidden
     „Einblenden"; of a single date „Diesen Termin" — with „Vergleichen ›" into the focus where it is
     a group; and one way on, „Alle Termine von MIT1" (V), the overview; of one's own „nicht in Datei
     und festem Abo". „⋯" is a menu under its sign over the body, one line each: „Notiz hinzufügen"
@@ -3652,7 +3659,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     layer at a time, the menu, then the body, then the card (taken at `keydown`, however often), and
     the keyboard goes back to the tool that opened the layer. What hides or decides a Termin closes
     the card; while looking a note says so with „Rückgängig" („VL MIT1 am Mo 23.11. ausgeblendet",
-    „Ü EvS Mo 15:30 angehakt"), while editing the slot answers. In English Betula's sentences take
+    „Ü EvS Mo 15:30 ausgewählt"), while editing the slot answers. In English Betula's sentences take
     the kinds' labels („The whole lecture"); QIS's word stays as QIS writes it, without „the", where
     a Termin's type has no kind of Betula's own (`categories::labels`: „Hide Kolloquium", „The whole
     Kolloquium", „Kolloquium hidden", „Show Kolloquium").
@@ -3759,8 +3766,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     shown only while it is on. Another group is picked above and ticked there, as many as one likes
     (owner: „mehr als eine Übung … im Kallender anzeigen lassen können ist ein must"; all ticked
     count alike, `Selection::chosen_rows`, `Event::chosen` a set), how many are under the switch („2
-    von 4 angehakt"); none ticked, the choice stays open and its groups stand hatched in the week
-    („Bis du eine anhakst, stehen alle 4 schraffiert im Stundenplan."). Last „Nur am Mo 02.11. ·
+    von 4 ausgewählt"); none ticked, the choice stays open and its groups stand hatched in the week
+    („Bis du eine auswählst, stehen alle 4 schraffiert im Stundenplan."). Last „Nur am Mo 02.11. ·
     Ausblenden", this one date of what the plan holds (of an event without groups, of the group
     ticked, or while none is; `Selection::hidden_dates`, the store's `h` lines, `PlanDoc::set_date`;
     the week, the day, the clashes and the feed leave it out, `Occurrences::hidden`), „Zeigen"
@@ -3838,7 +3845,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   `focus_slots`). The first step of the new calendar: the week opens as the Regelwoche, and what the
   plan leaves to choose is a list of its own.
   - **„Offen"** lists the choices still open (`choice::open`): the groups of an event none of which
-    is ticked („Übung MIT1 · eine von 3 anhaken"), then the choices among a module's events („1 von
+    is ticked („Übung MIT1 · eine von 3 auswählen"), then the choices among a module's events („1 von
     4 wählen", decided in the module's panel as before); those none of whose options is free first,
     in yellow („keine passt ohne Überschneidung"). Since Folia 1.100.0 its rows are the mode's
     („Looking and editing" above): while looking „3 Wahlen offen ›" in the status row, on a phone
@@ -3858,14 +3865,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Übung klickt, dann soll die Preselected sein, so dass man einfach direkt auf Fertig klicken
     kann"): its link carried the key of its „✓" (`GridSlot::pre`, `data-pre`), which acted after the
     next frame while the link was followed, on a wide screen, in a phone's carousel and in its list
-    of days. Since then a hatched group opens its card, whose large action „Diese Gruppe anhaken"
+    of days. Since then a hatched group opens its card, whose large action „Diese Gruppe auswählen"
     has the keyboard: one click, one meaning in both states. A row of „Offen" ticks nothing: no
     group was picked there. Its groups all stand in the week, each a box to tick, hatched in its
     tone while not ticked, full once ticked, red where it meets the plan; the rest of the week steps
     back to 42 % and leads nowhere. As many groups as one likes can be ticked (`PlanDoc::tick`, as
     the Termin's tiles do); the focus stays after a tick. Over the week of a wide screen a dark bar
     says what is chosen and what to do, whether the groups fit („Nur Do 09:15 passt, die anderen
-    überschneiden sich. Anhaken geht trotzdem."), „Weiter: Praktikum PP" to the next choice still
+    überschneiden sich. Auswählen geht trotzdem."), „Weiter: Praktikum PP" to the next choice still
     open (in the place of the focus in the history, so that Back after „Fertig" leaves the mode),
     „Vergleichen" and „Fertig" with Esc (`data-action="close-focus"`: back a step where the plan
     without the focus is the step before, else to the plan being edited, `?edit=1`; `pending.rs`
@@ -4063,8 +4070,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     whole (a 15-minute span shows none). The tag goes as the pointer lets go; the form says the times.
     The week holds the pointer from the press on (`setPointerCapture` on `div.sp-week`, on a phone
     `div.sp-carousel`), so leaving the column, or a first move already past the grid's end (a flick,
-    clamped to the grid's last hour), does not lose it, and `.sp-week.drawing` says so with its
-    pointer; the column's box is read at every move, so a wheel's scroll while drawing shifts no
+    clamped to the grid's last hour), does not lose it, and `.sp-week.drawing` (`.sp-carousel.drawing`
+    on a phone) says so with its pointer: the one of moving, the four arrows, over the whole week,
+    and over a free stretch the normal pointer while nothing is done (since 1.112.1; owner,
+    2026-11-19: „Verwende, so lange man nichts macht bitte den normalen cursor und wenn man dragged
+    den move cursor mit den 4 pfeilen in alle richtungen, wie bei gcal."; before, `copy` and
+    `ns-resize`); the column's box is read at every move, so a wheel's scroll while drawing shifts no
     time. Letting go opens the form with the day, the start and the end, the span standing on as its
     draft; the click that ends it opens nothing more. Every way a drag ends without its pointer let
     go over the week gives it up and leaves no press, no hold of the pointer, no span and no
@@ -8601,8 +8612,8 @@ cd e2e && node choice-sheet.mjs
 drives the way to a choice and its sheet with Informatik B.Sc.'s first semester planned
 (Programmierpraktikum in four groups; the snapshot whose current semester is WiSe 2026/27): on a
 wide screen a click on a hatched group opens its card and ticks nothing; the card's large action
-„Diese Gruppe anhaken" has the keyboard; its „Vergleichen ›" takes the choice into focus inside the
-mode (`edit=1&wahl=…&vergleich=1`), where a click on a group ticks it („1 von 4 angehakt", one `c`
+„Diese Gruppe auswählen" has the keyboard; its „Vergleichen ›" takes the choice into focus inside the
+mode (`edit=1&wahl=…&vergleich=1`), where a click on a group ticks it („1 von 4 ausgewählt", one `c`
 line). On a phone the amber line leads into the mode with its rows open, the Praktikum's row opens
 the sheet and a tap on a tile ticks it; a finger moving the sheet up holds the tiles on their way to
 „Vergleichen" (`.morph`, a card per group), let go all up the address says `vergleich=1`, down from
@@ -8710,8 +8721,8 @@ its address (beside its slot once the week has drawn it, however late): never ov
 day's column, inside the window, right of the rail, its top at the slot's, or higher where the card
 at its tallest would not end 16 px over the window's edge from there, never anchored by its foot —
 with the chip, the kind, the title, the series, the ticket, the tools „Ändern", the eye, „⋯" and
-„×", „Alle Termine von PP" and nothing that picks. A hatched group's „Diese Gruppe anhaken" has the
-keyboard and Enter ticks it with the note and „Rückgängig"; a ticked one's „Haken wegnehmen" keeps
+„×", „Alle Termine von PP" and nothing that picks. A hatched group's „Diese Gruppe auswählen" has the
+keyboard and Enter ticks it with the note and „Rückgängig"; a ticked one's „Auswahl aufheben" keeps
 the card; a lecture's „Ausblenden" offers its three reaches with their notes, a hidden date's line
 „Einblenden"; the faint cards while editing have „Einblenden", „Nur diese Gruppe" and „Auch diese"
 and no note. Esc peels „Ändern", „Ausblenden", „⋯" and the note one at a time, the card's top and

@@ -83,6 +83,7 @@ const listed = `table inet xylem {
 
 	chain output {
 		type filter hook output priority filter; policy drop;
+		icmpv6 type { mld-listener-query, mld-listener-report, mld-listener-done, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, nd-redirect, mld2-listener-report } drop comment "IPv6 neighbour discovery, the kernel's own: noise, not counted"
 		meta nfproto ipv6 counter packets 0 bytes 0 drop comment "IPv6: none, either way"
 		ct state established,related accept
 		oif "lo" ip saddr 127.0.0.1 ip daddr 127.0.0.1 accept

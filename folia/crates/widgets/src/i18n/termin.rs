@@ -60,7 +60,7 @@ pub struct Texts {
     pub in_feed: &'static str,
     /// The groups of a choice: their word by the event's kind („Übungsgruppen" …, else
     /// „Gruppen"); under „Im Stundenplan" the one shown („Mo 10:00 im Stundenplan"), how many are
-    /// ticked („2 von 7 angehakt"), and while none is: „Bis du eine anhakst, stehen alle 4
+    /// ticked („2 von 7 ausgewählt"), and while none is: „Bis du eine auswählst, stehen alle 4
     /// schraffiert im Stundenplan."
     pub groups: fn(Option<EventKind>) -> &'static str,
     pub group_in_plan: fn(&str) -> String,
@@ -78,7 +78,7 @@ pub struct Texts {
     pub fits_said: &'static str,
     pub meets_said: fn(&str) -> String,
     pub ticked_said: &'static str,
-    /// The event's switch: „Übung zeigen", and when: „an allen Tagen", „mit den angehakten
+    /// The event's switch: „Übung zeigen", and when: „an allen Tagen", „mit den ausgewählten
     /// Gruppen", „an keinem Tag".
     pub show_kind: fn(&str) -> String,
     pub every_day: &'static str,
@@ -254,14 +254,14 @@ pub struct Texts {
     pub card_all_groups: fn(usize) -> String,
     /// The page's note once the card did it, with „Rückgängig": „VL MIT1 am Mo 23.11.
     /// ausgeblendet", „VL MIT1 Mo 13:45 ausgeblendet", „Vorlesung MIT1 ausgeblendet", „Ü EvS Mo
-    /// 15:30 angehakt", „„Chor“ am Fr 20.11. ausgeblendet".
+    /// 15:30 ausgewählt", „„Chor“ am Fr 20.11. ausgeblendet".
     pub card_said_date: fn(&str, &str) -> String,
     pub card_said_termin: fn(&str, &str) -> String,
     pub card_said_event: fn(&str, &str) -> String,
     pub card_said_ticked: fn(&str, &str) -> String,
     pub card_said_own_date: fn(&str, &str) -> String,
-    /// A group of a choice in the card: „Eine von 4 Übungsgruppen · noch keine angehakt" with
-    /// „Diese Gruppe anhaken"; „Angehakt · 1 von 4 Übungsgruppen" with „Haken wegnehmen";
+    /// A group of a choice in the card: „Eine von 4 Übungsgruppen · noch keine ausgewählt" with
+    /// „Diese Gruppe auswählen"; „Ausgewählt · 1 von 4 Übungsgruppen" with „Auswahl aufheben";
     /// „Vergleichen".
     pub card_one_of: fn(usize, &str) -> String,
     pub card_none_ticked: &'static str,
@@ -362,8 +362,8 @@ pub const DE: Texts = Texts {
         _ => "Gruppen",
     },
     group_in_plan: |when| format!("{when} im Stundenplan"),
-    ticked_count: |ticked, all| format!("{ticked} von {all} angehakt"),
-    open_note: |n| format!("Bis du eine anhakst, stehen alle {n} schraffiert im Stundenplan."),
+    ticked_count: |ticked, all| format!("{ticked} von {all} ausgewählt"),
+    open_note: |n| format!("Bis du eine auswählst, stehen alle {n} schraffiert im Stundenplan."),
     one_of: |n| format!("eine von {n}"),
     further: "weitere",
     fewer: "weniger",
@@ -373,7 +373,7 @@ pub const DE: Texts = Texts {
     ticked_said: ", in deinem Stundenplan",
     show_kind: |kind| format!("{kind} zeigen"),
     every_day: "an allen Tagen",
-    with_ticked: "mit den angehakten Gruppen",
+    with_ticked: "mit den ausgewählten Gruppen",
     no_day: "an keinem Tag",
     only_on: |day| format!("Nur am {day}"),
     others_stay: "die anderen Termine bleiben",
@@ -496,13 +496,13 @@ pub const DE: Texts = Texts {
     card_said_date: |what, day| format!("{what} am {day} ausgeblendet"),
     card_said_termin: |what, when| format!("{what} {when} ausgeblendet"),
     card_said_event: |kind, chip| format!("{kind} {chip} ausgeblendet"),
-    card_said_ticked: |what, when| format!("{what} {when} angehakt"),
+    card_said_ticked: |what, when| format!("{what} {when} ausgewählt"),
     card_said_own_date: |name, day| format!("„{name}“ am {day} ausgeblendet"),
     card_one_of: |n, groups| format!("Eine von {n} {groups}"),
-    card_none_ticked: "noch keine angehakt",
-    card_tick: "Diese Gruppe anhaken",
-    card_ticked_of: |ticked, all, groups| format!("Angehakt · {ticked} von {all} {groups}"),
-    card_untick: "Haken wegnehmen",
+    card_none_ticked: "noch keine ausgewählt",
+    card_tick: "Diese Gruppe auswählen",
+    card_ticked_of: |ticked, all, groups| format!("Ausgewählt · {ticked} von {all} {groups}"),
+    card_untick: "Auswahl aufheben",
     card_compare: "Vergleichen",
     card_event_off: |kind| format!("{kind} ausgeblendet"),
     card_other_group: |when| format!("Andere Gruppe gewählt · {when}"),
@@ -519,7 +519,7 @@ pub const DE: Texts = Texts {
     card_makeup: "Nachholtermin anlegen",
     card_all: |chip| format!("Alle Termine von {chip}"),
     card_this_termin: "Diesen Termin",
-    card_others_stay_ticked: |n| if n == 1 { "die andere angehakte bleibt".to_string() } else { format!("die anderen {n} angehakten bleiben") },
+    card_others_stay_ticked: |n| if n == 1 { "die andere ausgewählte bleibt".to_string() } else { format!("die anderen {n} ausgewählten bleiben") },
     card_close_title: "Schließen (Esc)",
     card_extra: "zusätzlich, freiwillig",
     card_more_off: |n| format!("+{n}"),
@@ -582,8 +582,8 @@ pub const EN: Texts = Texts {
         _ => "Groups",
     },
     group_in_plan: |when| format!("{when} in your timetable"),
-    ticked_count: |ticked, all| format!("{ticked} of {all} ticked"),
-    open_note: |n| format!("Until you tick one, all {n} stand hatched in your timetable."),
+    ticked_count: |ticked, all| format!("{ticked} of {all} chosen"),
+    open_note: |n| format!("Until you choose one, all {n} stand hatched in your timetable."),
     one_of: |n| format!("one of {n}"),
     further: "more",
     fewer: "fewer",
@@ -593,7 +593,7 @@ pub const EN: Texts = Texts {
     ticked_said: ", in your timetable",
     show_kind: |kind| format!("Show {kind}"),
     every_day: "on every day",
-    with_ticked: "with the groups ticked",
+    with_ticked: "with the groups chosen",
     no_day: "on no day",
     only_on: |day| format!("Only on {day}"),
     others_stay: "the other dates stay",
@@ -716,13 +716,13 @@ pub const EN: Texts = Texts {
     card_said_date: |what, day| format!("{what} hidden on {day}"),
     card_said_termin: |what, when| format!("{what} {when} hidden"),
     card_said_event: |kind, chip| format!("{kind} {chip} hidden"),
-    card_said_ticked: |what, when| format!("{what} {when} ticked"),
+    card_said_ticked: |what, when| format!("{what} {when} chosen"),
     card_said_own_date: |name, day| format!("“{name}” hidden on {day}"),
     card_one_of: |n, groups| format!("One of {n} {}", groups.to_lowercase()),
-    card_none_ticked: "none ticked yet",
-    card_tick: "Tick this group",
-    card_ticked_of: |ticked, all, groups| format!("Ticked · {ticked} of {all} {}", groups.to_lowercase()),
-    card_untick: "Take the tick away",
+    card_none_ticked: "none chosen yet",
+    card_tick: "Choose this group",
+    card_ticked_of: |ticked, all, groups| format!("Chosen · {ticked} of {all} {}", groups.to_lowercase()),
+    card_untick: "Take the choice back",
     card_compare: "Compare",
     card_event_off: |kind| format!("{kind} hidden"),
     card_other_group: |when| format!("Another group chosen · {when}"),
@@ -739,7 +739,7 @@ pub const EN: Texts = Texts {
     card_makeup: "Add a make-up date",
     card_all: |chip| format!("All sessions of {chip}"),
     card_this_termin: "This session",
-    card_others_stay_ticked: |n| if n == 1 { "the other ticked one stays".to_string() } else { format!("the other {n} ticked stay") },
+    card_others_stay_ticked: |n| if n == 1 { "the other chosen one stays".to_string() } else { format!("the other {n} chosen stay") },
     card_close_title: "Close (Esc)",
     card_extra: "extra, optional",
     card_more_off: |n| format!("+{n}"),

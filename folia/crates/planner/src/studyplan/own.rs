@@ -37,6 +37,7 @@ use folia_calendar::kind::EventKind;
 use folia_calendar::own::{OwnRhythm, OwnTermin, MAX_OWN_DATES, MAX_OWN_NUMBER, MAX_OWN_TEXT, OWN_EVENT_BASE};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::semester::SemesterKey;
+use folia_design::combobox::{ComboItem, Select};
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
@@ -1598,13 +1599,14 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
         }
         _ => view! {
             <div class="own-fld">
-                <label for="own-day">{o.day}</label>
-                <select id="own-day" on:change=move |ev| { let value = event_target_value(&ev).parse::<u8>().unwrap_or(1); set(Box::new(move |draft| draft.weekday = value)); }>
-                    {(1..=7_u8).map(|day| {
-                        let name = t.data.weekday(i64::from(day)).unwrap_or_default();
-                        view! { <option value=day.to_string() selected=move || draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.weekday == day))>{name}</option> }
-                    }).collect_view()}
-                </select>
+                <span class="own-lb">{o.day}</span>
+                <Select
+                    id="own-day"
+                    label=o.day
+                    items=Signal::derive(move || (1..=7_u8).map(|day| ComboItem::new(day.to_string(), t.data.weekday(i64::from(day)).unwrap_or_default(), "", 0)).collect::<Vec<_>>())
+                    selected=Signal::derive(move || draft.with(|draft| draft.as_ref().map(|draft| draft.weekday.to_string()).unwrap_or_default()))
+                    on_select=Callback::new(move |value: String| { let value = value.parse::<u8>().unwrap_or(1); set(Box::new(move |draft| draft.weekday = value)); })
+                />
             </div>
         }
         .into_any(),
@@ -1681,36 +1683,40 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                 </div>
                 {move || (calendars.with(Vec::len) > 1).then(|| view! {
                     <div class="own-fld">
-                        <label for="own-cal">{o.calendar}</label>
-                        <select id="own-cal" on:change=move |ev| { let value = event_target_value(&ev).parse::<u8>().unwrap_or(0); set(Box::new(move |draft| { draft.calendar = value; draft.module = String::new(); draft.module_name = String::new(); })); }>
-                            {move || calendars.get().into_iter().map(|(id, name)| view! { <option value=id.to_string() selected=move || calendar.get() == id>{name}</option> }).collect_view()}
-                        </select>
+                        <span class="own-lb">{o.calendar}</span>
+                        <Select
+                            id="own-cal"
+                            label=o.calendar
+                            items=Signal::derive(move || calendars.with(|all| all.iter().map(|(id, name)| ComboItem::new(id.to_string(), name.clone(), "", 0)).collect::<Vec<_>>()))
+                            selected=Signal::derive(move || calendar.get().to_string())
+                            on_select=Callback::new(move |value: String| { let value = value.parse::<u8>().unwrap_or(0); set(Box::new(move |draft| { draft.calendar = value; draft.module = String::new(); draft.module_name = String::new(); })); })
+                        />
                     </div>
                 })}
                 <div class="own-fld">
-                    <label for="own-module">{o.module}</label>
-                    <select id="own-module" on:change=move |ev| {
-                        let value = event_target_value(&ev);
-                        let name = module_called(ctx, calendar.get_untracked(), &value);
-                        set(Box::new(move |draft| { draft.module = value; draft.module_name = name; }));
-                    }>
-                        <option value="" selected=move || draft.with(|draft| draft.as_ref().is_none_or(|draft| draft.module.is_empty()))>{o.no_module}</option>
-                        {move || modules.get().into_iter().map(|(id, title)| {
-                            let value = id.clone();
-                            view! { <option value=value selected=move || draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.module == id))>{title}</option> }
-                        }).collect_view()}
-                    </select>
+                    <span class="own-lb">{o.module}</span>
+                    <Select
+                        id="own-module"
+                        label=o.module
+                        items=Signal::derive(move || std::iter::once(ComboItem::new("", o.no_module, "", 0)).chain(modules.with(|modules| modules.iter().map(|(id, title)| ComboItem::new(id.clone(), title.clone(), "", 0)).collect::<Vec<_>>())).collect::<Vec<_>>())
+                        selected=Signal::derive(move || draft.with(|draft| draft.as_ref().map(|draft| draft.module.clone()).unwrap_or_default()))
+                        on_select=Callback::new(move |value: String| {
+                            let name = module_called(ctx, calendar.get_untracked(), &value);
+                            set(Box::new(move |draft| { draft.module = value; draft.module_name = name; }));
+                        })
+                    />
                 </div>
                 // Its kind, a word about it (owner, 2026-11-17: „dass man zu Modulen custom termine
                 // hinzufügen … kann"): with its module the week calls it „VL EvS"; it hides nothing.
                 <div class="own-fld">
-                    <label for="own-kind">{o.kind}</label>
-                    <select id="own-kind" on:change=move |ev| { let value = EventKind::from_code(&event_target_value(&ev)); set(Box::new(move |draft| draft.kind = value)); }>
-                        <option value="" selected=move || draft.with(|draft| draft.as_ref().is_none_or(|draft| draft.kind.is_none()))>{o.no_kind}</option>
-                        {move || kinds.get().into_iter().map(|kind| view! {
-                            <option value=kind.code() selected=move || draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.kind == Some(kind)))>{kind.label(t.locale)}</option>
-                        }).collect_view()}
-                    </select>
+                    <span class="own-lb">{o.kind}</span>
+                    <Select
+                        id="own-kind"
+                        label=o.kind
+                        items=Signal::derive(move || std::iter::once(ComboItem::new("", o.no_kind, "", 0)).chain(kinds.with(|kinds| kinds.iter().map(|kind| ComboItem::new(kind.code(), kind.label(t.locale), "", 0)).collect::<Vec<_>>())).collect::<Vec<_>>())
+                        selected=Signal::derive(move || draft.with(|draft| draft.as_ref().and_then(|draft| draft.kind).map(|kind| kind.code().to_string()).unwrap_or_default()))
+                        on_select=Callback::new(move |value: String| { let value = EventKind::from_code(&value); set(Box::new(move |draft| draft.kind = value)); })
+                    />
                 </div>
                 {when}
                 {day_or_dates}
