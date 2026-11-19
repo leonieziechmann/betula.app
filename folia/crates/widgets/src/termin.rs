@@ -510,7 +510,7 @@ struct PlanPart {
 
 /// Of an event's groups the one the Termin shows, under „Im Stundenplan": its keys (one ticks it,
 /// all take its tick away), „Mo 11:30 im Stundenplan", whether it is ticked, and under it how many
-/// are („1 von 3 angehakt") or, while none is, what the plan does.
+/// are („1 von 3 ausgewählt") or, while none is, what the plan does.
 #[derive(Clone, Debug, PartialEq)]
 struct PlanGroup {
     keys: Vec<RowKey>,
@@ -2751,11 +2751,11 @@ mod tests {
         assert!(groups.tiles[1].label.contains("überschneidet sich mit VL EvS"), "{}", groups.tiles[1].label);
         let plan = shown.plan.unwrap();
         let group = plan.group.unwrap();
-        assert_eq!((group.said.as_str(), group.ticked, group.sub.as_str()), ("Mo 11:30 im Stundenplan", false, "Bis du eine anhakst, stehen alle 3 schraffiert im Stundenplan."));
+        assert_eq!((group.said.as_str(), group.ticked, group.sub.as_str()), ("Mo 11:30 im Stundenplan", false, "Bis du eine auswählst, stehen alle 3 schraffiert im Stundenplan."));
         assert_eq!(group.keys, [rows[1].key()]);
         assert!(plan.date.is_some());
         // Two ticked: the tiles say which, green and red still where they fit and meet; the switch
-        // of the one shown on, „2 von 3 angehakt".
+        // of the one shown on, „2 von 3 ausgewählt".
         let ticked = table(&rows, &["12104"], &[], &Selection { chosen_rows: [rows[1].key(), rows[3].key()].into_iter().collect(), ..Selection::default() });
         let adjust = |key: RowKey| shown_of(&ticked, &Against::Itself, key, None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
         let first = adjust(rows[1].key());
@@ -2764,7 +2764,7 @@ mod tests {
         assert_eq!(groups.tiles.iter().map(|tile| (tile.ticked, tile.dot)).collect::<Vec<_>>(), [(true, Some(true)), (false, Some(false)), (true, Some(true))]);
         assert_eq!(groups.note, None);
         let plan = first.plan.unwrap();
-        assert!(plan.group.is_some_and(|group| group.ticked && group.sub == "2 von 3 angehakt") && plan.date.is_some());
+        assert!(plan.group.is_some_and(|group| group.ticked && group.sub == "2 von 3 ausgewählt") && plan.date.is_some());
         // The group not ticked: its switch off, and no date to hide of what the plan does not hold.
         let second = adjust(rows[2].key()).plan.unwrap();
         assert!(second.group.is_some_and(|group| !group.ticked && group.said == "Di 09:15 im Stundenplan" && group.keys == [rows[2].key()]));
