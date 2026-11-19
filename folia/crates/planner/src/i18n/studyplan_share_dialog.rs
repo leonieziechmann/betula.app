@@ -115,6 +115,8 @@ pub struct Texts {
     pub meta_app_copy: &'static str,
     /// Notes or Termine of one's own that did not fit in the shared calendar.
     pub left_out: fn(usize) -> String,
+    /// What is hidden that did not fit in the fixed link.
+    pub hidden_left: fn(usize) -> String,
     /// The line of what it is, its parts joined with „ · ".
     pub summary_live: &'static str,
     pub summary_copy: &'static str,
@@ -191,7 +193,7 @@ pub const DE: Texts = Texts {
 
     along: "Was mitkommt",
     always: "Immer dabei:",
-    always_list: "Module, Gruppen und Termine, die du geändert hast.",
+    always_list: "Module, Gruppen, was du ausgeblendet hast, und Termine, die du geändert hast.",
     own: "Eigene Termine",
     own_count: |n| match n {
         0 => "keine in diesem Semester".to_string(),
@@ -231,6 +233,7 @@ pub const DE: Texts = Texts {
     meta_app_live: "Gilt, bis du nicht mehr teilst. Die Adresse enthält den Schlüssel zu genau diesem Kalender.",
     meta_app_copy: "Eine Kopie von jetzt: Nach einer Änderung braucht es eine neue Adresse.",
     left_out: |n| if n == 1 { "Eine Notiz oder ein eigener Termin passte nicht mehr hinein und bleibt draußen.".to_string() } else { format!("{n} Notizen oder eigene Termine passten nicht mehr hinein und bleiben draußen.") },
+    hidden_left: |n| if n == 1 { "Ein ausgeblendeter Termin passte nicht mehr in den Link: Wer ihn öffnet, sieht ihn.".to_string() } else { format!("{n} ausgeblendete Termine passten nicht mehr in den Link: Wer ihn öffnet, sieht sie.") },
     summary_live: "bleibt aktuell",
     summary_copy: "fester Stand",
     summary_one: "eine Person",
@@ -305,7 +308,7 @@ pub const EN: Texts = Texts {
 
     along: "What comes along",
     always: "Always:",
-    always_list: "modules, groups and events you changed.",
+    always_list: "modules, groups, what you hid and events you changed.",
     own: "Own events",
     own_count: |n| match n {
         0 => "none this semester".to_string(),
@@ -345,6 +348,7 @@ pub const EN: Texts = Texts {
     meta_app_live: "Holds until you stop sharing. The address holds the key to exactly this calendar.",
     meta_app_copy: "A copy of now: after a change it takes a new address.",
     left_out: |n| if n == 1 { "One note or own event did not fit any more and stays out.".to_string() } else { format!("{n} notes or own events did not fit any more and stay out.") },
+    hidden_left: |n| if n == 1 { "One hidden event did not fit into the link: whoever opens it sees it.".to_string() } else { format!("{n} hidden events did not fit into the link: whoever opens it sees them.") },
     summary_live: "stays current",
     summary_copy: "fixed copy",
     summary_one: "one person",

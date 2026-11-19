@@ -6,10 +6,10 @@
 //! The link is the visitor's own act, and the exception R20 makes for it is what it carries: the
 //! semester, the planned modules in their order, the timetable's program — so that the preview a
 //! messenger shows of it names the modules („MIT-1, AuP, EEG"), which the messenger can read from
-//! the address alone — the groups ticked and the changes of Termine of QIS, so that whoever opens
-//! it can put the plan beside their own as a calendar with its owner's groups and Termine as they
-//! changed them (`calendars.rs`). Nothing of what is hidden, no note and no Termin of one's own
-//! travels.
+//! the address alone — the groups ticked, the changes of Termine of QIS and what is hidden, so that
+//! whoever opens it can put the plan beside their own as a calendar with its owner's groups,
+//! Termine as they changed them and what they hid (`calendars.rs`; what is hidden since 2026-11-19,
+//! as far as the code holds it). No note and no Termin of one's own travels.
 //!
 //! The offer stands at the top of the plan while the address carries a code, as the Merkliste
 //! offers a list from a link: „In „Mein Studium“ einplanen" plans the modules the plan does not have yet into the
@@ -401,7 +401,7 @@ pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
             Some(Found::Live { part, .. } | Found::Copy(part)) => Some(part.clone()),
             _ => None,
         })?;
-        let plan = SharedPlan { semester: part.semester, modules: part.modules.clone(), program: part.program.clone(), chosen: Vec::new(), changes: Vec::new() };
+        let plan = SharedPlan { semester: part.semester, modules: part.modules.clone(), program: part.program.clone(), ..SharedPlan::default() };
         let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&SharedPlanAsk { plan, locale: t.locale })))?;
         folia_pages::ask::unless_pending(now, before, |now| Some((part, now.ok()??)))
     });

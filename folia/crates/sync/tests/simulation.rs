@@ -309,11 +309,19 @@ fn act(device: &mut Device, wall: u64, rng: &mut Rng, undo: &mut Option<PlanDoc>
                 }
                 _ => {
                     let Some(id) = own_calendar else { return Vec::new() };
+                    // What the share hides: a kind, an event, a Termin, a date where the semester has it,
+                    // the town; each part another.
+                    let date = folia_calendar::day::Day::parse(DAYS[usize::from(n) % DAYS.len()]).unwrap();
                     let part = folia_calendar::live::LivePart {
                         semester: s.index(),
                         modules: vec![m.parse().unwrap()],
                         own: vec![folia_calendar::live::CodeOwn { number: 1 + u32::from(n), rhythm: 0, weekday: 1 + n % 5, from: 600, to: 660, name: words.join(" "), ..Default::default() }],
                         notes: vec![folia_calendar::live::CodeNote { key: r.packed(), text: words.join(" ") }],
+                        hidden_kinds: 1 << (n % 12),
+                        hidden_events: vec![149_400 + u32::from(n % 5)],
+                        hidden_rows: vec![r.packed()],
+                        hidden_dates: folia_calendar::subscription::date_value(s, r, date).into_iter().collect(),
+                        town: n % 4,
                         ..Default::default()
                     };
                     device.plan(wall, |d| {

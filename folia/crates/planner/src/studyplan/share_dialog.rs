@@ -95,7 +95,10 @@ struct Made {
     url: String,
     choice: Choice,
     until: Option<u64>,
+    /// Notes and Termine of one's own the part had no room for.
     left_out: usize,
+    /// What is hidden that the fixed link had no room for (`SharedPlan::with_hidden`).
+    hidden_left: usize,
     /// The ways into a calendar app: Apple (`webcal://`), Google, Outlook.
     ways: Option<(String, String, String)>,
     /// The share's id in the list, where it is one.
@@ -211,15 +214,19 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
     });
 
     // ---- the fixed links of today: the plan's link, and the subscription's address.
+    // The link carries what is hidden as the subscription's code does (owner, 2026-11-19: „Beide
+    // sollen den gleichen kalender sehen"): what the timetable still knows, in the town it takes,
+    // as far as the link holds it beside the rest; with how much did not fit.
     let fixed_link = Memo::new(move |_| {
         if calendar.get() != 0 {
             return None;
         }
-        let (chosen, changes, visits) = ctx.selection.with(|(_, selection)| (selection.chosen_rows.clone(), selection.changes.clone(), selection.visits.clone()));
+        let selection = ctx.selection.with(|(_, selection)| selection.clone());
         ctx.wanted.with(|(key, ids, program)| {
-            let planned: Vec<String> = ids.iter().filter(|id| !visits.contains(*id)).cloned().collect();
-            let code = SharedPlan::of(*key, &planned, program.as_deref())?.with_chosen(chosen).with_changes(&changes).code().ok()?;
-            Some(folia_routes::url::share_path(&code))
+            let planned: Vec<String> = ids.iter().filter(|id| !selection.visits.contains(*id)).cloned().collect();
+            let hidden = ctx.table.with(|table| folia_timetable::export::subscription_of(*key, &planned, program.as_deref(), &selection, table.as_ref().filter(|table| table.key == *key)).0.selection());
+            let (plan, left) = SharedPlan::of(*key, &planned, program.as_deref())?.with_chosen(selection.chosen_rows.clone()).with_changes(&selection.changes).with_hidden(&hidden);
+            Some((folia_routes::url::share_path(&plan.code().ok()?), left))
         })
     });
     let program = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(|data| data.program.clone())));
@@ -261,7 +268,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
         if !c.needs_sync() {
             // A fixed copy for everybody: the link or the address of today.
             let result = match c.tab {
-                ShareTab::People => fixed_link.get_untracked().map(|path| Made { url: absolute(&path, t), choice: c, until: None, left_out: 0, ways: None, id: None }),
+                ShareTab::People => fixed_link.get_untracked().map(|(path, hidden_left)| Made { url: absolute(&path, t), choice: c, until: None, left_out: 0, hidden_left, ways: None, id: None }),
                 ShareTab::App => fixed_abo.get_untracked().map(|code| {
                     let path = folia_calendar::subscription::path(&code);
                     if calendar.get_untracked() == 0 {
@@ -271,7 +278,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                     }
                     let label = s.label(t.locale);
                     let ways = site().map(|(origin, host)| ways_of(&origin, &host, &path, &label, t.locale));
-                    Made { url: absolute(&path, t), choice: c, until: None, left_out: 0, ways: ways.map(|w| (w.apple, w.google, w.outlook)), id: None }
+                    Made { url: absolute(&path, t), choice: c, until: None, left_out: 0, hidden_left: 0, ways: ways.map(|w| (w.apple, w.google, w.outlook)), id: None }
                 }),
             };
             match result {
@@ -302,7 +309,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                 Ok(done) => {
                     let url = absolute(&done.path, t);
                     let ways = (c.tab == ShareTab::App).then(|| site().map(|(origin, host)| ways_of(&origin, &host, &done.path, &s.label(t.locale), t.locale))).flatten();
-                    if made.try_set(Some(Made { url, choice: c, until: done.until, left_out: done.left_out, ways: ways.map(|w| (w.apple, w.google, w.outlook)), id: Some(done.share.id) })).is_none() {
+                    if made.try_set(Some(Made { url, choice: c, until: done.until, left_out: done.left_out, hidden_left: 0, ways: ways.map(|w| (w.apple, w.google, w.outlook)), id: Some(done.share.id) })).is_none() {
                         to_copy();
                     }
                 }
@@ -600,6 +607,7 @@ pub(super) fn ShareDialog(ctx: PlanCtx) -> impl IntoView {
                         <p class="sh-link">{url.clone()}</p>
                         <p class="sh-meta">{meta}</p>
                         {(made.left_out > 0).then(|| view! { <p class="sh-meta warn">{(d.left_out)(made.left_out)}</p> })}
+                        {(made.hidden_left > 0).then(|| view! { <p class="sh-meta warn">{(d.hidden_left)(made.hidden_left)}</p> })}
                         <div class="sh-acts">{buttons}</div>
                     </div>
                 </div>

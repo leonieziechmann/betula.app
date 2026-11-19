@@ -3,9 +3,10 @@
 // semester, a group of hers ticked) handed on by her link to someone with Informatik B.Sc.'s first
 // semester planned.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node calendars.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// - Lena's link carries her ticked group; the offer it opens has „Als Kalender", which puts her
-//   plan beside one's own (the plan's text: its `l`, `n` and `o` lines, nothing planned of it), with
-//   „Rückgängig".
+// - Lena's link carries her ticked group and the lecture she hid as a whole; the offer it opens has
+//   „Als Kalender", which puts her plan beside one's own (the plan's text: its `l`, `n`, `o` and `u`
+//   lines, nothing planned of it), with „Rückgängig"; her calendar hides what she hid (owner,
+//   2026-11-19: „Beide sollen den gleichen kalender sehen").
 // - The calendar stands as a strip at first (more than eight Termine a week), its switch takes it
 //   in full (outlined, its initial in the corner) and off; „Gemeinsam frei" in the head draws where
 //   both are free; the module list has its part.
@@ -76,8 +77,10 @@ const week = (page) => page.evaluate(() => ({
 }));
 const wide = { viewport: { width: 1440, height: 900 } };
 
-// ---------- Lena's link, her group ticked ----------
+// ---------- Lena's link, her group ticked, a lecture hidden ----------
 let link = "";
+let hiddenTitle = "";
+let hiddenEvent = "";
 {
   const { page, context } = await open(wide, LENA, BWL);
   await until(page, "Lena's week", () => allOnPage(".sp-week a.slot.alt").length > 0);
@@ -88,6 +91,18 @@ let link = "";
   await until(page, "Lena's group ticked", ([key]) => (localStorage.getItem(key) ?? "").split("\n").some((line) => line.startsWith("c\t2026W\t")), [PLAN]);
   await page.keyboard.press("Escape");
   await until(page, "the card closed", () => !location.search.includes("termin=") && !document.querySelector("dialog[open]"));
+  // A lecture of hers hidden as a whole, from its card's eye.
+  const firm = page.locator(".sp-week a.slot:not(.alt)").first();
+  hiddenTitle = (await firm.getAttribute("title").catch(() => "")) ?? "";
+  await firm.click().catch(() => problems.push("Lena's firm slot: nothing to click"));
+  await until(page, "its card's eye", () => Boolean(onPage("dialog[open] .tm-tools [data-action='hide']")));
+  await page.click("dialog[open] .tm-tools [data-action='hide']").catch(() => problems.push("the eye: nothing to click"));
+  await until(page, "„… ganz\" in the card", () => Boolean(onPage("dialog[open] .tm-hide [data-action='hide-event']")));
+  await page.click("dialog[open] .tm-hide [data-action='hide-event']").catch(() => problems.push("„… ganz\": nothing to click"));
+  await until(page, "Lena's lecture hidden", ([key]) => (localStorage.getItem(key) ?? "").split("\n").some((line) => line.startsWith("e\t2026W\t")), [PLAN]);
+  hiddenEvent = (await lines(page, ["e"]))[0]?.split("\t")[2] ?? "";
+  check(hiddenTitle !== "" && /^\d+$/.test(hiddenEvent), `what Lena hid: „${hiddenTitle}", event ${hiddenEvent}`);
+  await until(page, "the card closed", () => !document.querySelector("dialog[open]"));
   // „Teilen …": a private profile hands on the fixed copy for everybody, the link of today.
   await page.click("#sp-share");
   await until(page, "the dialog „Teilen“", () => Boolean(onPage(".sh-dialog[open] #sh-make")));
@@ -105,8 +120,9 @@ let link = "";
   await until(page, "the offer", () => Boolean(onPage("#sp-share-calendar")));
   await page.click("#sp-share-calendar");
   await until(page, "the calendar made, the page's note says so", () => !location.search.includes("share=") && /Als Kalender angelegt/.test(onPage(".wait-note")?.textContent ?? "") && !onPage(".sp-fold .offer"));
-  const stored = await lines(page, ["l", "n", "o", "m"]);
+  const stored = await lines(page, ["l", "n", "o", "m", "u"]);
   check(stored.filter((line) => line.startsWith("l\t1\t")).length === 1 && stored.filter((line) => line.startsWith("n\t1\t2026W\t")).length === 5 && stored.filter((line) => line.startsWith("o\t1\t2026W\t")).length === 1, `the calendar's lines: ${JSON.stringify(stored)}`);
+  check(stored.includes(`u\t1\t2026W\te\t${hiddenEvent}`), `what Lena hid, in her calendar: ${JSON.stringify(stored.filter((line) => line.startsWith("u\t")))}`);
   check(stored.filter((line) => line.startsWith("m\t")).length === 4, `nothing of it planned: ${JSON.stringify(stored)}`);
   // Its row says „Termine kommen …" until the Termine of Lena's Studiengang are there.
   await until(page, "the calendar's Termine", () => /5 Module/.test(allOnPage(".sp-cals .sp-cal")[1]?.innerText ?? ""));
@@ -121,6 +137,8 @@ let link = "";
   await until(page, "in full", () => allOnPage(".sp-week .slot.cal").length > 0);
   w = await week(page);
   check(w.cal > w.strip && w.who === w.cal && w.strip === 0, `in full with its initial: ${JSON.stringify(w)}`);
+  const titles = await page.evaluate(() => allOnPage(".sp-week .slot.cal").map((slot) => slot.getAttribute("title") ?? ""));
+  check(hiddenTitle !== "" && !titles.some((title) => title.includes(hiddenTitle)), `Lena's hidden lecture in her calendar: „${hiddenTitle}" in ${JSON.stringify(titles)}`);
   check(await page.evaluate(() => Boolean(onPage(".sp-head .sp-together"))), "no „Gemeinsam frei\" in the head");
   await page.click(".sp-head .sp-together");
   await until(page, "„Gemeinsam frei\"", () => allOnPage(".sp-week .band.free").length > 0);

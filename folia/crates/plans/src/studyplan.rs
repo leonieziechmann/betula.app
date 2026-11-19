@@ -99,6 +99,15 @@ pub const MAX_CALENDAR_CHANGES: usize = 40;
 /// within its limit; a share hands on a few.
 pub const MAX_CALENDAR_NOTES: usize = 20;
 
+/// The most hidden events, Termine and dates of one calendar of one's own together, in all its
+/// semesters (`u`), and the most semesters it hides anything in: what the share it follows, or the
+/// link it was made of, hid. A student hides a handful in a semester, and a calendar is a semester
+/// or two of somebody's plan; where the caps are reached, what it hid of its earliest semesters
+/// gives way to the semester a share or a link brings (`Calendar::hide_as`). Eight calendars full
+/// to the caps keep the store within its limit.
+pub const MAX_CALENDAR_HIDDEN: usize = 100;
+pub const MAX_CALENDAR_HIDDEN_SEMESTERS: usize = 4;
+
 /// The largest number of a calendar: two digits keep its lines short.
 pub const MAX_CALENDAR_ID: u8 = 99;
 
@@ -158,6 +167,11 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// l  <calendar>  <view>  <program_id>  <name>
 /// n  <calendar>  <semester>  <module_id>
 /// o  <calendar>  <semester>  <event_id>-<fp 5 hex>
+/// u  <calendar>  <semester>  k  <kind>,<kind>,…
+/// u  <calendar>  <semester>  e  <event_id>
+/// u  <calendar>  <semester>  r  <event_id>-<fp 5 hex>
+/// u  <calendar>  <semester>  h  <event_id>-<fp 5 hex>  <date>,<date>,…
+/// u  <calendar>  <semester>  w  <town>
 /// t  <number>  <calendar>  <semester>  <rhythm>  <weekday|dates>  <from>-<to>  <first>  <last>  <module>  <name>  <place>  <skip>  [<kind>]
 /// f  <calendar>  <link>  <since>  <ended>
 /// s  <id>  <calendar>  <to>  <semester>  <made>  <flags>  <key>  <parcel>  <program>  <name>
@@ -192,6 +206,13 @@ type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>
 /// semester; a group ticked in it. They belong to no timetable of the plan's own: `clear_semester`, a
 /// saved plan and a shared one leave them out. A build before them keeps them as lines of a tag it
 /// does not know.
+///
+/// `u` is what a calendar of one's own hides in a semester (`CalendarHides`; owner, 2026-11-19:
+/// „Beide sollen den gleichen kalender sehen"): what the share it follows, or the link it was made
+/// of, hid, as the plan's own `k`, `e`, `r` and `h` say it after the calendar and the semester, and
+/// the town its owner's week takes a module's course in (`w`, as „Mein Studiengang" stores it; none
+/// where it derives). After the calendar's `l` line; a build before it keeps the lines as lines of a
+/// tag it does not know, and a calendar that follows a share has them again from its next part.
 ///
 /// `t` is a Termin of one's own (`Own`, folia/design/kalender/termine.html; owner, 2026-10-27:
 /// „Passt alles, bau Schritt 1 jetzt in Folia"): its number (its key, `OwnTermin::key`), its
@@ -299,8 +320,35 @@ pub struct Calendar {
     /// The notes at its Termine, by semester and Termin (its `b` lines): those of a share it
     /// follows, when they come along.
     pub notes: BTreeMap<(SemesterKey, RowKey), String>,
+    /// What it hides, by semester (its `u` lines): what the share it follows, or the link it was
+    /// made of, hid, so that its week is its owner's. No semester without any.
+    pub hidden: BTreeMap<SemesterKey, CalendarHides>,
     /// The share of someone else's it follows (its `f` line).
     pub follow: Option<crate::shares::Follow>,
+}
+
+/// What a calendar of one's own hides of one semester (`u`), as the plan's own `SemesterHides`
+/// says it of the plan, and the town its owner's week takes a module's course in. It comes with
+/// what the calendar is handed on by (owner, 2026-11-19: „wenn ich bei mir ein modul/veranstaltung
+/// ausblende dann sollte das auch bei der person, die das ding aboniert hat ausgeblendet werden.
+/// Beide sollen den gleichen kalender sehen."): a share it follows (`PlanDoc::take_part`) or a link
+/// (`PlanDoc::hide_in_calendar`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CalendarHides {
+    /// Kinds switched off; an event is hidden only when all its kinds are.
+    pub kinds: KindSet,
+    pub events: BTreeSet<u32>,
+    pub rows: BTreeSet<RowKey>,
+    /// Single dates of Termine hidden, by the Termin's key and the day.
+    pub dates: BTreeSet<(RowKey, Day)>,
+    /// The town its owner chose; `Derive` takes it from its modules, as a calendar did before.
+    pub town: TownChoice,
+}
+
+impl CalendarHides {
+    pub fn is_empty(&self) -> bool {
+        self.kinds.is_empty() && self.events.is_empty() && self.rows.is_empty() && self.dates.is_empty() && self.town == TownChoice::Derive
+    }
 }
 
 /// A Termin of one's own in a semester (`t`): of the plan's calendar (`PlanDoc::own`) or of one of
@@ -326,12 +374,121 @@ impl Calendar {
         self.modules.iter().filter(|(semester, _)| *semester == s).map(|(_, id)| id.clone()).collect()
     }
 
-    /// What it shows of semester `s`: its own ticks, its Termine of one's own and its changes of
-    /// Termine of QIS, in the town its modules are held in.
+    /// What it shows of semester `s`: its own ticks, its Termine of one's own, its changes of
+    /// Termine of QIS and what it hides, in the town it names, else the one its modules are held in.
     pub fn selection(&self, s: SemesterKey) -> Selection {
         let chosen_rows = self.chosen.iter().filter(|(semester, _)| *semester == s).map(|(_, row)| *row).collect();
         let changes = self.changes.iter().filter(|((semester, ..), _)| *semester == s).map(|(_, change)| change.clone()).collect();
-        Selection { chosen_rows, own: own_of_semester(&self.own, s), changes, ..Selection::default() }
+        let hides = self.hidden.get(&s).cloned().unwrap_or_default();
+        Selection {
+            hidden_kinds: hides.kinds,
+            hidden_events: hides.events,
+            hidden_rows: hides.rows,
+            hidden_dates: hides.dates,
+            town: hides.town,
+            chosen_rows,
+            own: own_of_semester(&self.own, s),
+            changes,
+            ..Selection::default()
+        }
+    }
+
+    /// Hides of semester `s` what `selection` hides, in place of what it hid there, in the town
+    /// `selection` names: what a share or a link hands on (`PlanDoc::take_part`,
+    /// `PlanDoc::hide_in_calendar`). Within the caps, as the reader takes it (`hide_kinds` …):
+    /// where they are reached, what it hid of semesters before `s` goes first, the earliest first,
+    /// and of `s` the events come first, then the Termine, then the dates.
+    pub(crate) fn hide_as(&mut self, s: SemesterKey, selection: &Selection) {
+        self.hidden.remove(&s);
+        let (first, last) = s.bounds();
+        let dates = selection.hidden_dates.iter().filter(|(_, day)| (first..=last).contains(day)).count();
+        let wanted = (selection.hidden_events.len() + selection.hidden_rows.len() + dates).min(MAX_CALENDAR_HIDDEN);
+        let hides = !selection.hidden_kinds.is_empty() || wanted > 0 || selection.town != TownChoice::Derive;
+        while let Some(earliest) = self.hidden.keys().next().copied().filter(|earliest| hides && *earliest < s) {
+            if self.hidden.len() < MAX_CALENDAR_HIDDEN_SEMESTERS && self.hidden_entries() + wanted <= MAX_CALENDAR_HIDDEN {
+                break;
+            }
+            self.hidden.remove(&earliest);
+        }
+        self.hide_kinds(s, selection.hidden_kinds);
+        for event in &selection.hidden_events {
+            self.hide_event(s, *event);
+        }
+        for row in &selection.hidden_rows {
+            self.hide_row(s, *row);
+        }
+        for (row, day) in &selection.hidden_dates {
+            self.hide_date(s, *row, *day);
+        }
+        self.set_town(s, selection.town);
+    }
+
+    /// Hides kinds of semester `s` besides those it hides there; kinds this build does not know
+    /// are left out.
+    pub(crate) fn hide_kinds(&mut self, s: SemesterKey, kinds: KindSet) {
+        let kinds = kinds.known();
+        if !kinds.is_empty() && self.admits_hidden(s) {
+            let hides = self.hidden.entry(s).or_default();
+            hides.kinds = KindSet(hides.kinds.0 | kinds.0);
+        }
+    }
+
+    /// Hides a whole event of semester `s`, within the caps.
+    pub(crate) fn hide_event(&mut self, s: SemesterKey, event: u32) {
+        if (1..=MAX_EVENT).contains(&event) {
+            self.add_hidden(s, event, |h| &h.events, |h| &mut h.events);
+        }
+    }
+
+    /// Hides one Termin of semester `s`, within the caps.
+    pub(crate) fn hide_row(&mut self, s: SemesterKey, row: RowKey) {
+        if is_row(row) {
+            self.add_hidden(s, row, |h| &h.rows, |h| &mut h.rows);
+        }
+    }
+
+    /// Hides one date of a Termin of semester `s`, within the caps; a day outside the semester's
+    /// half-year is none of its dates.
+    pub(crate) fn hide_date(&mut self, s: SemesterKey, row: RowKey, day: Day) {
+        let (first, last) = s.bounds();
+        if is_row(row) && (first..=last).contains(&day) {
+            self.add_hidden(s, (row, day), |h| &h.dates, |h| &mut h.dates);
+        }
+    }
+
+    /// The town its week of semester `s` takes a module's course in; `Derive` takes it from its
+    /// modules again.
+    pub(crate) fn set_town(&mut self, s: SemesterKey, town: TownChoice) {
+        if town == TownChoice::Derive {
+            if let Some(hides) = self.hidden.get_mut(&s) {
+                hides.town = town;
+                if hides.is_empty() {
+                    self.hidden.remove(&s);
+                }
+            }
+        } else if self.admits_hidden(s) {
+            self.hidden.entry(s).or_default().town = town;
+        }
+    }
+
+    /// Adds `item` to one of the lists of what it hides of semester `s` (`read` and `write` name
+    /// the same one), within the caps (`MAX_CALENDAR_HIDDEN`).
+    fn add_hidden<T: Ord>(&mut self, s: SemesterKey, item: T, read: fn(&CalendarHides) -> &BTreeSet<T>, write: fn(&mut CalendarHides) -> &mut BTreeSet<T>) {
+        let held = self.hidden.get(&s).is_some_and(|hides| read(hides).contains(&item));
+        if !held && self.hidden_entries() < MAX_CALENDAR_HIDDEN && self.admits_hidden(s) {
+            write(self.hidden.entry(s).or_default()).insert(item);
+        }
+    }
+
+    /// The events, Termine and dates it hides, in all its semesters together.
+    fn hidden_entries(&self) -> usize {
+        self.hidden.values().map(|hides| hides.events.len() + hides.rows.len() + hides.dates.len()).sum()
+    }
+
+    /// Whether it may hide something of semester `s`: one it hides something of already, or one
+    /// more within `MAX_CALENDAR_HIDDEN_SEMESTERS`.
+    fn admits_hidden(&self, s: SemesterKey) -> bool {
+        self.hidden.contains_key(&s) || self.hidden.len() < MAX_CALENDAR_HIDDEN_SEMESTERS
     }
 
     /// Sets a change of a Termin of QIS of semester `s` in place of the one of its Termin and
@@ -630,7 +787,7 @@ impl PlanDoc {
                     let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
                     if let Some(id) = id.filter(|id| (1..=MAX_CALENDAR_ID).contains(id) && doc.calendar(*id).is_none() && doc.calendars.len() < MAX_CALENDARS) {
                         let program = Some(field(3)).filter(|program| url::is_program_id(program)).map(str::to_string);
-                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new(), notes: BTreeMap::new(), follow: None });
+                        doc.calendars.push(Calendar { id, name: calendar_name(field(4)), view: CalendarView::from_code(field(2)), program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new(), notes: BTreeMap::new(), hidden: BTreeMap::new(), follow: None });
                     }
                 }
                 "n" => {
@@ -643,6 +800,39 @@ impl PlanDoc {
                     let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
                     if let (Some(calendar), Some(s), Some(row)) = (id.and_then(|id| doc.calendars.iter_mut().find(|calendar| calendar.id == id)), SemesterKey::parse(field(2)), RowKey::parse(field(3))) {
                         calendar.set_tick(s, row, true);
+                    }
+                }
+                "u" => {
+                    // After the `l` line of its calendar. What a newer build may hide besides is a
+                    // line it wrote, kept as one.
+                    let id = number(field(1)).and_then(|id| u8::try_from(id).ok());
+                    let calendar = id.and_then(|id| doc.calendars.iter_mut().find(|calendar| calendar.id == id));
+                    match (calendar, SemesterKey::parse(field(2)), field(3)) {
+                        (Some(calendar), Some(s), "k") => calendar.hide_kinds(s, KindSet::parse_codes(field(4))),
+                        (Some(calendar), Some(s), "e") => {
+                            if let Some(event) = event_of(field(4)) {
+                                calendar.hide_event(s, event);
+                            }
+                        }
+                        (Some(calendar), Some(s), "r") => {
+                            if let Some(row) = RowKey::parse(field(4)) {
+                                calendar.hide_row(s, row);
+                            }
+                        }
+                        (Some(calendar), Some(s), "h") => {
+                            if let Some(row) = RowKey::parse(field(4)) {
+                                for day in field(5).split(',').filter_map(|iso| Day::parse(iso.trim())) {
+                                    calendar.hide_date(s, row, day);
+                                }
+                            }
+                        }
+                        (Some(calendar), Some(s), "w") => {
+                            if let Some(town) = town_of_code(field(4)) {
+                                calendar.set_town(s, town);
+                            }
+                        }
+                        (Some(_), Some(_), _) if doc.extra.len() < MAX_EXTRA_LINES && line.len() <= MAX_EXTRA_BYTES => doc.extra.push(line.clone()),
+                        _ => {}
                     }
                 }
                 "t" => {
@@ -716,7 +906,8 @@ impl PlanDoc {
     /// `v` the same; `p` by pid; `d` and `q` in the order they were marked; then per semester `k`,
     /// `e`, `r`, `c`, `h` (one line per Termin), `x` (by Termin and scope), `b` (by Termin), `a`;
     /// the plan's `t` in the order they came; per calendar its `l`, its `n` in the order they came,
-    /// its `o`, its `t`, its `x` (by semester, Termin and scope), its `b` (by semester and Termin)
+    /// its `o`, its `u` (by semester: the kinds, the events, the Termine, the dates by Termin, the
+    /// town), its `t`, its `x` (by semester, Termin and scope), its `b` (by semester and Termin)
     /// and its `f`; the shares (`s`) in the order they were made; then the lines of unknown tags.
     /// Control characters in names become spaces, so a name never splits its line.
     pub fn stored(&self) -> String {
@@ -828,6 +1019,28 @@ impl PlanDoc {
             }
             for (semester, row) in &calendar.chosen {
                 let _ = writeln!(out, "o\t{id}\t{}\t{}", semester.key(), row.text());
+            }
+            for (semester, hides) in &calendar.hidden {
+                let key = semester.key();
+                if !hides.kinds.is_empty() {
+                    let _ = writeln!(out, "u\t{id}\t{key}\tk\t{}", hides.kinds.codes());
+                }
+                for event in &hides.events {
+                    let _ = writeln!(out, "u\t{id}\t{key}\te\t{event}");
+                }
+                for row in &hides.rows {
+                    let _ = writeln!(out, "u\t{id}\t{key}\tr\t{}", row.text());
+                }
+                let mut dates: BTreeMap<RowKey, Vec<String>> = BTreeMap::new();
+                for (row, day) in &hides.dates {
+                    dates.entry(*row).or_default().push(day.iso());
+                }
+                for (row, days) in dates {
+                    let _ = writeln!(out, "u\t{id}\t{key}\th\t{}\t{}", row.text(), days.join(","));
+                }
+                if let Some(town) = town_code(hides.town) {
+                    let _ = writeln!(out, "u\t{id}\t{key}\tw\t{town}");
+                }
             }
             for own in &calendar.own {
                 let _ = writeln!(out, "{}", own_line(id, own));
@@ -1280,7 +1493,7 @@ impl PlanDoc {
         }
         let id = crate::ids::smallest(crate::ids::Kind::Calendar, u32::from(MAX_CALENDAR_ID), |id| u8::try_from(id).is_ok_and(|id| self.calendar(id).is_none())).and_then(|id| u8::try_from(id).ok())?;
         let program = program.filter(|program| url::is_program_id(program)).map(str::to_string);
-        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new(), notes: BTreeMap::new(), follow: None };
+        let mut calendar = Calendar { id, name: calendar_name(name), view: None, program, modules: Vec::new(), chosen: BTreeSet::new(), own: Vec::new(), changes: BTreeMap::new(), notes: BTreeMap::new(), hidden: BTreeMap::new(), follow: None };
         for module in modules {
             calendar.add_module(s, module);
         }
@@ -1292,6 +1505,16 @@ impl PlanDoc {
         }
         self.calendars.push(calendar);
         Some(id)
+    }
+
+    /// Hides in calendar `id` of semester `s` what `selection` hides, in place of what it hid
+    /// there, in the town `selection` names: what the link it was made of hid
+    /// (`folia_calendar::share::SharedPlan::hidden`), so that its week is its owner's. `false` where
+    /// the calendar is not there.
+    pub fn hide_in_calendar(&mut self, id: u8, s: SemesterKey, selection: &Selection) -> bool {
+        let Some(calendar) = self.calendars.iter_mut().find(|calendar| calendar.id == id) else { return false };
+        calendar.hide_as(s, selection);
+        true
     }
 
     /// Names a calendar anew; `false` where nothing changed.
@@ -1925,6 +2148,35 @@ impl PlanDoc {
                         Some(note) => here.notes.insert(key, note.clone()),
                         None => here.notes.remove(&key),
                     };
+                }
+            }
+            // What it hides, kind by kind and entry by entry; the town where it is still what the
+            // change set.
+            let empty = CalendarHides::default();
+            for s in was.hidden.keys().chain(made.hidden.keys()).copied().collect::<BTreeSet<_>>() {
+                let (w, m) = (was.hidden.get(&s).unwrap_or(&empty), made.hidden.get(&s).unwrap_or(&empty));
+                if w == m {
+                    continue;
+                }
+                let mut hides = here.hidden.remove(&s).unwrap_or_default();
+                hides.kinds = KindSet((hides.kinds.0 & !(m.kinds.0 & !w.kinds.0)) | (w.kinds.0 & !m.kinds.0));
+                m.events.difference(&w.events).for_each(|event| {
+                    hides.events.remove(event);
+                });
+                hides.events.extend(w.events.difference(&m.events).copied());
+                m.rows.difference(&w.rows).for_each(|row| {
+                    hides.rows.remove(row);
+                });
+                hides.rows.extend(w.rows.difference(&m.rows).copied());
+                m.dates.difference(&w.dates).for_each(|date| {
+                    hides.dates.remove(date);
+                });
+                hides.dates.extend(w.dates.difference(&m.dates).copied());
+                if hides.town == m.town {
+                    hides.town = w.town;
+                }
+                if !hides.is_empty() {
+                    here.hidden.insert(s, hides);
                 }
             }
         }
@@ -3336,6 +3588,21 @@ mod tests {
             }
             calendar.follow = Some(crate::shares::Follow { link: "A".repeat(64), since: u64::MAX, ended: u64::MAX });
         }
+        // Every calendar hiding as much as it keeps, the longest each can be: every kind and the
+        // longest town in as many semesters as it hides anything in, and dates, the longest lines
+        // of what it hides, a line for each.
+        for calendar in &mut doc.calendars {
+            for s in &semesters {
+                calendar.hide_kinds(*s, KindSet(u16::MAX));
+                calendar.set_town(*s, TownChoice::Only(Town::Senftenberg));
+            }
+            for n in 0..=MAX_CALENDAR_HIDDEN as u32 {
+                let s = semesters[n as usize % MAX_CALENDAR_HIDDEN_SEMESTERS];
+                calendar.hide_date(s, termin(u32::MAX - n, 0xffffd), s.bounds().1);
+            }
+            let dates = calendar.hidden.values().map(|hides| hides.dates.len()).sum::<usize>();
+            assert_eq!((calendar.hidden.len(), dates), (MAX_CALENDAR_HIDDEN_SEMESTERS, MAX_CALENDAR_HIDDEN));
+        }
         for n in 0..=crate::shares::MAX_SHARES {
             let share = crate::shares::Share {
                 id: crate::shares::encode(&[n as u8; 16]),
@@ -3500,6 +3767,116 @@ mod tests {
         let mut doc = back;
         assert!(doc.remove_calendar(id).is_some());
         assert!(!doc.stored().contains("\nx\t"));
+    }
+
+    /// Lena's calendar hides what Lena hid (owner, 2026-11-19: „Beide sollen den gleichen kalender
+    /// sehen"): her Tutorien, the Sachsendorf lecture, an Übung and the Übung of 04.11., in
+    /// Senftenberg.
+    #[test]
+    fn a_calendar_hides_what_its_link_hid() {
+        let (w, s) = (key("2026W"), key("2027S"));
+        let mut doc = example();
+        let id = doc.add_calendar("Lena", None, w, &["12104".to_string(), "12102".to_string()], &[], &[]).unwrap();
+        let lenas = Selection {
+            hidden_kinds: KindSet::default().with(EventKind::Tutorial).with(EventKind::Exercise),
+            hidden_events: [149_408].into(),
+            hidden_rows: [termin(148369, 0xaaf38)].into(),
+            // A day outside the half-year is none of its dates.
+            hidden_dates: [(termin(148369, 0xa4d12), day("2026-11-04")), (termin(148369, 0xa4d12), day("2026-11-18")), (termin(148369, 0xa4d12), day("2027-04-14"))].into(),
+            town: TownChoice::Only(Town::Senftenberg),
+            ..Selection::default()
+        };
+        assert!(doc.hide_in_calendar(id, w, &lenas));
+        assert!(!doc.hide_in_calendar(42, w, &lenas), "no calendar 42");
+        let text = doc.stored();
+        assert!(
+            text.contains(&format!(
+                "n\t{id}\t2026W\t12102\n\
+                 u\t{id}\t2026W\tk\texercise,tutorial\n\
+                 u\t{id}\t2026W\te\t149408\n\
+                 u\t{id}\t2026W\tr\t148369-aaf38\n\
+                 u\t{id}\t2026W\th\t148369-a4d12\t2026-11-04,2026-11-18\n\
+                 u\t{id}\t2026W\tw\tsenftenberg\n"
+            )),
+            "{text}"
+        );
+        let back = PlanDoc::restored(&text);
+        assert_eq!(back, doc);
+        // The calendar's week hides it, in Senftenberg; another semester and the plan hide nothing of it.
+        let calendar = back.calendar(id).unwrap();
+        let shown = calendar.selection(w);
+        assert_eq!((shown.hidden_kinds, &shown.hidden_events, &shown.hidden_rows, shown.town), (lenas.hidden_kinds, &lenas.hidden_events, &lenas.hidden_rows, lenas.town));
+        assert_eq!(shown.hidden_dates, BTreeSet::from([(termin(148369, 0xa4d12), day("2026-11-04")), (termin(148369, 0xa4d12), day("2026-11-18"))]));
+        assert_eq!(calendar.selection(s), Selection::default());
+        assert_eq!(back.selection(w, TownChoice::Derive), example().selection(w, TownChoice::Derive), "the plan hides what it hid");
+        // What the next link hides stands in place of it; a town derived again is no line.
+        let mut doc = back;
+        assert!(doc.hide_in_calendar(id, w, &Selection { hidden_events: [149_409].into(), ..Selection::default() }));
+        let calendar = doc.calendar(id).unwrap();
+        assert_eq!(calendar.hidden.get(&w), Some(&CalendarHides { events: [149_409].into(), ..CalendarHides::default() }));
+        assert!(!doc.stored().contains("\tw\t"));
+        doc.hide_in_calendar(id, w, &Selection::default());
+        assert!(doc.calendar(id).unwrap().hidden.is_empty(), "no semester without any");
+        // A line of a calendar that is none, or before its `l`, is dropped; one of a kind this build
+        // does not know is kept as it was, for the build that wrote it.
+        let lines = format!("u\t{id}\t2026W\te\t149408\nl\t{id}\t\t\tLena\nu\t{id}\t2026W\tz\tlater\nu\t42\t2026W\te\t149409\nu\t{id}\tlater\te\t1\nu\t{id}\t2026W\te\t0149408\n");
+        let read = PlanDoc::restored(&lines);
+        assert!(read.calendar(id).unwrap().hidden.is_empty());
+        assert_eq!(read.extra, [format!("u\t{id}\t2026W\tz\tlater")]);
+        assert!(read.stored().ends_with(&format!("l\t{id}\t\t\tLena\nu\t{id}\t2026W\tz\tlater\n")));
+        // At most 100 events, Termine and dates together, the events first.
+        let many = Selection {
+            hidden_events: (1..=300).collect(),
+            hidden_rows: (1..=300).map(|n| termin(n, 1)).collect(),
+            hidden_dates: (1..=300).map(|n| (termin(n, 2), day("2026-11-04"))).collect(),
+            ..Selection::default()
+        };
+        doc.hide_in_calendar(id, w, &many);
+        let calendar = doc.calendar(id).unwrap();
+        assert_eq!((calendar.hidden[&w].events.len(), calendar.hidden[&w].rows.len(), calendar.hidden[&w].dates.len()), (MAX_CALENDAR_HIDDEN, 0, 0));
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc);
+        // A later semester a share goes on to takes the place of the earliest where the caps are
+        // reached; an earlier one takes none.
+        let one = Selection { hidden_events: [7].into(), ..Selection::default() };
+        doc.hide_in_calendar(id, s, &one);
+        assert_eq!(doc.calendar(id).unwrap().hidden.keys().copied().collect::<Vec<_>>(), [s]);
+        for later in 1..=4 {
+            doc.hide_in_calendar(id, s.plus(later).unwrap(), &one);
+        }
+        assert_eq!(doc.calendar(id).unwrap().hidden.keys().copied().collect::<Vec<_>>(), (1..=4).map(|n| s.plus(n).unwrap()).collect::<Vec<_>>());
+        doc.hide_in_calendar(id, w, &one);
+        assert!(!doc.calendar(id).unwrap().hidden.contains_key(&w), "an earlier semester takes no later one's place");
+        assert_eq!(PlanDoc::restored(&doc.stored()), doc);
+        // Taking the calendar away takes them with it.
+        assert!(doc.remove_calendar(id).is_some());
+        assert!(!doc.stored().contains("\nu\t"));
+    }
+
+    #[test]
+    fn undo_takes_back_what_a_calendar_hid_and_nothing_else() {
+        let w = key("2026W");
+        let mut mine = example();
+        let lena = mine.add_calendar("Lena", None, w, &["12104".to_string()], &[], &[]).unwrap();
+        mine.hide_in_calendar(lena, w, &Selection { hidden_events: [149_408].into(), hidden_kinds: KindSet::default().with(EventKind::Tutorial), ..Selection::default() });
+        // A link hides more and less: „Rückgängig" takes back what it did, and leaves what another
+        // tab hid meanwhile.
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.hide_in_calendar(lena, w, &Selection { hidden_events: [149_409].into(), town: TownChoice::Only(Town::Cottbus), ..Selection::default() });
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.calendars[0].hide_row(w, termin(148369, 0xaaf38));
+        undo.restore(&mut doc);
+        let hides = &doc.calendar(lena).unwrap().hidden[&w];
+        assert_eq!((&hides.events, hides.kinds, hides.town), (&BTreeSet::from([149_408]), KindSet::default().with(EventKind::Tutorial), TownChoice::Derive));
+        assert_eq!(hides.rows, BTreeSet::from([termin(148369, 0xaaf38)]));
+        // The calendar deleted comes back with what it hid.
+        let undo = PlanUndo::made(mine.clone(), |doc| {
+            doc.remove_calendar(lena);
+        });
+        let mut doc = undo.after.clone().unwrap();
+        doc.tick(w, termin(148369, 0xaaf38), true);
+        undo.restore(&mut doc);
+        assert_eq!(doc.calendars, mine.calendars);
     }
 
     #[test]
