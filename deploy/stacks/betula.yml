@@ -73,6 +73,11 @@ services:
       # crawl, and no restart repairs a build that fails. What /healthz knows reaches a human
       # through the log instead (level=ERROR, rule "betula: ERROR in the logs").
       RADIX_HEALTH_URL: "http://127.0.0.1:8090/status"
+      # The history of the published catalog (docs/radix/history.md), beside the database in the
+      # volume, so that it goes with the crawl when a colour hands it over (README.md section 4).
+      # Only "radix run" records (a colour that crawls, a canary that reads Cortex's store);
+      # serve-snapshot and releases before Radix 0.15.0 leave it alone.
+      RADIX_HISTORY_DB: /data/history.db
     # The Gemini key ("scan-curriculum", and the semantic search's summaries) comes with the
     # override betula.gemini.yml, which 50-app.sh adds while the secret gemini-api-key exists.
     # The semantic search's models come with the override betula.models.yml, which 50-app.sh adds
