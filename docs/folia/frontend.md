@@ -162,7 +162,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
     the links have set.
     **A choice of a few entries** (a Studienbeginn, a study direction, the plan's semester in
-    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder, and since 1.110.5
+    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder, and since 1.111.1
     the fields of a Termin's forms: „Kalender", „Gehört zu", „Art" and „Tag" of one's own,
     `#own-cal`, `#own-module`, `#own-kind`, `#own-day`, and „Tag" of „Ändern", `#chg-day`; owner,
     2026-11-19: „Außerdem style bitte die dropdowns richtig im Betula style") is `combobox::Select`
@@ -175,7 +175,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     they begin; an entry's detail stands beside it („WiSe 2025/26 · jetzt 3. FS" is „WiSe 2025/26"
     and „jetzt 3. FS"). On a phone it opens in place, as the combobox does, and brings its list into
     sight (`nav::show_in_sheet`: a sheet half up comes all up, what scrolls as little as shows it;
-    since 1.110.5, where „Art" of the form opened below the sheet's fold). `small` is the button
+    since 1.111.1, where „Art" of the form opened below the sheet's fold). `small` is the button
     of a bar of tools (34 px, 46 on a phone); the button and its entries carry their value in
     `data-value` (the checks read it, as they read a `select`'s value).
   - **The areas of a program** („Bereich", with a program selected, curriculum only): of the
@@ -3645,7 +3645,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     where the Termin itself names somebody („verantwortet das Modul" is the overview's: under an
     exercise it named the wrong person); QIS's remark; the note („Notiz: …" with „Bearbeiten"); of a
     group its state and the one large action — „Diese Gruppe auswählen" (the keyboard on it as the
-    card opens; a group is chosen, „auswählen", „ausgewählt", in every text since 1.110.5, where it
+    card opens; a group is chosen, „auswählen", „ausgewählt", in every text since 1.111.1, where it
     was ticked, „anhaken", „angehakt"; owner, 2026-11-19: „gruppe anhaken ist ja mal definitiv der
     falsche begriff. Das sollte eher gruppe auswählen sein."), chosen „Auswahl aufheben", faint „Nur diese Gruppe" · „Auch diese", hidden
     „Einblenden"; of a single date „Diesen Termin" — with „Vergleichen ›" into the focus where it is
@@ -4070,7 +4070,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     `div.sp-carousel`), so leaving the column, or a first move already past the grid's end (a flick,
     clamped to the grid's last hour), does not lose it, and `.sp-week.drawing` (`.sp-carousel.drawing`
     on a phone) says so with its pointer: the one of moving, the four arrows, over the whole week,
-    and over a free stretch the normal pointer while nothing is done (since 1.110.5; owner,
+    and over a free stretch the normal pointer while nothing is done (since 1.111.1; owner,
     2026-11-19: „Verwende, so lange man nichts macht bitte den normalen cursor und wenn man dragged
     den move cursor mit den 4 pfeilen in alle richtungen, wie bei gcal."; before, `copy` and
     `ns-resize`); the column's box is read at every move, so a wheel's scroll while drawing shifts no
