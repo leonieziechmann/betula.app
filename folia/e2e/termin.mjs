@@ -10,10 +10,10 @@
 //   slot marked: the module's chip, the kind, the title, the series („wöchentlich · 15 Termine · noch
 //   8"), the ticket, nothing that picks (no events, groups, „Reihe", day, „Zum Modul"), the tools
 //   „Ändern" · the eye „Ausblenden" · „⋯" · „×", the one way on „Alle Termine von PP" with V.
-// - A hatched group (C.3 b): „Eine von 4 Praktikumsgruppen · noch keine angehakt", „Diese Gruppe
-//   anhaken" with the keyboard and „Vergleichen ›" into the choice in focus; Enter ticks it, the card
-//   closes, the week has one solid group, the note „Prak PP Mo 11:30 angehakt" brings the four back
-//   with „Rückgängig". Ticked (c): „Angehakt · 1 von 4 Praktikumsgruppen" and „Haken wegnehmen", which
+// - A hatched group (C.3 b): „Eine von 4 Praktikumsgruppen · noch keine ausgewählt", „Diese Gruppe
+//   auswählen" with the keyboard and „Vergleichen ›" into the choice in focus; Enter ticks it, the card
+//   closes, the week has one solid group, the note „Prak PP Mo 11:30 ausgewählt" brings the four back
+//   with „Rückgängig". Ticked (c): „Ausgewählt · 1 von 4 Praktikumsgruppen" and „Auswahl aufheben", which
 //   keeps the card. „Ausblenden" of a group: „Diese Gruppe" · „Praktikum ganz", no single date.
 // - „Ausblenden" of a firm lecture (a): „Nur am Fr …" · „Alle 15" · „Vorlesung ganz" (auch Di 11:30),
 //   the first with the keyboard; each closes the card with its note („VL EvS am Fr … ausgeblendet",
@@ -278,7 +278,7 @@ if (block("card")) {
   check(/^Mo \d\d\.\d\d\./.test(v.date) && /^11:30/.test(v.time) && v.room.includes("0.03"), `the ticket: ${JSON.stringify([v.date, v.time, v.room])}`);
   check(v.tools.join() === "change,hide,more" && v.close && v.eye === "eye", `the tools „Ändern" · the eye · „⋯" · „×": ${JSON.stringify([v.tools, v.close, v.eye])}`);
   check(!v.who, `QIS names nobody at the Termin, so nobody is named: „${v.who}"`);
-  check(v.group === "Eine von 4 Praktikumsgruppen · noch keine angehakt" && JSON.stringify(v.big) === JSON.stringify(["tick", "Diese Gruppe anhaken", "false"]) && v.focus === "tick", `the group and its one large action, with the keyboard: ${JSON.stringify([v.group, v.big, v.focus])}`);
+  check(v.group === "Eine von 4 Praktikumsgruppen · noch keine ausgewählt" && JSON.stringify(v.big) === JSON.stringify(["tick", "Diese Gruppe auswählen", "false"]) && v.focus === "tick", `the group and its one large action, with the keyboard: ${JSON.stringify([v.group, v.big, v.focus])}`);
   check(v.compare === "/studyplan?edit=1&wahl=e148370&vergleich=1", `„Vergleichen ›": „${v.compare}"`);
   check(v.all === "Alle Termine von PP" && v.allHref.endsWith("&full=1"), `the one way on: ${JSON.stringify([v.all, v.allHref])}`);
   check(await page.evaluate((key) => allOnPage(`.sp-week a.slot[href*="termin=${key}"]`).some((slot) => slot.getAttribute("aria-current") === "true"), praktikum), "its slot is marked");
@@ -292,30 +292,30 @@ if (block("card")) {
   await until(page, "the group ticked, the note", (key) => {
     const ticks = (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").filter((line) => line.startsWith("c\t"));
     const groups = allOnPage(".sp-week a.slot").filter((slot) => slot.textContent.includes("Prak PP"));
-    return ticks.join() === `c\t2026W\t${key}` && groups.length === 1 && !groups[0].classList.contains("alt") && onPage(".own-note .plan-toast-said")?.textContent.trim() === "Prak PP Mo 11:30 angehakt";
+    return ticks.join() === `c\t2026W\t${key}` && groups.length === 1 && !groups[0].classList.contains("alt") && onPage(".own-note .plan-toast-said")?.textContent.trim() === "Prak PP Mo 11:30 ausgewählt";
   }, praktikum);
   check(await page.evaluate(() => history.length) === steps + 1, "the card and its tick took more than one step of the history");
   await click(page, ".own-note .plan-toast-undo", "„Rückgängig\" of the tick");
   await until(page, "„Rückgängig\": the four hatched again", () => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nc\t") && allOnPage(".sp-week a.slot.alt").filter((slot) => slot.textContent.includes("Prak PP")).length === 4);
 
-  // Ticked by the large action, its card again: „Angehakt", „Haken wegnehmen" keeps the card.
+  // Ticked by the large action, its card again: „Ausgewählt", „Auswahl aufheben" keeps the card.
   await clickSlot(page, praktikum);
   await cardOpen(page, "the card again", praktikum);
-  await click(page, "dialog[open] .tm-act .tm-big[data-action='tick']", "„Diese Gruppe anhaken\"");
+  await click(page, "dialog[open] .tm-act .tm-big[data-action='tick']", "„Diese Gruppe auswählen\"");
   await until(page, "ticked by its button", (key) => (localStorage.getItem("betula.studyplan.v1") ?? "").includes(`c\t2026W\t${key}\n`) && !onPage("dialog[open] .tm-card"), praktikum);
   await clickSlot(page, praktikum);
   await cardOpen(page, "the card of the ticked group", praktikum);
   await settled(page, "the card of the ticked group");
   v = await card(page);
-  check(v.group === "Angehakt · 1 von 4 Praktikumsgruppen" && v.untick === "Haken wegnehmen" && !v.big && v.compare, `a ticked group (c): ${JSON.stringify([v.group, v.untick, v.big, v.compare])}`);
+  check(v.group === "Ausgewählt · 1 von 4 Praktikumsgruppen" && v.untick === "Auswahl aufheben" && !v.big && v.compare, `a ticked group (c): ${JSON.stringify([v.group, v.untick, v.big, v.compare])}`);
   // „Ausblenden" of a ticked group offers the date too.
   await click(page, "dialog[open] .tm-tools [data-action='hide']", "the eye of the ticked group");
   await until(page, "„Ausblenden\" of a ticked group", () => allOnPage("dialog[open] .tm-hide [data-action]").map((row) => row.dataset.action).join() === "hide-date,hide-termin,hide-event,hide-cancel");
   await page.keyboard.press("Escape");
   await until(page, "Esc: the card of the ticked group again", () => !onPage("dialog[open] .tm-hide") && Boolean(onPage("dialog[open] .tm-act .tm-untick")));
   const said = await note(page);
-  await click(page, "dialog[open] .tm-act .tm-untick", "„Haken wegnehmen\"");
-  await until(page, "„Haken wegnehmen\": the card stays, the large action back", (key) => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nc\t") && new URLSearchParams(location.search).get("termin") === key && onPage("dialog[open] .tm-act .tm-big")?.textContent.trim() === "Diese Gruppe anhaken", praktikum);
+  await click(page, "dialog[open] .tm-act .tm-untick", "„Auswahl aufheben\"");
+  await until(page, "„Auswahl aufheben\": the card stays, the large action back", (key) => !(localStorage.getItem("betula.studyplan.v1") ?? "").includes("\nc\t") && new URLSearchParams(location.search).get("termin") === key && onPage("dialog[open] .tm-act .tm-big")?.textContent.trim() === "Diese Gruppe auswählen", praktikum);
   await until(page, "the keyboard on the large action again", () => document.activeElement === onPage("dialog[open] .tm-act .tm-big"));
   check([said, ""].includes(await note(page)), `taking the tick away needs no note: „${await note(page)}"`);
 
