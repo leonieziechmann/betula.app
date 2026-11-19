@@ -37,6 +37,14 @@
     return [...front.querySelectorAll(selector), ...[...document.querySelectorAll(selector)].filter(offStage)];
   };
   const byId = (id) => find(`[id="${CSS.escape(id)}"]`);
+  // A switch of the module that is open („Merken", „Einplanen", their arrows): on a module's page on
+  // a wide screen the sidebar's, whose head has none there (folia/crates/widgets/src/module.rs
+  // `Sidebar`, app.css „the module's page on a wide screen"), else the one in its head — the
+  // preview's, the page's on a phone. The one shown.
+  const moduleSwitch = (action) => {
+    const selector = `#sidebar .module-acts [data-action="${action}"], .hero [data-action="${action}"]`;
+    return findAll(selector).find((el) => el.getClientRects().length) || find(`.hero [data-action="${action}"]`);
+  };
   const narrow = matchMedia("(max-width: 900px)");
   const phone = () => narrow.matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
@@ -4629,12 +4637,12 @@
         if (find('.wait-note [data-action="collect"]')) return;
         const bar = find('.pick-bar [data-action="collect"]');
         const row = el.closest?.(".row-wrap");
-        const more = bar || (row ? row.querySelector('[data-action="collect"]') : find('.hero [data-action="collect"]'));
+        const more = bar || (row ? row.querySelector('[data-action="collect"]') : moduleSwitch("collect"));
         if (more) { e.preventDefault(); more.click(); }
         return;
       }
       const row = el.closest?.(".row-wrap");
-      const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
+      const mark = row ? row.querySelector('[data-action="mark"]') : moduleSwitch("mark");
       if (mark) { e.preventDefault(); mark.click(); }
       return;
     }
@@ -4646,7 +4654,7 @@
       // arrow (folia/design/tasten/konzept.html): planned, the menu of what is planned
       // (planmenu.rs), else „Einplanen in …" (planinto.rs); P as such where there is no arrow.
       const row = el.closest?.(".row-wrap");
-      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
+      const plan = row && !row.querySelector('[aria-current="true"]') ? null : moduleSwitch("plan");
       const more = e.shiftKey && plan?.closest(".plan-pair")?.querySelector('[data-action="plan-more"]');
       // The arrow has the focus, as after a click on it: the menu gives it back there.
       if (more) { e.preventDefault(); more.focus({ preventScroll: true }); more.click(); }

@@ -247,7 +247,7 @@ const LINE = ".fx-desk a.prog-line";
   // its tab and the history do too; „Zurück" (and Esc) lead to the program with the module
   // beside it again, and the page is the module's own page.
   await step("the module as a whole page", () => page.click('#preview [data-action="fullscreen"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("full=1") && document.querySelector(".module-page h2") && document.getElementById("sidebar"));
-  check(await page.evaluate(() => document.querySelector('.rail a[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector(".toc.jumps") !== null), "full page: the programs tab is not the current one, or the module's sidebar is missing");
+  check(await page.evaluate(() => document.querySelector('.rail a[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector("#sidebar .module-acts") !== null), "full page: the programs tab is not the current one, or the module's sidebar is missing");
   const entriesBefore = await page.evaluate(() => history.length);
   await step("Zurück leads to the program", () => page.click('[data-action="back"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && !location.search.includes("full=") && document.querySelector("table.matrix"));
   check((await page.evaluate(() => history.length)) === entriesBefore, "back from the module page added a history entry instead of walking back");
