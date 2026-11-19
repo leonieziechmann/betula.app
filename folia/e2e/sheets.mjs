@@ -230,7 +230,8 @@ const COLLECT = "dialog.collect-sheet";
 await page.goto(base + "/catalog/module/11103", { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__betulaApp === true && document.querySelector(".page-stage.front .mark-more"), null, { timeout: 120000 }).catch(() => problems.push("the module's page has no „Sammeln“"));
 await page.waitForTimeout(500);
-await page.tap(".page-stage.front .mark-more");
+// The head's: the switches of the sidebar a wide screen has (Folia 1.114.0) are on the page too, unseen.
+await page.tap(".page-stage.front .mark-more >> visible=true");
 await page.waitForFunction((selector) => document.querySelector(selector)?.open, COLLECT, { timeout: 5000 }).catch(() => problems.push("„Sammeln“ did not open"));
 await resting(COLLECT);
 at = await dialogAt(COLLECT);
@@ -271,7 +272,7 @@ await page.waitForFunction((selector) => !document.querySelector(selector)?.open
 const SETUP = "dialog.plan-setup";
 await page.waitForTimeout(400);
 await watch(SETUP, 1200);
-await page.tap(".page-stage.front .plan-toggle");
+await page.tap(".page-stage.front .plan-toggle >> visible=true");
 await page.waitForFunction((selector) => document.querySelector(selector)?.open, SETUP, { timeout: 5000 }).catch(() => problems.push("„Einplanen“ did not open „Plan einrichten“"));
 await resting(SETUP);
 at = await dialogAt(SETUP);
