@@ -6,9 +6,11 @@
 //!
 //! It holds one semester of one calendar (the plan's, „Mein Studiengang", or one of one's own):
 //! the modules of its week in their order, the program whose abbreviations name them, the groups
-//! ticked and the changes of Termine of QIS. For a calendar app also what is hidden and the town,
-//! so that the subscribed calendar is the week the student sees, as a subscription's code carries
-//! it (`subscription`); for a person not, as the link of a fixed plan leaves it out (`share`).
+//! ticked, the changes of Termine of QIS, what is hidden and the town, so that whoever follows it —
+//! a friend's Betula or a calendar app — sees the week the student sees, as a subscription's code
+//! carries it (`subscription`; owner, 2026-11-19: „wenn ich bei mir ein modul/veranstaltung
+//! ausblende dann sollte das auch bei der person, die das ding aboniert hat ausgeblendet werden.
+//! Beide sollen den gleichen kalender sehen." Until then a person's part left out what is hidden).
 //! The Termine of one's own and the notes at Termine only where the share takes them along — a
 //! Termin of one's own without its kind (`OwnTermin::kind`, which `CodeOwn` has no place for), so
 //! that a calendar that follows the share, and a calendar app's feed of it, see it by its name, else
@@ -64,8 +66,8 @@ pub struct LivePart {
     pub chosen: Vec<u64>,
     /// The changes of Termine of QIS, as a subscription's code carries them.
     pub changes: Vec<CodeChange>,
-    /// What is hidden, for a calendar app (`Subscription`'s fields of the same names); empty for a
-    /// person.
+    /// What is hidden (`Subscription`'s fields of the same names); empty in a person's part of a
+    /// build before 2026-11-19.
     pub hidden_kinds: u16,
     #[serde(with = "folia_pack::set")]
     pub hidden_events: Vec<u32>,
@@ -115,11 +117,9 @@ pub struct CodeNote {
     pub text: String,
 }
 
-/// What a share takes along beside the modules, groups and changes.
+/// What a share takes along beside the modules, groups, changes and what is hidden.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Along {
-    /// What is hidden and the town: for a calendar app.
-    pub hidden: bool,
     /// The Termine of one's own.
     pub own: bool,
     /// The notes at Termine.
@@ -175,9 +175,9 @@ impl CodeOwn {
 
 impl LivePart {
     /// The part of semester `key` of a calendar whose week holds `modules` (planned and visited,
-    /// in their order; `visits` the visited ones), named as in `program`, as `selection` shows it,
-    /// with what `along` takes along. Only numeric module ids travel, each once, at most
-    /// `MAX_MODULES`.
+    /// in their order; `visits` the visited ones), named as in `program`, as `selection` shows it
+    /// (what it hides and its town too), with what `along` takes along. Only numeric module ids
+    /// travel, each once, at most `MAX_MODULES`.
     pub fn of(key: SemesterKey, modules: &[String], visits: &[String], program: Option<&str>, selection: &Selection, along: Along) -> LivePart {
         let numeric = |id: &String| id.parse::<u32>().ok().filter(|number| number.to_string() == *id);
         let mut ids: Vec<u32> = Vec::new();
@@ -205,16 +205,14 @@ impl LivePart {
                 list.truncate(MAX_HIDDEN);
                 list
             },
+            hidden_kinds: selection.hidden_kinds.known().0,
+            hidden_events: selection.hidden_events.iter().copied().take(MAX_HIDDEN).collect(),
+            hidden_rows: packed(&selection.hidden_rows),
+            hidden_dates: selection.hidden_dates.iter().filter_map(|(row, day)| date_value(key, *row, *day)).take(MAX_HIDDEN).collect(),
+            town: selection.town.code(),
             visits,
             ..LivePart::default()
         };
-        if along.hidden {
-            part.hidden_kinds = selection.hidden_kinds.known().0;
-            part.hidden_events = selection.hidden_events.iter().copied().take(MAX_HIDDEN).collect();
-            part.hidden_rows = packed(&selection.hidden_rows);
-            part.hidden_dates = selection.hidden_dates.iter().filter_map(|(row, day)| date_value(key, *row, *day)).take(MAX_HIDDEN).collect();
-            part.town = selection.town.code();
-        }
         if along.own {
             part.own = selection.own.iter().filter(|termin| termin.is_valid()).take(MAX_OWN).map(|termin| CodeOwn::of(key, termin)).collect();
         }
@@ -320,8 +318,8 @@ impl LivePart {
         self.notes.iter().filter_map(|note| Some((RowKey::unpack(note.key)?, note_text(&note.text)))).filter(|(_, text)| !text.is_empty()).collect()
     }
 
-    /// What its week shows, as the timetable applies it: for a calendar app the semester as the
-    /// sharer sees it, for a person what the share takes along.
+    /// What its week shows, as the timetable applies it: the semester as the sharer sees it, with
+    /// what the share takes along.
     pub fn selection(&self) -> Selection {
         let rows = |packed: &[u64]| packed.iter().filter_map(|value| RowKey::unpack(*value)).collect();
         Selection {
@@ -428,14 +426,16 @@ mod tests {
         }
     }
 
+    /// Every part carries what is hidden, for a person as for a calendar app (owner, 2026-11-19:
+    /// „Beide sollen den gleichen kalender sehen"; until then a person's left it out).
     #[test]
-    fn a_part_for_a_person_carries_the_week_without_what_is_hidden() {
+    fn a_part_carries_the_week_with_what_is_hidden() {
         let part = LivePart::of(winter(), &ids(&["12104", "11101", "13977", "x-1", "12104"]), &ids(&["13977"]), Some("079-82-2008"), &selection(), Along::default());
         assert_eq!(part.module_ids(), ["12104", "11101", "13977"]);
         assert_eq!(part.visits, [13977]);
         assert_eq!(part.chosen_rows(), [RowKey { event: 148_369, fp: 0xa4d12 }]);
         assert_eq!(part.change_list().len(), 1);
-        assert!(part.hidden_events.is_empty() && part.hidden_rows.is_empty() && part.hidden_dates.is_empty() && part.hidden_kinds == 0 && part.town == 0);
+        assert_eq!((part.hidden_kinds, part.hidden_events.as_slice(), part.hidden_rows.len(), part.hidden_dates.len(), part.town), (EventKind::Tutorial.bit(), &[149_408][..], 1, 1, 1));
         assert!(part.own.is_empty() && part.notes.is_empty(), "nothing of one's own unless it comes along");
         let code = part.code().unwrap();
         assert!(code.len() < 120, "{} characters: {code}", code.len());
@@ -443,8 +443,8 @@ mod tests {
     }
 
     #[test]
-    fn a_part_for_a_calendar_app_shows_the_week_as_the_student_sees_it() {
-        let along = Along { hidden: true, own: true, notes: true };
+    fn a_part_shows_the_week_as_the_student_sees_it() {
+        let along = Along { own: true, notes: true };
         let part = LivePart::of(winter(), &ids(&["12104", "11101", "13977"]), &ids(&["13977"]), Some("079-82-2008"), &selection(), along);
         let back = LivePart::from_code(&part.code().unwrap()).unwrap();
         let shown = back.selection();
@@ -467,7 +467,7 @@ mod tests {
     fn notes_too_long_for_a_part_are_left_out_from_the_last() {
         let mut wanted = selection();
         wanted.notes = (0..100u32).map(|n| (RowKey { event: 140_000 + n, fp: n }, format!("{n} {}", "x".repeat(400)))).collect();
-        let part = LivePart::of(winter(), &ids(&["12104"]), &[], None, &wanted, Along { hidden: false, own: true, notes: true });
+        let part = LivePart::of(winter(), &ids(&["12104"]), &[], None, &wanted, Along { own: true, notes: true });
         assert!(part.code().is_err(), "a hundred long notes are more than a part holds");
         let (fitted, left) = part.fitted();
         let code = fitted.code().unwrap();
