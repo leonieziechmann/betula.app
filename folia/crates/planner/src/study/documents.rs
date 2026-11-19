@@ -166,7 +166,7 @@ fn DocList(docs: Memo<Option<Vec<Doc>>>) -> impl IntoView {
         .into_any(),
         Some(docs) if docs.is_empty() => view! { <EmptyState title=v.no_documents hint=v.no_documents_hint/> }.into_any(),
         Some(docs) => view! {
-            <ul class="doclist" aria-label=v.documents_list>
+            <ul class="doclist" aria-label=v.documents_list data-stop="y">
                 {docs.into_iter().map(|doc| view! {
                     <li>
                         <a class="docrow" href=doc.url.clone() rel="noopener">
@@ -202,7 +202,7 @@ fn MoreLinks(more: More) -> impl IntoView {
             <header class="st-view-head">
                 <div><h2 id="st-docs-more">{v.more}</h2></div>
             </header>
-            <ul class="doclist">
+            <ul class="doclist" data-stop="y">
                 {more.tree.map(|tree| view! {
                     <li>
                         <a class="docrow" href=tree rel="noopener">

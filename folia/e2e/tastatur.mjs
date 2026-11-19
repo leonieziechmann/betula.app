@@ -16,7 +16,10 @@
 // Esc in the search leads into the list; a combination is written with „+" on a PC and as signs on
 // a Mac; on the Merkliste ↓ goes from row to row, F into its sidebar as a mode, Esc back to the row,
 // Entf takes a row off with „Rückgängig“ and ? marks „In der Merkliste“; a chosen lecturer is one
-// stop whose ← → Enter and Entf choose and take it out, the picker's list stays whole in the area.
+// stop whose ← → Enter and Entf choose and take it out, the picker's list stays whole in the area;
+// on „Mein Studium" the rows of a semester are a stop, F leads into its views, ← → at the
+// semester's name turn it, Entf takes a row out, Shift + F10 opens its menu, „Befehle" offers what
+// it does, and the Gesamtplan and the Regelstudienplan are tables the arrows go through.
 // On the synthetic catalog
 // (docs/folia/frontend.md §4) as on the real one.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tastatur.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
@@ -385,6 +388,151 @@ const url = (page, test, timeout = 5000) => page.waitForFunction(test, null, { t
   const overview = await page.evaluate(() => document.querySelector("dialog.keys-dialog[open] .keys-group.here h3")?.textContent || "");
   check(/In der Merkliste/.test(overview), `the Merkliste: ? did not mark „In der Merkliste“ (${overview})`);
   await press(page, "Escape", 200);
+  await context.close();
+}
+
+// ---------- „Mein Studium" ----------
+// The same regions on „Mein Studium" (folia/design/tastatur/konzept.html, „Die anderen Seiten"): the
+// rows of the semester a stop whose ↓ goes from row to row and on to „Module hinzufügen", their
+// status no stop of Tab; F into the sidebar as a mode, at the view shown, ↓ from view to view,
+// typing finds a view and Enter shows it, Esc back to the row; ← → at the semester's name turn it
+// and keep the keyboard there; the space bar selects, Shift + ↓ takes in the next, Esc lets go;
+// Shift + F10 opens the row's menu; Entf takes the row out with „Rückgängig", the keyboard on the
+// next row; ? marks „In „Mein Studium“"; „Befehle" at a row offers its menu, passed and „Entfernen",
+// and the views under „Gehe zu"; the Gesamtplan is one stop that Tab enters at the current
+// semester, whose arrows go from cell to cell as the eye sees them and whose ? marks „Im
+// Gesamtplan"; the Regelstudienplan's ↓ goes from module to module and → to „Einplanen".
+{
+  const { context, page } = await open("/catalog");
+  // Six modules of the catalog planned into the current semester of Informatik B.Sc. in its third.
+  await page.waitForFunction(() => allOnPage(".rows a.row").length >= 6, null, { timeout: 20000 });
+  const ids = await page.evaluate(() => allOnPage(".rows a.row").map((row) => row.dataset.id).slice(0, 6));
+  await page.evaluate((ids) => {
+    localStorage.setItem("betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n");
+    localStorage.setItem("betula.studyplan.v1", ids.map((id, i) => `m\t2026W\t${id}\t${i + 1}\t\t`).join("\n") + "\n");
+    localStorage.setItem("betula.study.view", "list");
+  }, ids);
+  await page.goto(base + "/study", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true && allOnPage(".st-card-sem .st-row .st-open").length >= 6, null, { timeout: 60000 }).catch(() => problems.push("„Mein Studium“: the six rows are not there"));
+  await page.waitForTimeout(500);
+  const where = () => page.evaluate(() => {
+    const a = document.activeElement;
+    return { cls: a?.className || "", key: a?.closest?.(".st-row")?.dataset.key || "", region: a?.closest?.("[data-region]")?.dataset.region || "", label: (a?.getAttribute("aria-label") || a?.textContent || "").trim().replace(/\s+/g, " ").slice(0, 60), current: a?.getAttribute("aria-current") || "" };
+  });
+  const keys = await page.evaluate(() => allOnPage(".st-card-sem .st-row[data-key]").map((row) => row.dataset.key));
+  // ↓ from nowhere: into the rows, then from row to row; the status is no stop.
+  await press(page, "ArrowDown", 120);
+  let now = await where();
+  check(now.key === keys[0] && /st-open/.test(now.cls) && now.region === "content", `„Mein Studium“: ↓ from nowhere is not at the first row (${JSON.stringify(now)})`);
+  await press(page, "ArrowDown", 120);
+  now = await where();
+  check(now.key === keys[1] && /st-open/.test(now.cls), `„Mein Studium“: ↓ did not go to the second row (${JSON.stringify(now)})`);
+  const stops = await page.evaluate(() => allOnPage(".st-card-sem .st-status").filter((b) => b.tabIndex >= 0).length);
+  check(stops === 0, `„Mein Studium“: the rows' status is a stop of Tab (${stops})`);
+  await press(page, "Tab", 120);
+  now = await where();
+  check(!/st-open|st-status/.test(now.cls), `„Mein Studium“: Tab stayed among the rows (${JSON.stringify(now)})`);
+  await press(page, "Shift+Tab", 120);
+  now = await where();
+  check(now.key === keys[1], `„Mein Studium“: Shift + Tab did not come back to the row the keyboard left (${JSON.stringify(now)})`);
+  // F: into the sidebar as a mode, at the view shown; ↓ to the next view; Esc back to the row.
+  await press(page, "f", 250);
+  now = await where();
+  const mode = await page.evaluate(() => ({ tag: document.querySelector(".mode-tag[data-on]")?.textContent || "", outline: getComputedStyle(onPage("#sidebar")).outlineStyle }));
+  check(now.region === "side" && now.current === "page" && /st-vl/.test(now.cls) && /Esc/.test(mode.tag) && mode.outline === "solid", `„Mein Studium“: F did not lead into the sidebar as a mode at the view shown (${JSON.stringify({ now, mode })})`);
+  await press(page, "ArrowDown", 120);
+  now = await where();
+  check(/st-vl/.test(now.cls) && /Gesamtplan/.test(now.label), `„Mein Studium“: ↓ in the sidebar did not go to the next view (${JSON.stringify(now)})`);
+  await press(page, "Escape", 250);
+  now = await where();
+  check(now.key === keys[1] && now.region === "content", `„Mein Studium“: Esc did not lead back to the row (${JSON.stringify(now)})`);
+  // ← → at the semester's name.
+  await page.focus(".st-card-sem .st-sem-pick");
+  const named = () => page.evaluate(() => ({ name: onPage(".st-card-sem .st-sem-pick")?.textContent.trim() || "", focus: document.activeElement?.classList.contains("st-sem-pick") || false }));
+  const first = await named();
+  await press(page, "ArrowLeft", 400);
+  const before = await named();
+  check(before.name && before.name !== first.name && before.focus, `„Mein Studium“: ← at the semester's name did not turn to the one before with the keyboard there (${JSON.stringify({ first, before })})`);
+  await press(page, "ArrowRight", 400);
+  const back = await named();
+  check(back.name === first.name && back.focus, `„Mein Studium“: → did not turn back (${JSON.stringify(back)})`);
+  // The space bar selects, Shift + ↓ takes in the next, Esc lets go.
+  await page.focus(`.st-card-sem .st-row[data-key="${keys[0]}"] .st-open`);
+  await press(page, " ", 150);
+  await press(page, "Shift+ArrowDown", 150);
+  const selected = await page.evaluate(() => allOnPage(".st-card-sem .st-row.is-selected").map((row) => row.dataset.key));
+  check(selected.join() === keys.slice(0, 2).join(), `„Mein Studium“: the space bar and Shift + ↓ did not select the two rows (${selected})`);
+  await press(page, "Escape", 200);
+  check((await page.evaluate(() => allOnPage(".st-card-sem .st-row.is-selected").length)) === 0, "„Mein Studium“: Esc did not let go of the rows selected");
+  // Shift + F10: the row's menu, the keyboard in it; Esc closes it and gives the keyboard back.
+  await page.focus(`.st-card-sem .st-row[data-key="${keys[2]}"] .st-open`);
+  await press(page, "Shift+F10", 300);
+  const menu = await page.evaluate(() => ({ open: !!document.querySelector(".st-pop.root"), inside: !!document.activeElement?.closest?.(".st-pop"), remove: !!document.querySelector(".st-pop.root #st-menu-remove, .st-pop.root [data-id=\"st-menu-remove\"]") || /Entfernen/.test(document.querySelector(".st-pop.root")?.textContent || "") }));
+  check(menu.open && menu.inside && menu.remove, `„Mein Studium“: Shift + F10 did not open the row's menu with the keyboard in it (${JSON.stringify(menu)})`);
+  await press(page, "Escape", 250);
+  now = await where();
+  check(now.key === keys[2], `„Mein Studium“: Esc out of the menu did not give the keyboard back to the row (${JSON.stringify(now)})`);
+  // „Befehle" at the row: its menu, passed and „Entfernen"; the views under „Gehe zu".
+  await press(page, "Control+k", 500);
+  const offered = await page.evaluate(() => [...document.querySelectorAll(".cmd-dialog[open] .cmd-group")].map((g) => `${g.querySelector(".cmd-heading")?.textContent.trim()}: ${[...g.querySelectorAll(".cmd-label")].map((l) => l.textContent.trim()).join(" | ")}`));
+  const rowGroup = offered.find((g) => g.startsWith("Für „")) || "";
+  const go = offered.find((g) => g.startsWith("Gehe zu")) || "";
+  check(/Menü öffnen/.test(rowGroup) && /Als bestanden markieren/.test(rowGroup) && /Entfernen/.test(rowGroup) && /Gesamtplan/.test(go) && /Regelstudienplan/.test(go) && /Ansichten und Studiengang/.test(go), `„Mein Studium“: „Befehle“ at a row does not offer what it should (${JSON.stringify(offered)})`);
+  await press(page, "Escape", 250);
+  // Entf: the row out with „Rückgängig", the keyboard on the next row.
+  await page.focus(`.st-card-sem .st-row[data-key="${keys[2]}"] .st-open`);
+  await press(page, "Delete", 500);
+  const gone = await page.evaluate((key) => ({ row: !!onPage(`.st-card-sem .st-row[data-key="${key}"]`), note: document.querySelector(".study-note")?.textContent || "", at: document.activeElement?.closest?.(".st-row")?.dataset.key || "" }), keys[2]);
+  check(!gone.row && /Rückgängig/.test(gone.note) && gone.at === keys[3], `„Mein Studium“: Entf did not take the row out with „Rückgängig“ and the keyboard on the next row (${JSON.stringify(gone)})`);
+  // ?: „In „Mein Studium“" marked where the keyboard was.
+  await press(page, "?", 300);
+  const overview = await page.evaluate(() => document.querySelector("dialog.keys-dialog[open] .keys-group.here h3")?.textContent || "");
+  check(/Mein Studium/.test(overview), `„Mein Studium“: ? did not mark its group (${overview})`);
+  await press(page, "Escape", 250);
+  // Typing in the sidebar finds a view, Enter shows it: the Gesamtplan.
+  await press(page, "f", 250);
+  for (const key of "gesamt") await press(page, key, 40);
+  await page.waitForTimeout(200);
+  const found = await page.evaluate(() => ({ bubble: !!document.querySelector(".find-bubble[data-on]"), target: document.querySelector("[data-find-target]")?.textContent.trim() || "", bar: onPage("#sidebar > .key-bar[data-on]")?.textContent || "" }));
+  check(found.bubble && /Gesamtplan/.test(found.target) && /öffnen/.test(found.bar), `„Mein Studium“: typing in the sidebar did not find the Gesamtplan (${JSON.stringify(found)})`);
+  await press(page, "Enter", 600);
+  const grid = await url(page, () => !!document.querySelector(".st-rm .st-col-head"), 8000);
+  check(grid, "„Mein Studium“: Enter at the view found did not show the Gesamtplan");
+  // The Gesamtplan: Tab enters at the current semester; ↓ goes into its rows, ← → along them.
+  await press(page, "Escape", 250);
+  const enter = await pressUntil(page, "Tab", (now) => /st-col-head/.test(now.cls) || /st-rm-p|st-cell-add|st-rm-area/.test(now.cls), 30);
+  now = await page.evaluate(() => ({ cls: document.activeElement?.className || "", home: document.activeElement?.hasAttribute("data-kb-home") || false }));
+  check(enter.now && /st-col-head/.test(now.cls) && now.home, `„Mein Studium“: Tab did not enter the Gesamtplan at the current semester (${JSON.stringify(now)})`);
+  const box = () => page.evaluate(() => { const r = document.activeElement.getBoundingClientRect(); return { cls: document.activeElement.className, x: r.left + r.width / 2, y: r.top + r.height / 2, plan: !!document.activeElement.closest(".st-rm") }; });
+  const head = await box();
+  await press(page, "ArrowDown", 150);
+  const below = await box();
+  check(below.plan && below.y > head.y && !/st-col-head/.test(below.cls), `„Mein Studium“: ↓ in the Gesamtplan did not go below the head (${JSON.stringify({ head, below })})`);
+  await press(page, "ArrowLeft", 150);
+  const left = await box();
+  check(left.plan && left.x < below.x && Math.abs(left.y - below.y) < 30, `„Mein Studium“: ← in the Gesamtplan did not go left in the row (${JSON.stringify({ below, left })})`);
+  await press(page, "?", 300);
+  const planHelp = await page.evaluate(() => document.querySelector("dialog.keys-dialog[open] .keys-group.here h3")?.textContent || "");
+  check(/Gesamtplan/.test(planHelp), `„Mein Studium“: ? in the Gesamtplan did not mark its group (${planHelp})`);
+  await press(page, "Escape", 250);
+  // The Regelstudienplan: ↓ from module to module, → to „Einplanen" in the row.
+  await page.goto(base + "/study?view=plan", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true && allOnPage(".st-mx a.st-rsp-name").length >= 2, null, { timeout: 60000 }).catch(() => problems.push("„Mein Studium“: the Regelstudienplan has no modules"));
+  // A row with „Einplanen", and the name after it.
+  const rsp = await page.evaluate(() => {
+    const names = allOnPage(".st-mx a.st-rsp-name");
+    const at = names.findIndex((a) => a.closest("tr")?.querySelector(".st-addb"));
+    return { at, name: names[at]?.textContent.trim() || "", next: names[at + 1]?.textContent.trim() || "" };
+  });
+  await page.locator(".st-mx a.st-rsp-name >> visible=true").nth(Math.max(0, rsp.at)).focus();
+  await press(page, "ArrowDown", 150);
+  now = await where();
+  check(/st-rsp-name/.test(now.cls) && now.label === rsp.next, `„Mein Studium“: ↓ in the Regelstudienplan did not go to the next module (${JSON.stringify({ now, rsp })})`);
+  await press(page, "ArrowUp", 150);
+  await press(page, "ArrowRight", 150);
+  now = await where();
+  const row = await page.evaluate(() => document.activeElement?.closest("tr")?.querySelector(".st-rsp-name")?.textContent.trim() || "");
+  check(/st-addb/.test(now.cls) && row === rsp.name, `„Mein Studium“: → in the Regelstudienplan did not go to „Einplanen“ in the row (${JSON.stringify({ now, row, rsp })})`);
   await context.close();
 }
 

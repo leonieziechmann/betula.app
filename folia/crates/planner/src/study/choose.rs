@@ -739,7 +739,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
         // A group's members are picked on the left; other lists by their tabs.
         let tabs = (entry.tabs.len() > 1 && !is_group(&entry)).then(|| {
             view! {
-                <div class="st-wtabs" role="group" aria-label=v.lists style=format!("--c: {}", entry.tone)>
+                <div class="st-wtabs" role="group" aria-label=v.lists style=format!("--c: {}", entry.tone) data-stop="x">
                     {entry.tabs.iter().enumerate().map(|(i, tab_of)| view! {
                         <button type="button" aria-pressed=if shown == Some(i) { "true" } else { "false" } on:click=move |_| list_picked.set(Some((at, Some(i))))>
                             <span>{tab_of.name.clone()}<small>{tab_of.modules.len()}</small></span>
@@ -754,7 +754,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                 let pane = pane.as_ref()?;
                 Some(view! {
                     {section_head(&tab_of, t)}
-                    <div class="st-wrows">
+                    <div class="st-wrows" data-stop="y">
                         {modules.into_iter().map(|module| {
                             let href = super::module_href(ctx, &module.id, t);
                             let hint = hint_of(&tab_of, &module);
@@ -777,7 +777,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
             {head(&entry, false, t)}
             {tabs}
             {catalog_way(&entry, t)}
-            {(!entry.places.is_empty()).then(|| view! { <div class="st-wrows st-wplaces">{places_of(&entry, now, false, t)}</div> })}
+            {(!entry.places.is_empty()).then(|| view! { <div class="st-wrows st-wplaces" data-stop="y">{places_of(&entry, now, false, t)}</div> })}
             {list}
         })
     };
@@ -790,7 +790,8 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                 </div>
             </header>
             <div class="st-split">
-                <nav class="st-split-l" aria-label=v.areas>{left}</nav>
+                // The areas one stop of Tab, each list of modules one (enhance.js, `data-stop`).
+                <nav class="st-split-l" aria-label=v.areas data-stop="y">{left}</nav>
                 <div class="st-split-r">{right}</div>
             </div>
         </section>

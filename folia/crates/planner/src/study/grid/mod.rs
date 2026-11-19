@@ -754,11 +754,17 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
     };
     let is_full = Memo::new(move |_| ctx.full.get());
     view! {
+        // For the keyboard a table of controls (enhance.js, `data-stop="grid"`): the heads of the
+        // semesters and every cell's controls are one stop of Tab, the arrows go from one to the one
+        // beside it as the eye sees them, Tab comes in at the current semester; the buttons over it
+        // are a stop of their own. `?` says what the keys do here (`data-keys-place`).
         <section
             class="panel st-grid-panel st-rm"
             class:is-full=move || is_full.get()
             id=PANEL_ID
             aria-label=s.grid_title
+            data-stop="grid"
+            data-keys-place="grid"
             data-moved=move || past.moved.get()
             data-drag=move || aim.dragging().then_some("")
             data-ex=move || aim.exception_held().then_some("")
@@ -768,7 +774,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
             on:drop=move |ev: leptos::ev::DragEvent| aim.drop(ctx, &ev, t)
         >
             <div class="st-rm-top">
-                <div class="st-sems-head">
+                <div class="st-sems-head" data-stop="x">
                     <h2>{s.grid_title}</h2>
                     <span class="st-grow"></span>
                     // While a module is dragged, what the rows' colours say, over the buttons.
@@ -782,7 +788,7 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                             </div>
                         }
                     })}
-                    <button class="st-link st-rm-all" type="button" on:click=move |_| {
+                    <button class="st-link st-rm-all" type="button" data-command="" on:click=move |_| {
                         if all_open.get_untracked() { unfolded.keep(BTreeSet::new()) } else { unfolded.keep(keys.get_untracked()) }
                     }>
                         {move || if all_open.get() {
@@ -792,17 +798,18 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                         }}
                     </button>
                     {move || any_past.get().then(|| view! {
-                        <button class="st-link" type="button" aria-expanded=move || if past.fold.get() { "false" } else { "true" } on:click=move |_| past.set(!past.fold.get_untracked())>
+                        <button class="st-link" type="button" aria-expanded=move || if past.fold.get() { "false" } else { "true" } data-command="" on:click=move |_| past.set(!past.fold.get_untracked())>
                             {move || if past.fold.get() { s.expand_past } else { s.collapse_past }}
                         </button>
                     })}
-                    <button class="st-link st-rm-save" type="button" on:click=save><Icon name="image"/>{s.save_picture}</button>
+                    <button class="st-link st-rm-save" type="button" data-command="" on:click=save><Icon name="image"/>{s.save_picture}</button>
                     <button
                         class="icon-btn st-rm-full"
                         type="button"
                         aria-pressed=move || if is_full.get() { "true" } else { "false" }
                         aria-label=move || if is_full.get() { s.full_screen_leave } else { s.full_screen }
                         title=move || if is_full.get() { format!("{} · Esc", s.full_screen_leave) } else { s.full_screen.to_string() }
+                        data-command=""
                         on:click=move |_| full(ctx, !ctx.full.get_untracked())
                     >
                         {move || if is_full.get() { view! { <Icon name="minimize"/> }.into_any() } else { view! { <Icon name="maximize"/> }.into_any() }}
@@ -918,7 +925,7 @@ fn head_view(ctx: StudyCtx, column: Column, now_line: bool, aim: Aim, t: &'stati
         Column::Semester(head) => {
             let key = head.key;
             view! {
-                <button type="button" class="st-col-head" class:is-now=head.now class:past=head.past class:rm-now=now_line class:rm-drop=move || aim.column(key) data-sem=key.key() on:click=move |_| {
+                <button type="button" class="st-col-head" class:is-now=head.now class:past=head.past class:rm-now=now_line class:rm-drop=move || aim.column(key) data-sem=key.key() data-kb-home=head.now.then_some("") on:click=move |_| {
                     ctx.focus.set(Some(key));
                     ctx.view.set(super::View::Semester);
                 }>
@@ -1296,9 +1303,23 @@ fn piece_view(frame: &RowFrame, piece: Piece, semester: SemesterKey, of: Of, unf
                 ev.prevent_default();
                 menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev);
             }
+            on:keydown=remove_key(ctx, semester, key, t)
         >{inner}</button>
     }
     .into_any()
+}
+
+/// Entf (⌫ on a Mac) at a module of the plan takes it out with „Rückgängig", as „Entfernen" of its
+/// menu (folia/design/tastatur/konzept.html, „Die anderen Seiten"); the keyboard goes to the head of
+/// its semester, in the plan still.
+fn remove_key(ctx: StudyCtx, semester: SemesterKey, key: StoredValue<String>, t: &'static Texts) -> impl Fn(leptos::ev::KeyboardEvent) + Copy + 'static {
+    move |ev| {
+        if matches!(ev.key().as_str(), "Delete" | "Backspace") && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && !ev.shift_key() && !ev.repeat() {
+            ev.prevent_default();
+            menu::act(ctx, menu::Act::Remove { semester, keys: vec![key.get_value()] }, t);
+            dom::focus_soon(format!(".st-rm .st-col-head[data-sem=\"{}\"]", semester.key()));
+        }
+    }
 }
 
 /// What a piece shows: ✕, + or ? before its label, ↻ and ⚠ after it; in a lane its word between,
@@ -1401,6 +1422,7 @@ fn lane_bar(frame: &RowFrame, piece: Piece, word: &'static str, of: Of) -> AnyVi
                 ev.prevent_default();
                 menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev);
             }
+            on:keydown=remove_key(ctx, semester, key, t)
         >{inner}</button>
     }
     .into_any()

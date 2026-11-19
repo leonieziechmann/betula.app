@@ -46,18 +46,20 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
     let v = &t.study_views;
     move || {
         (!ctx.phone.get()).then(|| {
+            // Sections of the keyboard's mode (`FrameKeys`): Tab from one to the next, the arrows from
+            // way to way, and typing finds the ways by their names (`data-find`, enhance.js).
             view! {
-                <div class="fgroup first">
+                <div class="fgroup first" data-section="" data-find="" role="group" aria-label=t.study_keys.card>
                     <MineCard ctx/>
                 </div>
                 {move || ready.get().then(|| view! {
-                    <div class="fgroup">
+                    <div class="fgroup" data-section="" data-find="" role="group" aria-labelledby="st-views-label">
                         <p class="flabel label" id="st-views-label">{v.views}</p>
                         <nav class="st-vlist" aria-labelledby="st-views-label"><ViewLinks ctx/></nav>
                     </div>
                 })}
-                <div class="fgroup">
-                    <p class="flabel label">{v.program_group}</p>
+                <div class="fgroup" data-section="" data-find="" role="group" aria-labelledby="st-ways-label">
+                    <p class="flabel label" id="st-ways-label">{v.program_group}</p>
                     <nav class="st-ways" aria-label=s.ways>
                         <TranscriptWay ctx id="st-transcript"/>
                         <DocumentsWay ctx/>
@@ -126,7 +128,7 @@ pub(super) fn MineCard(ctx: StudyCtx) -> impl IntoView {
     move || {
         mine.get().map(|mine| {
             view! {
-                <button class="st-mine" id="st-mine" type="button" title=s.change_program on:click=move |_| ctx.open(Dialog::Switch)>
+                <button class="st-mine" id="st-mine" type="button" title=s.change_program data-command=s.change_program data-command-icon="pencil" on:click=move |_| ctx.open(Dialog::Switch)>
                     <span class="st-mine-name">{mine.name}" "<span class="st-mine-degree">{mine.degree}</span></span>
                     <Icon name="pencil"/>
                     <span class="st-mine-line">{mine.rules}</span>
@@ -209,7 +211,7 @@ fn ViewLinks(ctx: StudyCtx) -> impl IntoView {
         let current = move || (shown.get() == StudyView::Semesters && ctx.view.get() == kind).then_some("page");
         let small = move || (kind == View::Semester).then(|| ways.with(|ways| ways.as_ref().and_then(|ways| ways.now.clone()))).flatten();
         view! {
-            <a class="st-vl" href=view_href(StudyView::Semesters, t) aria-current=current on:click=move |_| {
+            <a class="st-vl" href=view_href(StudyView::Semesters, t) aria-current=current data-command=label data-command-group="go" on:click=move |_| {
                 ctx.selection.set(super::Selection::default());
                 ctx.view.set(kind);
             }>
@@ -226,7 +228,7 @@ fn ViewLinks(ctx: StudyCtx) -> impl IntoView {
                 _ => None,
             })
         };
-        view! { <a class="st-vl" href=view_href(view, t) aria-current=current><Icon name=icon/><span>{label}</span><small>{small}</small></a> }
+        view! { <a class="st-vl" href=view_href(view, t) aria-current=current data-command=label data-command-group="go"><Icon name=icon/><span>{label}</span><small>{small}</small></a> }
     };
     view! {
         {semesters(View::Semester, "layout-list", t.study.view_semester)}
@@ -265,7 +267,7 @@ fn DocumentsWay(ctx: StudyCtx) -> impl IntoView {
     let current = move || (shown.get() == StudyView::Documents).then_some("page");
     move || {
         po.get().map(|po| view! {
-            <a class="action" href=view_href(StudyView::Documents, t) aria-current=current><Icon name="file-text"/><span>{v.documents}<small>{po}</small></span><Icon name="chevron-right"/></a>
+            <a class="action" href=view_href(StudyView::Documents, t) aria-current=current data-command=v.documents data-command-group="go"><Icon name="file-text"/><span>{v.documents}<small>{po}</small></span><Icon name="chevron-right"/></a>
         })
     }
 }
@@ -276,7 +278,7 @@ pub(super) fn AllPrograms(line: bool) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
     view! {
-        <a class="action" class:st-way=line href=t.path(url::PROGRAMS)>
+        <a class="action" class:st-way=line href=t.path(url::PROGRAMS) data-command=v.all_programs data-command-group="go">
             <Icon name="graduation-cap"/>
             <span>{v.all_programs}{line.then(|| view! { <small>{v.all_programs_line}</small> })}</span>
             <Icon name="chevron-right"/>

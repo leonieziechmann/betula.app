@@ -140,6 +140,23 @@ pub(super) fn keep_trigger(ev: &leptos::ev::Event) {
     }
 }
 
+/// Keeps what has the focus inside the element the event was heard on as what the menu gives the
+/// focus back to: a row's name where Shift + F10 (or the key of the menu) opened its menu there,
+/// as a right click does (`contextmenu`). A right click elsewhere keeps nothing.
+#[allow(unused_variables)]
+pub(super) fn keep_focus_within(ev: &leptos::ev::Event) {
+    #[cfg(feature = "csr")]
+    {
+        let within = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok());
+        let focused = web_sys::window().and_then(|window| window.document()).and_then(|document| document.active_element());
+        let element = match (within, focused) {
+            (Some(within), Some(focused)) if within.contains(Some(&focused)) => focused.dyn_into::<web_sys::HtmlElement>().ok(),
+            _ => None,
+        };
+        TRIGGER.with(|trigger| *trigger.borrow_mut() = element);
+    }
+}
+
 /// Gives the focus back to what opened the menu, if it is still on the page.
 pub(super) fn give_focus_back() {
     #[cfg(feature = "csr")]
@@ -684,6 +701,59 @@ pub(super) fn on_open(ev: &leptos::ev::Event) -> bool {
     }
     #[cfg(not(feature = "csr"))]
     false
+}
+
+/// Whether the event began on the name of the semester in a head (`.st-sem-pick`, focus.rs
+/// `SemesterPick`), where ← and → turn the semester.
+#[allow(unused_variables)]
+pub(super) fn on_pick(ev: &leptos::ev::Event) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).is_some_and(|target| target.closest(".st-sem-pick").ok().flatten().is_some())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// Gives the keyboard to what `selector` finds on the page in front once the page has drawn it anew
+/// (a semester's name after ← or →: the card is another one then, built in a frame to come), the
+/// page left where it is: the first one that is not the element that has the keyboard now. Where
+/// the keyboard went elsewhere meanwhile, it stays there.
+#[allow(unused_variables)]
+pub(super) fn focus_soon(selector: impl Into<String>) {
+    let selector: String = selector.into();
+    #[cfg(feature = "csr")]
+    {
+        fn active() -> Option<web_sys::Element> {
+            web_sys::window().and_then(|window| window.document()).and_then(|document| document.active_element())
+        }
+        fn give(selector: String, before: Option<web_sys::Element>, tries: u8) {
+            let now = active();
+            let free = now.as_ref().is_none_or(|el| el.tag_name() == "BODY" || Some(el) == before.as_ref());
+            if !free {
+                return;
+            }
+            let found = folia_design::stage::select_all(&selector).into_iter().find(|el| Some(el) != before.as_ref() && el.get_client_rects().length() > 0).and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok());
+            match found {
+                Some(el) => {
+                    let options = web_sys::FocusOptions::new();
+                    options.set_prevent_scroll(true);
+                    let _ = el.focus_with_options(&options);
+                    // What scrolls brings it into view (the Gesamtplan's columns across).
+                    let place = web_sys::ScrollIntoViewOptions::new();
+                    place.set_block(web_sys::ScrollLogicalPosition::Nearest);
+                    place.set_inline(web_sys::ScrollLogicalPosition::Nearest);
+                    el.scroll_into_view_with_scroll_into_view_options(&place);
+                }
+                None if tries > 0 => leptos::prelude::request_animation_frame(move || give(selector, before, tries - 1)),
+                None => {}
+            }
+        }
+        let before = active();
+        leptos::prelude::request_animation_frame(move || give(selector, before, 5));
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = selector;
 }
 
 /// Whether the event began on a row's box to tick (`.st-sel`, focus.rs `ItemRow`): a press there
