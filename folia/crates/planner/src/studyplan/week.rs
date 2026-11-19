@@ -455,6 +455,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                 <div
                     class="sp-carousel"
                     node_ref=node
+                    class:drawing=move || ctx.sketch.with(Option::is_some)
                     on:pointerdown=move |ev| {
                         drag.down(&ev);
                         hold.down(&ev);
@@ -511,6 +512,8 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], layers: 
                 class="sp-carousel"
                 node_ref=node
                 class:dragging=move || dragging.get()
+                // A span drawn on it by a mouse: the pointer of moving (app.css, „A span drawn").
+                class:drawing=move || ctx.sketch.with(Option::is_some)
                 aria-roledescription=t.studyplan_week.carousel_role
                 aria-label=t.studyplan_week.weeks
                 on:pointerdown=down

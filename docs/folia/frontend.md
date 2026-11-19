@@ -4052,8 +4052,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     whole (a 15-minute span shows none). The tag goes as the pointer lets go; the form says the times.
     The week holds the pointer from the press on (`setPointerCapture` on `div.sp-week`, on a phone
     `div.sp-carousel`), so leaving the column, or a first move already past the grid's end (a flick,
-    clamped to the grid's last hour), does not lose it, and `.sp-week.drawing` says so with its
-    pointer; the column's box is read at every move, so a wheel's scroll while drawing shifts no
+    clamped to the grid's last hour), does not lose it, and `.sp-week.drawing` (`.sp-carousel.drawing`
+    on a phone) says so with its pointer: the one of moving, the four arrows, over the whole week,
+    and over a free stretch the normal pointer while nothing is done (since 1.110.3; owner,
+    2026-11-19: „Verwende, so lange man nichts macht bitte den normalen cursor und wenn man dragged
+    den move cursor mit den 4 pfeilen in alle richtungen, wie bei gcal."; before, `copy` and
+    `ns-resize`); the column's box is read at every move, so a wheel's scroll while drawing shifts no
     time. Letting go opens the form with the day, the start and the end, the span standing on as its
     draft; the click that ends it opens nothing more. Every way a drag ends without its pointer let
     go over the week gives it up and leaves no press, no hold of the pointer, no span and no

@@ -275,6 +275,12 @@ if (block("form")) {
   }));
   const none = (s) => !s.span && !s.tag && !s.drafts && !s.drawing && !s.held;
   const [down, low] = [await spot(page, 3, 16 * 60 + 5), await spot(page, 3, 17 * 60 + 20)];
+  // The pointer over a free stretch while nothing is done is the normal one, and the whole week's
+  // while a span is drawn the one of moving (owner, 2026-11-19: „Verwende, so lange man nichts macht
+  // bitte den normalen cursor und wenn man dragged den move cursor mit den 4 pfeilen").
+  const cursor = (at) => page.evaluate(({ x, y }) => [getComputedStyle(document.elementFromPoint(x, y)).cursor, getComputedStyle(onPage(".sp-week")).cursor], at);
+  const idle = await cursor(down);
+  check(["auto", "default"].includes(idle[0]), `the pointer over a free stretch while editing: ${idle[0]}`);
   await page.mouse.move(down.x, down.y);
   await page.mouse.down();
   await page.mouse.move(down.x, low.y, { steps: 8 });
@@ -284,6 +290,8 @@ if (block("form")) {
     const [s, t] = [span.getBoundingClientRect(), tag.getBoundingClientRect()];
     return span.textContent.replace(/\s+/g, " ").trim() === "16:00 – 17:30" && tag.textContent.trim() === "16:00–17:30" && t.bottom <= s.top && !allOnPage(".sp-week .slot.draft").length;
   });
+  const drawn = await cursor(low);
+  check(drawn.every((one) => one === "move"), `the pointer while a span is drawn: ${drawn.join(", ")}`);
   // Out of its column and below the grid: the day stays, the end stops at the grid's last hour.
   await page.mouse.move(down.x - 300, low.y + 2000, { steps: 4 });
   await until(page, "the span keeps its day and the grid's hours", () => {

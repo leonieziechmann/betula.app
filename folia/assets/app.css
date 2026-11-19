@@ -4131,7 +4131,6 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 /* On a full card the marks are white, in the card's colour, as the tick of one's own group. */
 .slot.tinted:not(.alt, .extra, .visit, .conflict) > :is(.slot-own, .slot-pen) { background: var(--on-mod); box-shadow: none; color: var(--mod-fill); }
 .sp-body .slot.conflict:not(.clash) { box-shadow: inset 0 0 0 2px var(--warn), var(--lift); }
-.sp-body .sp-week .week .col { cursor: copy; }
 .sp-body .sp-week .week .col :is(.slot, .band) { cursor: pointer; }
 /* On a phone a finger held on the week is a Termin there: nothing of the page is selected. */
 .sp-carousel .week { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
@@ -4418,9 +4417,14 @@ div.sp-open-row.chg > .go.acts:has(> :nth-child(2)) { grid-column: 2; flex-wrap:
 }
 /* A span drawn on a free stretch of the week while the plan is edited (own.rs `Drag`; owner,
    2026-11-18: „drag placement um gleich eine Zeitspanne zu machen"): no text is selected by the
-   press, and while it is drawn (.sp-week.drawing) the pointer says it stretches. */
+   press. Over a free stretch the pointer is the normal one while nothing is done, and while a span
+   is drawn (.sp-week.drawing, and .sp-carousel.drawing of the narrow layout under a mouse) the
+   whole week has the one of moving, the four arrows, over slots and bands as well (owner,
+   2026-11-19: „Verwende, so lange man nichts macht bitte den normalen cursor und wenn man dragged
+   den move cursor mit den 4 pfeilen in alle richtungen, wie bei gcal."). Slots and bands keep their
+   hand while nothing is drawn. */
 .sp-edit .sp-week .week { -webkit-user-select: none; user-select: none; }
-.sp-week.drawing, .sp-week.drawing * { cursor: ns-resize; }
+.sp-week.drawing, .sp-week.drawing *, .sp-carousel.drawing, .sp-carousel.drawing * { cursor: move !important; }
 /* While it is drawn the span lies over its column, not in its lanes, so that no slot under it changes
    its width (div.sp-sketch, own.rs `SketchView`; its box from `drawn_at` as --x --y --w --h in the
    week's pixels); its times written in it only where they fit whole (13 px lines, a narrow column
