@@ -36,7 +36,8 @@
 #                     instead of HEAD. The tag gets "-wip-<time>", so it never passes for a commit.
 #   SEED_DB           the database --seed uploads (default: radix.db in the repository's root).
 #                     It has to fit the release: a database that a newer Radix has migrated is not
-#                     for an older image - one more reason to ship the commit that made it.
+#                     for an older image - one more reason to ship the commit that made it. A
+#                     history.db beside it (docs/radix/history.md) goes along.
 #   WSL_DISTRO        the WSL distribution that has Nix (default NixOS); only read on Windows
 #   SHIP_KEEP=1       keep the temporary directory with the image files
 set -Eeuo pipefail
@@ -289,16 +290,25 @@ fi
 if [[ "${SEED}" == "yes" ]]; then
   # A copy first: what is uploaded must not change while it is read. SQLite keeps what it has
   # not yet moved into the database in "<db>-wal"; an empty one has nothing to add.
-  before="$(state_of "${SEED_DB}" "${SEED_DB}-wal")"
+  # The history of the published catalog (docs/radix/history.md) goes with the database when it
+  # lies beside it: the colour that takes over the crawl records on.
+  SEED_HISTORY="$(dirname "${SEED_DB}")/history.db"
+  before="$(state_of "${SEED_DB}" "${SEED_DB}-wal" "${SEED_HISTORY}" "${SEED_HISTORY}-wal")"
   files=("$(basename "${SEED_DB}")")
   if [[ -s "${SEED_DB}-wal" ]]; then
     files+=("$(basename "${SEED_DB}")-wal")
+  fi
+  if [[ -f "${SEED_HISTORY}" ]]; then
+    files+=(history.db)
+    if [[ -s "${SEED_HISTORY}-wal" ]]; then
+      files+=(history.db-wal)
+    fi
   fi
   log "packing ${files[*]} ($(du -h "${SEED_DB}" | cut -f1))"
   # As root's files: Radix runs as root without capabilities, and a file of another user would
   # be read-only to it (45-seed.sh makes sure of the same on its side).
   tar -C "$(dirname "${SEED_DB}")" --owner=0 --group=0 --mode=0644 -cf - "${files[@]}" | gzip -1 >"${WORK}/seed.tar.gz"
-  [[ "$(state_of "${SEED_DB}" "${SEED_DB}-wal")" == "${before}" ]] ||
+  [[ "$(state_of "${SEED_DB}" "${SEED_DB}-wal" "${SEED_HISTORY}" "${SEED_HISTORY}-wal")" == "${before}" ]] ||
     die "${SEED_DB} changed while it was being read: a Radix is writing to it. Stop it (or wait for its crawl to end) and run this again"
   log "seeding ${INSTANCE} with it ($(du -h "${WORK}/seed.tar.gz" | cut -f1) to upload)"
   remote "bash /opt/betula/vps/45-seed.sh ${INSTANCE} ${TAG} $(stat -c '%s' "${SEED_DB}")" <"${WORK}/seed.tar.gz"
