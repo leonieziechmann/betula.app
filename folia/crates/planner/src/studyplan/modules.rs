@@ -548,7 +548,8 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         plan.update(move |doc| doc.show_hidden(key));
     };
     view! {
-        <section class="sp-list" aria-label=m.list>
+        // One stop of Tab, ↑ ↓ from row to row (enhance.js, `data-stop`).
+        <section class="sp-list" aria-label=m.list data-stop="y">
             <div class="sp-list-head">
                 <h2 class="label">{m.heading}</h2>
             </div>
