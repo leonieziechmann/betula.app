@@ -77,8 +77,8 @@ pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
 pub(super) fn ShareGroup(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     view! {
-        <div class="fgroup actions sp-share-group">
-            <button class="action" type="button" id=SHARE_ID on:click=move |_| ctx.sharing.set(Some(ShareOpen { calendar: 0, tab: ShareTab::People }))>
+        <div class="fgroup actions sp-share-group" data-section="" data-find="" role="group" aria-label=t.studyplan_keys.share>
+            <button class="action" type="button" id=SHARE_ID data-command=t.studyplan_share_dialog.open data-command-group=t.studyplan.title on:click=move |_| ctx.sharing.set(Some(ShareOpen { calendar: 0, tab: ShareTab::People }))>
                 <Icon name="share-2"/>
                 <span><span>{t.studyplan_share_dialog.open}</span><small>{t.studyplan_share_dialog.open_hint}</small></span>
             </button>
@@ -253,7 +253,7 @@ pub(super) fn SavedPlans(ctx: PlanCtx) -> impl IntoView {
     move || {
         shown.get().then(|| {
             view! {
-                <div class="fgroup actions sp-plans">
+                <div class="fgroup actions sp-plans" data-section="" data-find="" role="group" aria-label=t.studyplan_edit.saved_plans>
                     <p class="flabel label">{t.studyplan_edit.saved_plans}</p>
                     <For
                         each=move || entries.get()

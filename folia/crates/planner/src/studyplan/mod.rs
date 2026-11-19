@@ -74,7 +74,7 @@ use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_stores::studyplan::Studyplan;
 use folia_routes::url::PlanAddress;
 use folia_shell::tabs::Area;
-use folia_shell::frame::{ErrorState, Frame};
+use folia_shell::frame::{ErrorState, Frame, FrameKeys};
 use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
 use self::calendars::CalendarModules;
@@ -426,7 +426,10 @@ pub fn StudyplanPage() -> impl IntoView {
             <Title text=t.studyplan.title/>
             // The sidebar „Stundenplan" beside the page; a phone has its groups in the page and,
             // after it, the storage hint and the saved plans (`side.rs`).
-            <Frame title=t.studyplan.title sidebar=move || view! { <PlanSidebar ctx/><StorageHint/><SavedPlans ctx/> } aside aside_picked=picked>
+            // Made for the keyboard as the catalog, the Merkliste and „Mein Studium" are (`FrameKeys`;
+            // folia/design/tastatur/konzept.html, „Die anderen Seiten"): F into the calendars, the
+            // export and „Teilen …", Esc back to the week, Tab round the page past the sidebar.
+            <Frame title=t.studyplan.title sidebar=move || view! { <PlanSidebar ctx/><StorageHint/><SavedPlans ctx/> } aside aside_picked=picked keys=FrameKeys { sidebar: t.studyplan_keys.sidebar, leave: t.studyplan_keys.leave }>
                 <PlanSeo/>
                 // The page in the mode: what it reveals and hides is styled under `.sp-edit`.
                 <div class="page-inner sp" class:sp-edit=move || ctx.edit.get()>

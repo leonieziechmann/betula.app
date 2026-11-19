@@ -3516,8 +3516,9 @@
   //   at its foot names the keys of the control that no button can carry. Esc or a click leads out.
   // - `data-stop` makes a group one stop of the Tab key (the rail, the list's rows, the heads of the
   //   columns, a module's buttons): Tab comes in where the keyboard was last in it (else at the
-  //   current one or the one it names its home, `data-kb-home`, else the first in view) and leaves
-  //   past it; the arrows of its axis (`x` ← →, `y` ↑ ↓) go from one to the next. `grid` is a
+  //   current one, an option group's choice, or the one it names its home, `data-kb-home`, else the
+  //   first in view) and leaves past it; the arrows of its axis (`x` ← →, `y` ↑ ↓) go from one to
+  //   the next, and in an option group (`role="radiogroup"`) choose it. `grid` is a
   //   table of controls, as the eye sees it (the Gesamtplan, the Regelstudienplan): ↑ ↓ the nearest
   //   control above or below in the same column, ← → the one beside in the same row (`gridMove`).
   //   A mode is one stop as well, seen from outside.
@@ -3659,7 +3660,7 @@
     const last = lastOf(group);
     if (last) return last;
     const items = itemsOf(group);
-    const HERE = '[aria-current="true"], [aria-current="page"], [aria-selected="true"], [data-kb-home]';
+    const HERE = '[aria-current="true"], [aria-current="page"], [aria-selected="true"], [role="radio"][aria-checked="true"], [data-kb-home]';
     return items.find((el) => el.matches(HERE) && inView(el))
       || items.find((el) => el.matches(HERE))
       || items.find(inView) || items[0] || null;
@@ -4399,7 +4400,9 @@
   // below in the same column (whose box spans where the keyboard came from across, `stickyX`, as in
   // a mode), past a row with none there (a row of the Regelstudienplan with nothing to plan); where
   // the column has none, the nearest row and in it the one nearest across; ← → the nearest beside
-  // it in its own row (whose box overlaps its height, a tall head of a row too). Nothing past the
+  // it in its own row (whose box overlaps its height, a tall head of a row too); where its row has
+  // none on that side, the nearest column there and in it the one nearest in height (the
+  // Stundenplan's week: → to the next day with a Termin, at the time nearest). Nothing past the
   // edges.
   const gridMove = (group, el, key) => {
     const mid = (b) => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
@@ -4409,9 +4412,18 @@
     const overlaps = (a, b) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
     if (key === "ArrowLeft" || key === "ArrowRight") {
       const right = key === "ArrowRight";
-      const beside = others.filter(({ b }) => overlaps(b, r) && (right ? mid(b).x > m.x + 1 : mid(b).x < m.x - 1));
-      beside.sort((a, b) => Math.abs(mid(a.b).x - m.x) - Math.abs(mid(b.b).x - m.x));
-      return beside[0]?.one ?? null;
+      const side = others.filter(({ b }) => (right ? mid(b).x > m.x + 1 : mid(b).x < m.x - 1));
+      const beside = side.filter(({ b }) => overlaps(b, r));
+      if (beside.length) {
+        beside.sort((a, b) => Math.abs(mid(a.b).x - m.x) - Math.abs(mid(b.b).x - m.x));
+        return beside[0].one;
+      }
+      if (!side.length) return null;
+      // The nearest column on that side, and in it the one nearest in height.
+      const near = side.reduce((best, c) => (Math.abs(mid(c.b).x - m.x) < Math.abs(mid(best.b).x - m.x) ? c : best));
+      const column = side.filter(({ b }) => Math.min(b.right, near.b.right) - Math.max(b.left, near.b.left) > 1);
+      column.sort((a, b) => Math.abs(mid(a.b).y - m.y) - Math.abs(mid(b.b).y - m.y));
+      return column[0]?.one ?? null;
     }
     const down = key === "ArrowDown";
     const past = others.filter(({ b }) => (down ? mid(b).y > r.bottom - 1 : mid(b).y < r.top + 1));
@@ -4453,6 +4465,9 @@
     const to = items[at + (down ? 1 : -1)] ?? (y ? goesOn(group, el, down) : null);
     e.preventDefault();
     if (to) focusOn(to);
+    // An option group that is a stop (the Stundenplan's A, B and A/B): the arrows choose, as in a
+    // mode and as the ARIA pattern of radios has it.
+    if (to && group.getAttribute("role") === "radiogroup" && to.getAttribute("role") === "radio" && to.getAttribute("aria-checked") !== "true") to.click();
     return true;
   };
 
