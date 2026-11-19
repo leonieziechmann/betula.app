@@ -21,11 +21,13 @@
 #   5. vps/49-phloem.sh <instance> <tag> on the server: the deploy, and the checks that try what is
 #      forbidden afterwards. A FAIL there ends this script with its exit code.
 #
-# Each instance goes on its own: phloem-canary first, then phloem. Phloem is not part of the
-# canary pipeline (.github/workflows/images.yml builds Radix and Folia): a push to master does not
-# restart the service that holds the profiles of betula.app. Before the first deploy of an
-# instance, the server needs its file systems: sudo bash /opt/betula/vps/47-phloem-host.sh
-# (49-phloem.sh refuses to deploy without them, and says so).
+# Each instance goes on its own: phloem-canary first, then phloem. phloem-canary follows master by
+# itself: .github/workflows/phloem.yml builds the same image of every push to master that changes
+# Phloem (the same tag), and the canary agent brings phloem-canary to it (README.md section 12), so
+# this script is for its first deploy, for a release that is not on master, and for phloem. A push
+# to master never restarts the service that holds the profiles of betula.app. Before the first
+# deploy of an instance, the server needs its file systems: sudo bash
+# /opt/betula/vps/47-phloem-host.sh (49-phloem.sh refuses to deploy without them, and says so).
 # Rollback: ssh betula bash /opt/betula/vps/49-phloem.sh <instance> <previous tag>
 #
 # Environment:
