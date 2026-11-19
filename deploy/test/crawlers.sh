@@ -261,6 +261,9 @@ probe - 200 /p/chrome-android 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWeb
 probe - 200 /p/firefox "${FF146}" "${NAV}"
 probe - 200 /p/safari 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1' "${NAV}"
 probe - 200 /p/webview 'Mozilla/5.0 (Linux; Android 14; SM-S918B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/150.0.0.0 Mobile Safari/537.36' "${NAV}"
+probe - 200 /p/edge "${W150} Edg/150.0.0.0" "${NAV}" 'Sec-Ch-Ua: "Microsoft Edge";v="150", "Chromium";v="150", "Not.A/Brand";v="24"' 'Sec-Ch-Ua-Platform: "Windows"'
+probe - 200 /p/opera 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 OPR/115.0.0.0' "${NAV}" 'Sec-Ch-Ua: "Opera";v="115", "Chromium";v="149", "Not.A/Brand";v="8"' 'Sec-Ch-Ua-Platform: "Windows"'
+probe - 200 /p/samsung 'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/29.0 Chrome/146.0.0.0 Mobile Safari/537.36' "${NAV}" 'Sec-Ch-Ua: "Samsung Internet";v="29.0", "Chromium";v="146", "Not.A/Brand";v="24"' 'Sec-Ch-Ua-Platform: "Android"'
 # Without Sec-Fetch-*, but older than the browsers that send them, a crawler, or no browser's agent.
 probe - 200 /p/safari-16-3 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1'
 probe - 200 /p/googlebot 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.204 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
@@ -271,6 +274,8 @@ probe edge-probe-nobrowser@file 200 /p/nobrowser-hints "${W150}" "${CH150}"
 probe edge-probe-firefox-hints@file 200 /p/firefox-hints "${FF146}" "${NAV}" "${CH150}"
 probe edge-probe-platform@file 200 /p/platform "${W150}" "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "Linux"'
 probe edge-probe-platform@file 200 /p/platform-mac "${M150}" "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "Windows"'
+probe edge-probe-version@file 200 /p/version "${W150}" "${NAV}" 'Sec-Ch-Ua: "Chromium";v="146", "Google Chrome";v="146", "Not.A/Brand";v="99"' 'Sec-Ch-Ua-Platform: "Windows"'
+probe edge-probe-version@file 200 /p/version-mac 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36' "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "macOS"'
 probe edge-probe-chrome-nohints@file 200 /p/chrome-nohints "${W150}" "${NAV}"
 # Phloem's path keeps its router whatever the headers.
 probe - 200 /sync/v1/p "${W150}"
@@ -279,6 +284,7 @@ probe edge-crawler-fleets-nobrowser@file 403 /p/fleet-nobrowser 'Mozilla/5.0 (Wi
 probe edge-crawler-fleets-nobrowser@file 403 /p/fleet-lightpanda 'Lightpanda/1.0'
 probe edge-crawler-fleets-firefox-hints@file 403 /p/fleet-firefox-hints 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="120"'
 probe edge-crawler-fleets-platform@file 403 /p/fleet-platform 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="120"' 'Sec-Ch-Ua-Platform: "Linux"'
+probe edge-crawler-fleets-version@file 403 /p/fleet-version 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="146", "Not.A/Brand";v="24"' 'Sec-Ch-Ua-Platform: "Windows"'
 probe edge-crawler-fleets-chrome-nohints@file 403 /p/fleet-chrome-nohints 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36' "${NAV}"
 probe edge-crawler-fleets@file 403 /p/fleet-consistent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="120"' 'Sec-Ch-Ua-Platform: "Windows"'
 probe edge-crawler-fleets@file 403 /p/fleet-firefox 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0' "${NAV}"

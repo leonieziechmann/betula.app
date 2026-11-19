@@ -14,6 +14,11 @@
 #                 client hints, Chrome does; Chrome that calls itself Firefox.
 # platform        Windows, macOS or Android in the user agent, another system in Sec-CH-UA-Platform:
 #                 a browser on a server (Linux, mostly) that changed its user agent but not its hints.
+# version         Chrome N in the user agent, Sec-CH-UA without v="N": every browser built on Chrome
+#                 names that version there (Chrome and Chromium, Edge, Opera, Brave, Samsung Internet
+#                 under their own name beside it), so a request whose hints name another version
+#                 comes from a browser that wears another's user agent. Judged for Chrome 89 to 170
+#                 (late 2027), one pair of matchers each: RE2 cannot compare two headers.
 # chrome-nohints  Chrome 89 or newer in the user agent (not Android's WebView), Sec-Fetch-Mode but
 #                 no Sec-CH-UA: a real browser engine whose user agent was replaced without its hints,
 #                 which Chrome sends with every request since 89.
@@ -34,7 +39,7 @@
 #   everything goes to Folia's router again.
 # - edge-crawler-fleets-<rule>, the fleets of fleets.yml judged by the same rules (the same user
 #   agents, copied: change both or neither), turned away as fleets.yml does, above it (10001 to
-#   10004): which rules would have caught the fleets anyway. What none of them catches stays
+#   10005): which rules would have caught the fleets anyway. What none of them catches stays
 #   "edge-crawler-fleets@file". The dashboard counts both as "crawlers turned away".
 #
 # A rule that catches the fleets and no person (people start the app, come back, ask from one
@@ -53,7 +58,7 @@ http:
         && !HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|preview|facebookexternalhit|google|Nexus 5X Build/MMB29P)`)
         && !HeaderRegexp(`User-Agent`, `Version/([0-9]|1[0-5])\.|Version/16\.[0-3]([^0-9]|$)|Firefox/([0-9]|[0-8][0-9])\.|Chrome/([0-9]|[0-6][0-9]|7[0-5])\.`)
         && !HeaderRegexp(`Sec-Fetch-Mode`, `.`)
-      priority: 904
+      priority: 905
       tls: {}
       middlewares:
         - secure-headers@file
@@ -68,7 +73,7 @@ http:
         Host(`betula.app`)
         && HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(.*Firefox/[0-9]`)
         && HeaderRegexp(`Sec-Ch-Ua`, `.`)
-      priority: 903
+      priority: 904
       tls: {}
       middlewares:
         - secure-headers@file
@@ -86,6 +91,106 @@ http:
         && ((HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Windows NT`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"Windows"$`))
         || (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Macintosh`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"macOS"$`))
         || (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Linux; Android`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"Android"$`)))
+      priority: 903
+      tls: {}
+      middlewares:
+        - secure-headers@file
+        - rate-limit@file
+        - compress@file
+      service: betula-folia@swarm
+
+    edge-probe-version:
+      entryPoints:
+        - websecure
+      # Chrome 89 to 170: a request names one version in its user agent, the matcher of the
+      # others fails at once.
+      rule: >-
+        Host(`betula.app`)
+        && HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(.*\(KHTML, like Gecko\) Chrome/[0-9]`)
+        && !HeaderRegexp(`User-Agent`, `(?i)(bot|crawl|spider|slurp|preview|google|Nexus 5X Build/MMB29P|; wv\))`)
+        && HeaderRegexp(`Sec-Ch-Ua`, `.`)
+        && ((HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/89\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="89"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/90\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="90"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/91\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="91"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/92\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="92"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/93\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="93"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/94\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="94"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/95\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="95"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/96\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="96"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/97\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="97"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/98\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="98"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/99\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="99"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/100\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="100"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/101\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="101"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/102\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="102"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/103\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="103"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/104\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="104"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/105\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="105"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/106\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="106"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/107\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="107"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/108\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="108"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/109\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="109"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/110\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="110"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/111\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="111"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/112\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="112"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/113\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="113"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/114\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="114"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/115\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="115"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/116\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="116"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/117\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="117"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/118\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="118"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/119\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="119"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/120\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="120"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/121\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="121"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/122\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="122"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/123\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="123"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/124\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="124"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/125\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="125"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/126\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="126"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/127\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="127"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/128\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="128"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/129\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="129"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/130\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="130"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/131\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="131"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/132\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="132"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/133\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="133"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/134\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="134"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/135\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="135"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/136\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="136"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/137\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="137"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/138\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="138"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/139\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="139"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/140\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="140"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/141\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="141"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/142\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="142"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/143\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="143"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/144\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="144"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/145\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="145"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/146\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="146"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/147\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="147"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/148\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="148"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/149\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="149"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/150\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="150"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/151\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="151"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/152\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="152"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/153\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="153"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/154\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="154"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/155\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="155"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/156\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="156"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/157\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="157"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/158\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="158"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/159\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="159"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/160\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="160"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/161\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="161"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/162\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="162"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/163\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="163"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/164\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="164"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/165\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="165"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/166\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="166"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/167\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="167"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/168\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="168"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/169\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="169"`))
+        || (HeaderRegexp(`User-Agent`, `\(KHTML, like Gecko\) Chrome/170\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="170"`)))
       priority: 902
       tls: {}
       middlewares:
@@ -124,7 +229,7 @@ http:
         && !HeaderRegexp(`Sec-Fetch-Mode`, `.`)
         && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
         && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
-      priority: 10004
+      priority: 10005
       tls: {}
       middlewares:
         - edge-crawlers-refuse
@@ -138,7 +243,7 @@ http:
         && HeaderRegexp(`Sec-Ch-Ua`, `.`)
         && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
         && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
-      priority: 10003
+      priority: 10004
       tls: {}
       middlewares:
         - edge-crawlers-refuse
@@ -151,6 +256,25 @@ http:
         HeaderRegexp(`Sec-Ch-Ua-Platform`, `.`)
         && ((HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Windows NT 10\.0; Win64; x64\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120|146)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"Windows"$`))
         || (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \(Macintosh; Intel Mac OS X 10_15_7\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`) && !HeaderRegexp(`Sec-Ch-Ua-Platform`, `^"macOS"$`)))
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      priority: 10003
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      service: edge-crawlers-nowhere
+
+    edge-crawler-fleets-version:
+      entryPoints:
+        - websecure
+      rule: >-
+        (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10_15_7)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`)
+        || HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|X11; Linux x86_64)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/146\.0\.0\.0 Safari/537\.36$`))
+        && HeaderRegexp(`Sec-Ch-Ua`, `.`)
+        && ((HeaderRegexp(`User-Agent`, `Chrome/118\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="118"`))
+        || (HeaderRegexp(`User-Agent`, `Chrome/119\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="119"`))
+        || (HeaderRegexp(`User-Agent`, `Chrome/120\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="120"`))
+        || (HeaderRegexp(`User-Agent`, `Chrome/146\.`) && !HeaderRegexp(`Sec-Ch-Ua`, `v="146"`)))
         && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
         && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
       priority: 10002
