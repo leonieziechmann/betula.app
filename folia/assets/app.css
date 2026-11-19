@@ -6977,28 +6977,50 @@ div.st-col-head.past { cursor: default; }
 .st-tr-program small.st-tr-warn { color: var(--warn); font-weight: 560; }
 .st-tr-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); }
 .st-tr-counts { margin: 12px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.5; }
-.st-tr-counts > span { color: var(--text-2); font-size: 12.5px; font-weight: 500; }
 .st-transcript section h3 { margin: 18px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
 .st-transcript .st-area-nm small { display: block; }
 .st-tr-missing .st-wmk .icon { width: 16px; height: 16px; color: var(--text-3); }
 .st-tr-problem { display: flex; gap: 8px; align-items: flex-start; margin: 0; color: var(--warn); font-weight: 560; line-height: 1.5; text-wrap: pretty; }
 /* Its first view (owner, 2026-11-18: „ganz kurz erklärt … dass die Module aus dem Dokument lokal
-   ausgelesen werden, auch mit einem link zur seite wo man das runterladen kann"): a sentence of what
-   it does, three numbered steps — the first with the way to the BTU's Online-Portal —, and that the
-   file stays on the device, in the green of what is done. */
-.st-tr-lead { margin: 0; font-size: 14px; line-height: 1.55; text-wrap: pretty; }
-.st-tr-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
-.st-tr-steps > li { display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: 12px; align-items: start; }
-.st-tr-n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.st-tr-step { display: grid; gap: 1px; padding-top: 3px; min-width: 0; }
+   ausgelesen werden, auch mit einem link zur seite wo man das runterladen kann"), each part at a
+   glance with an icon of its own and little to read (owner, 2026-11-19: „mach mal den modal weniger
+   wie eine wall of text durch bessere visuelle Hierarchie und Icons"): the PDF going into „Mein
+   Studium" in a card, its line in bold and what it takes over under it; the three steps, each an
+   icon in a circle on one line that joins them, the first with the way to the BTU's Online-Portal;
+   that the file stays on the device, in the green of what is done, in three points. */
+.st-tr-hero { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: var(--r-panel); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.st-tr-flow { flex: none; display: flex; align-items: center; gap: 5px; color: var(--text-3); }
+.st-tr-flow > .icon { width: 15px; height: 15px; }
+.st-tr-flow > .st-tr-icon { width: 40px; height: 40px; border-radius: 11px; }
+.st-tr-flow > .st-tr-icon .icon { width: 21px; height: 21px; }
+.st-tr-flow > .st-tr-icon:first-child { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); }
+.st-tr-hero-text { display: grid; gap: 3px; min-width: 0; }
+.st-tr-hero-text b { font-size: 15px; font-weight: 650; line-height: 1.35; text-wrap: balance; }
+.st-tr-hero-text small { color: var(--text-2); font-size: 12.5px; line-height: 1.45; text-wrap: pretty; }
+.st-tr-steps { list-style: none; margin: 20px 0 0; padding: 0; display: grid; }
+.st-tr-steps > li { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; align-items: start; padding-bottom: 16px; }
+.st-tr-steps > li:last-child { padding-bottom: 0; }
+.st-tr-steps > li:not(:last-child)::before { content: ""; position: absolute; left: 15.25px; top: 38px; bottom: 6px; width: 1.5px; border-radius: 1px; background: var(--line-strong); }
+.st-tr-n { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); }
+.st-tr-n .icon { width: 16px; height: 16px; }
+.st-tr-step { display: grid; gap: 1px; padding-top: 6px; min-width: 0; }
 .st-tr-step b { font-size: 14px; font-weight: 650; }
 .st-tr-step small { color: var(--text-2); font-size: 12.5px; line-height: 1.45; }
-.st-tr-portal { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; min-height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--accent-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
+.st-tr-portal { grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--accent-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
 .st-tr-portal:hover { background: var(--panel-3); text-decoration: none; }
 .st-tr-portal .icon { width: 15px; height: 15px; }
-.st-tr-stays { display: flex; gap: 10px; align-items: flex-start; margin: 18px 0 0; padding: 11px 12px; border-radius: var(--r-panel); background: var(--ok-soft); font-size: 12.5px; line-height: 1.5; text-wrap: pretty; }
-.st-tr-stays .icon { flex: none; width: 17px; height: 17px; margin-top: 1px; color: var(--ok); }
-.st-tr-stays b { font-weight: 650; }
+.st-tr-stays { margin: 20px 0 0; padding: 12px 14px 13px; border-radius: var(--r-panel); background: var(--ok-soft); }
+.st-tr-stays-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; }
+.st-tr-stays-title b { font-weight: 650; }
+.st-tr-stays-title .icon { flex: none; width: 18px; height: 18px; color: var(--ok); }
+.st-tr-stays ul { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; margin: 10px 0 0; padding: 0; }
+.st-tr-stays li { display: flex; align-items: flex-start; gap: 7px; min-width: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.4; }
+.st-tr-stays li .icon { flex: none; width: 15px; height: 15px; margin-top: 1px; color: var(--ok); }
+@media (max-width: 560px) { .st-tr-stays ul { grid-template-columns: minmax(0, 1fr); gap: 7px; } }
+/* What was read, as „Mein Studium"'s strip of marks (`.st-tally`): passed, not passed and
+   registered, each with its number; under it how many and what taking them over changes. */
+.st-tr-tally { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+.st-tr-summary { margin: 8px 0 0; color: var(--text-2); font-size: 12.5px; }
 .st-dlg-foot .btn .icon { width: 16px; height: 16px; }
 /* The file being read (owner: „wenn das dann eingelesen wird mach bitte eine progressbar … dass es
    sich gut und satisfying anfühlt"): the file and what happens to it, a bar that fills step by
@@ -8150,6 +8172,17 @@ button.st-wb-th.one > .chev, .st-wb-ts > .chev { grid-column: 2; grid-row: 1 / s
   .st-dlg-foot { padding-top: 14px; padding-bottom: max(24px, calc(14px + env(safe-area-inset-bottom))); }
   .st-dlg-foot > .btn { flex: 1 1 0; min-width: 0; min-height: 48px; }
   .st-dlg-foot > .st-foot-text, .st-dlg-foot > .st-foot-state { flex: 1 1 100%; }
+  /* „Notenübersicht einlesen" (owner, 2026-11-19: „mach mal auf dem Handy Notenübersicht
+     auswählen auf die komplette breite unten beim modal und darüber dünn abbrechen"): its button
+     across the sheet at the foot, under the thumb, and „Abbrechen" (or „Schließen") thin above it,
+     a line of text without a frame. So in each of its views: the button stays where it was from
+     „Notenübersicht auswählen" to „Studium anlegen", and while the file is read the bar's figure
+     stands there, as quiet as a button that waits; „Abbrechen" never takes its place. */
+  .st-tr-foot { flex-direction: column; align-items: stretch; gap: 4px; padding-top: 8px; }
+  .st-tr-foot > .btn { flex: none; width: 100%; }
+  .st-tr-foot > .btn.secondary { min-height: 40px; background: none; box-shadow: none; color: var(--text-2); font-size: 15px; font-weight: 560; }
+  .st-tr-foot > .btn.secondary:active { background: var(--panel-2); }
+  .st-tr-foot > .st-foot-state { order: 1; flex: none; display: grid; place-items: center; min-height: 48px; border-radius: var(--r-ctl); background: var(--panel-2); color: var(--text-2); font-size: 15px; font-weight: 620; font-variant-numeric: tabular-nums; }
   /* A dialog's search field 8 px off the sheet's edges, as an open picker. */
   .st-dialog .st-search-box { margin-left: -8px; margin-right: -8px; }
   /* The screen's keyboard up: the dialog is the part of the screen the keyboard leaves, from edge

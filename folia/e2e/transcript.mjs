@@ -12,25 +12,30 @@
 //   dem ganz kurz erklärt wird, dass die Module aus dem Dokument lokal ausgelesen werden, auch mit
 //   einem link zur seite wo man das runterladen kann"): its three steps, the way to the BTU's
 //   Online-Portal (btu.rs `ONLINE_PORTAL`, in a tab of its own), that the file stays on the device,
-//   and „Notenübersicht auswählen", which opens the browser's picker for one file; a file that is no
-//   PDF says so, with „Andere Datei wählen", which opens the picker again.
+//   each part with its icon (2026-11-19: „weniger wie eine wall of text durch bessere visuelle
+//   Hierarchie und Icons"), and „Notenübersicht auswählen" beside „Abbrechen", which opens the
+//   browser's picker for one file; a file that is no PDF says so, with „Andere Datei wählen", which
+//   opens the picker again.
 // 2 the made-up file: the bar fills 24, 58, 86, 100 % with its steps ticked off one after the other
 //   („PDF geöffnet", „12 Module gelesen", „Alle 12 im Katalog gefunden"), about two seconds in all
 //   (`PACE`); then the dialog names the program, since when and that it becomes the study's, what
-//   was read (12 modules: 9 passed, 2 not, 1 registered), each module with its mark, its semester
-//   and „neu", the thesis registered in the summer under way now; „Studium anlegen" sets up
-//   Informatik B.Sc. since WiSe 2022/23 with its modules: passed ones planned and marked in their
-//   semesters, the recognised one in the Studienbeginn, the ones not passed planned and not marked,
-//   the thesis in the current semester; the note says so, and „Rückgängig" takes all of it back, the
-//   first visit again.
+//   was read (the strip of marks: 9 passed, 2 not, 1 registered; 12 modules), each module with its
+//   mark, its semester and „neu", the thesis registered in the summer under way now; „Studium
+//   anlegen" sets up Informatik B.Sc. since WiSe 2022/23 with its modules: passed ones planned and
+//   marked in their semesters, the recognised one in the Studienbeginn, the ones not passed planned
+//   and not marked, the thesis in the current semester; the note says so, and „Rückgängig" takes all
+//   of it back, the first visit again.
 // 3 taken over again and read once more from the sidebar's „Notenübersicht einlesen": „12 schon so",
 //   nothing changes. „Abbrechen" while a file is read closes the dialog, and nothing of that reading
 //   comes back: the dialog opens anew at what it does.
 // 4 nothing of it leaves the browser or stays in it: every request while reading is a GET of the
 //   reader's two files, none carries a body; no worker is left once it has answered; nothing in
 //   local or session storage holds the file or a title in the other language.
-// 5 a phone: the dialog a sheet, the way to the portal in it; with less motion asked for, the reading
-//   stands a quarter as long; the overview's „Notenübersicht einlesen".
+// 5 a phone: the dialog a sheet, the way to the portal in it, its button across the sheet at its
+//   foot and „Abbrechen" thin above it (owner, 2026-11-19: „Notenübersicht auswählen auf die
+//   komplette breite unten beim modal und darüber dünn abbrechen. Das gleiche bei übernehmen dann"),
+//   so „Studium anlegen" too; with less motion asked for, the reading stands a quarter as long; the
+//   overview's „Notenübersicht einlesen".
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -77,6 +82,20 @@ const text = (page) => page.evaluate(() => document.querySelector("dialog[open] 
 const stored = (page, key) => page.evaluate((key) => localStorage.getItem(key) || "", key);
 const closed = (page) => page.waitForFunction(() => !document.querySelector("dialog[open]"), null, { timeout: 5000 }).catch(() => problems.push(`${during}: the dialog stays`));
 const workers = (page) => page.workers().filter((worker) => worker.url().includes("transcript-worker")).length;
+// The foot of the open dialog: its button `id` and „Abbrechen" (the foot's secondary button).
+const foot = (page, id) => page.evaluate((id) => {
+  const button = document.querySelector(`dialog[open] #${id}`);
+  const cancel = button?.parentElement.querySelector(".btn.secondary");
+  const sheet = document.querySelector("dialog[open]")?.getBoundingClientRect();
+  if (!button || !cancel || !sheet) return null;
+  const b = button.getBoundingClientRect(), c = cancel.getBoundingClientRect(), style = getComputedStyle(cancel);
+  return {
+    across: Math.round(b.width) >= Math.round(sheet.width) - 34,
+    above: c.bottom <= b.top + 1 && Math.round(c.width) === Math.round(b.width),
+    beside: Math.abs(c.top - b.top) < 2 && c.right <= b.left,
+    thin: style.boxShadow === "none" && style.backgroundColor === "rgba(0, 0, 0, 0)" && c.height < b.height,
+  };
+}, id);
 
 // Picks `file` with a button of the open dialog, which opens the browser's picker.
 const choose = async (page, file, button = "#st-transcript-pick") => {
@@ -129,9 +148,16 @@ const took = (watched) => (watched.end != null && watched.seen.length ? watched.
   await page.click("#st-transcript-setup");
   await intro(page);
   const told = await page.evaluate(() => document.querySelector("dialog[open]")?.innerText ?? "");
-  for (const part of ["Notenübersicht einlesen", "Dein Studium in einem Schritt", "Notenübersicht herunterladen", "Zum Online-Portal", "Hier auswählen", "Prüfen und übernehmen", "Die Datei bleibt bei dir.", "nicht hochgeladen", "Notenübersicht auswählen"]) {
+  for (const part of ["Notenübersicht einlesen", "Dein Studium in einem Schritt", "Aus der PDF direkt in dein Studium", "Notenübersicht herunterladen", "Zum Online-Portal", "Hier auswählen", "Prüfen und übernehmen", "Die Datei bleibt bei dir", "Nicht hochgeladen, nicht gespeichert", "Keine Noten", "Notenübersicht auswählen"]) {
     check(told.includes(part), `the dialog's first view lacks „${part}“: ${told.slice(0, 500)}`);
   }
+  const icons = await page.evaluate(() => {
+    const names = (selector) => [...document.querySelectorAll(`dialog[open] ${selector} use`)].map((use) => use.getAttribute("href").split("#")[1]);
+    return { flow: names(".st-tr-flow"), steps: names(".st-tr-steps .st-tr-n"), points: names(".st-tr-stays li") };
+  });
+  check(JSON.stringify(icons) === JSON.stringify({ flow: ["file-text", "arrow-right", "graduation-cap"], steps: ["download", "file-input", "list-checks"], points: ["monitor-smartphone", "cloud-off", "eye-off"] }), `the icons of the first view: ${JSON.stringify(icons)}`);
+  const desk = await foot(page, "st-transcript-pick");
+  check(desk?.beside && !desk.thin, `on a desktop „Abbrechen“ and „Notenübersicht auswählen“ side by side: ${JSON.stringify(desk)}`);
   const way = await page.evaluate(() => { const a = document.querySelector("dialog[open] #st-transcript-portal"); return a && { href: a.href, target: a.target, rel: a.rel }; });
   check(way && way.href === portal && way.target === "_blank" && way.rel.includes("noopener"), `the way to the Online-Portal: ${JSON.stringify(way)}`);
   check(!(await page.$("dialog[open] .st-tr-bar")), "a bar before a file is picked");
@@ -160,7 +186,9 @@ const took = (watched) => (watched.end != null && watched.seen.length ? watched.
   const reading = took(watched);
   check(reading != null && reading >= 1900 && reading < 10000, `reading took ${reading} ms (about two seconds: PACE)`);
   const read = await text(page);
-  for (const part of ["Informatik B.Sc.", "seit WiSe 2022/23", "Wird dein Studiengang", "12 Module gelesen · 9 bestanden · 2 nicht bestanden · 1 angemeldet", "12 neu", "Kommt in dein Studium"]) {
+  const tally = await page.evaluate(() => [...document.querySelectorAll("dialog[open] .st-tr-tally li")].map((li) => li.innerText.replace(/\s+/g, " ").trim()));
+  check(JSON.stringify(tally) === JSON.stringify(["9 bestanden", "2 nicht bestanden", "1 angemeldet"]), `what was read as a strip: ${JSON.stringify(tally)}`);
+  for (const part of ["Informatik B.Sc.", "seit WiSe 2022/23", "Wird dein Studiengang", "12 Module gelesen · 12 neu", "Kommt in dein Studium"]) {
     check(read.toLowerCase().includes(part.toLowerCase()), `the dialog lacks „${part}“: ${read.slice(0, 400)}`);
   }
   check(!read.includes("Nicht im Katalog gefunden"), "a module of the made-up file not found");
@@ -263,12 +291,16 @@ const took = (watched) => (watched.end != null && watched.seen.length ? watched.
   const sheet = await page.evaluate(() => { const d = document.querySelector("dialog[open]"); const r = d?.getBoundingClientRect(); return r && { bottom: Math.round(r.bottom), width: Math.round(r.width) }; });
   check(sheet && sheet.width === 393 && sheet.bottom >= 851, `the dialog on a phone: ${JSON.stringify(sheet)}`);
   check(await page.isVisible("dialog[open] #st-transcript-portal"), "no way to the Online-Portal on a phone");
+  const first = await foot(page, "st-transcript-pick");
+  check(first?.across && first.above && first.thin, `on a phone „Notenübersicht auswählen“ across the foot, „Abbrechen“ thin above it: ${JSON.stringify(first)}`);
   const watching = watch(page);
   await choose(page, file);
   const watched = await watching;
   const quick = took(watched);
   check(quick != null && quick >= 450 && quick < 1500 && watched.seen.at(-1)?.state.share === 100, `with less motion, reading took ${quick} ms to ${watched.seen.at(-1)?.state.share} %`);
   await outcome(page);
+  const last = await foot(page, "st-transcript-apply");
+  check(last?.across && last.above && last.thin, `on a phone „Studium anlegen“ across the foot, „Abbrechen“ thin above it: ${JSON.stringify(last)}`);
   await page.click("dialog[open] #st-transcript-apply");
   await closed(page);
   await page.waitForSelector("#st-transcript-phone", { state: "attached", timeout: 8000 }).catch(() => problems.push("no „Notenübersicht einlesen“ on a phone's overview"));
