@@ -2218,7 +2218,7 @@ fn Filters(
                         .items
                         .iter()
                         .map(|(name, shown, leaves_out)| {
-                            let detail = (t.catalog.choice_leaves_out)(&format::modules(i64::from(*leaves_out), t.locale));
+                            let detail = (t.catalog.choice_leaves_out)(&format::count(u64::from(*leaves_out), t.locale));
                             ComboItem::new(name.clone(), shown.clone(), detail, 0).also_found_by(name)
                         })
                         .collect();
@@ -2234,7 +2234,7 @@ fn Filters(
                         <div class="fgroup">
                             <div class="fsub" data-section="" role="group" aria-labelledby="fl-choice">
                                 <div class="flabel label" id="fl-choice">{names.label}</div>
-                                <Combobox id="pick-choice" label=t.catalog.choice placeholder=t.catalog.choice_none search_placeholder=t.catalog.search_choice icon="route" min_width=360.0 items=Signal::derive(move || items.clone()) selected on_select=pick/>
+                                <Combobox id="pick-choice" label=t.catalog.choice placeholder=t.catalog.choice_none search_placeholder=t.catalog.search_choice icon="route" min_width=440.0 items=Signal::derive(move || items.clone()) selected on_select=pick/>
                                 <p class="hint">{t.catalog.choice_hint}</p>
                             </div>
                         </div>

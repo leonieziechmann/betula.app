@@ -266,8 +266,8 @@ pub struct Texts {
     /// … its button while none is chosen, its search …
     pub choice_none: &'static str,
     pub search_choice: &'static str,
-    /// … beside a choice how many modules of the list it leaves out („2 Module nicht zugelassen";
-    /// the value is the number with its noun, `format::modules`) …
+    /// … beside a choice how many modules of the list it leaves out („blendet 2 aus"; the value
+    /// is the number, `format::count`: the names need the width) …
     pub choice_leaves_out: fn(&str) -> String,
     /// … and under the picker what it does.
     pub choice_hint: &'static str,
@@ -529,8 +529,8 @@ pub const DE: Texts = Texts {
     choice: "Deine Wahl im Studiengang",
     choice_none: "Nicht angegeben",
     search_choice: "Wahl suchen",
-    choice_leaves_out: |modules| format!("{modules} nicht zugelassen"),
-    choice_hint: "Blendet aus, was die Negativliste des Studiengangs im FÜS-Katalog der BTU dafür nicht zulässt. Für eine Wahl, die hier fehlt, schließt sie nichts aus.",
+    choice_leaves_out: |n| format!("blendet {n} aus"),
+    choice_hint: "Blendet aus, was die Negativliste im FÜS-Katalog der BTU dafür nicht zulässt. Eine Wahl, die fehlt, schränkt nichts ein.",
     with_person: "Module mit dieser Person",
     without_person: "Module ohne diese Person",
     with: "mit",
@@ -777,8 +777,8 @@ pub const EN: Texts = Texts {
     choice: "Your choice in the programme",
     choice_none: "Not stated",
     search_choice: "Search choices",
-    choice_leaves_out: |modules| format!("{modules} not admitted"),
-    choice_hint: "Hides what the programme's negative list in the BTU's FÜS catalogue does not admit for it. For a choice not listed here it excludes nothing.",
+    choice_leaves_out: |n| format!("hides {n}"),
+    choice_hint: "Hides what the negative list in the BTU's FÜS catalogue does not admit for it. A choice not listed restricts nothing.",
     with_person: "Modules with this person",
     without_person: "Modules without this person",
     with: "with",

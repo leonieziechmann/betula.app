@@ -251,8 +251,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     picker's label and the rest the names („Anwendungsfach": Physik, Wirtschaftswissenschaften …;
     the catalog's word in every language, as the rows' note has it); else the names as the catalog
     writes them under „Deine Wahl im Studiengang" (`ChoiceNames`). Beside each, how many modules of
-    the list it leaves out („2 Module nicht zugelassen"); under it what it does, and that a choice
-    not offered there excludes nothing. Chosen (`choice=Anwendungsfach+Physik`, the catalog's name
+    the list it leaves out („blendet 2 aus": the names need the width, „10 Module nicht zugelassen"
+    cut „Maschinenbau / Elektrotechnik" short); under it what it does, and that a choice not offered
+    there restricts nothing. Chosen (`choice=Anwendungsfach+Physik`, the catalog's name
     as an address carries a lecturer's), the list leaves out what a season's catalog excludes for
     it while no season admits it for it (`FuesNote::leaves_out`, the same in the SQL); the rows
     that stay say what holds for that student — „im Wintersemester nicht zugelassen" where one
