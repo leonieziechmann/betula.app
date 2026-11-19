@@ -1610,8 +1610,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     other) takes a sheet it is in all up where it would be out of sight, and what scrolls in it as
     little as brings it in; in sight it moves nothing. In a phone's page, where the saved plans
     stand since Folia 1.100.0 (until then in „Anpassen", half up), the page brings it in as little
-    as it must, clear of the dock of the Stundenplan's mode over the page's foot
-    (`scroll-margin-bottom`).
+    as it must, clear of the dock of the Stundenplan's mode over the page's foot (the window's
+    `scroll-padding`, „The focus clear of what floats over a phone's window"; until Folia 1.117.2
+    its own `scroll-margin-bottom`).
 
     Each way chosen by what the sheet holds, measured on a phone of 390 × 844 px (owner,
     2026-11-04: „alle modal instanzen durchguckst und da einstellst, was am besten zu denen
@@ -3432,6 +3433,49 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   takeover has it as well. The tab of the page's area, tapped again where the app is there
   already, takes the page up the same way, the focus staying on the tab (`betula:tab-again`;
   „The tab of the area one is in, tapped again" above).
+- **The focus clear of what floats over a phone's window** (WCAG 2.2, 2.4.11 „Focus Not
+  Obscured"; 2026-11-19, Folia 1.117.2; app.css „phone and tablet"). On a phone the window
+  scrolls, and over its edges float the bar at the top (`--bar`, sticky), at the foot the bottom
+  bar or the dock in its place (the Stundenplan's mode, the workbench, the rows selected: 10 px from
+  the edge, 62 px high), „Nach oben" above it at the right while it shows, and on „Mein Studium"
+  the dots (`.st-dock`). The browser brings what Tab, a tap or `focus()` reaches into the window as
+  a whole, which knew nothing of them: `e2e/frames.mjs` (§4) counted 40 controls of the five phone
+  views under the bars or „Nach oben" as they were focused (the catalog's rows and their marks,
+  the day's Termine and „Öffnen", „Alle Studiengänge", „Termine als Liste"), and Shift + Tab, or Tab
+  coming round to the top of a page, left them under the bar at the top. The window keeps room at
+  its edges for scrolling (`scroll-padding` on the root) as high as what floats there: `--bar` at
+  the top, as `--head` of a wide screen's `.work.flowing`; at the foot 84 px, the bar and the 12 px
+  a page's end keeps above it; 140 while „Nach oben" shows (not on the Stundenplan, which has it
+  not), 116 on „Mein Studium", where the pages of its row end; none while the screen's keyboard is
+  up, which hides the bar. What brings something into view keeps out of that room: the browser for
+  the focus, `scrollIntoView` for the app's keys and its ways to a row or a week, a jump to a
+  section, an address's `#…`. So a part of the legal texts, a section of the pages about Betula,
+  the Stundenplan's module list, a week of its agenda and a saved plan's „Ersetzen" stop under the
+  bar or above the dock as on a wide screen, by the padding and their own margin (until 1.117.2
+  each by a margin as high as the bar, 72 or 76 px, or by a script's scroll the bar's height).
+  - The bar's own controls (the search, the way back, the profile's box) stand in that room, and
+    the bar stays where it is: whatever asked for one of them to be seen — its focus, a script's
+    `scrollIntoView`, a check's tap (Playwright brings what it taps into view first; `back.mjs`
+    found the list 350 px off where it was left) — had the browser scroll the page by up to
+    700 px to bring it below the bar. Their `scroll-margin` counts them a bar lower, in view where
+    they are (`.topbar *`), and while one of them has the focus the window keeps no room at the top
+    (`:root:has(.topbar :focus)`: the search typed in, which the screen's keyboard brings into view
+    its own way).
+  - The app's keys (`enhance.js` `focusOn`) scrolled only a control whose middle was not seen; on a
+    phone also one that reaches into the window's room or into the room it asks for around itself
+    (`scroll-margin`), as far as they ask (`clearOfEdges`). Not in what floats itself, a sheet or a
+    menu, which scrolls in itself and keeps none of the window's room: the page behind it stays
+    where it is as its controls are focused.
+  - „Nach oben" comes after the scroll that took the page a screen down, so the room it asks for
+    grows only then: the control the keyboard has just brought above the bottom bar, which it now
+    stands over, goes above it as it comes (`keepClear`; a row of the catalog walked with ↓ stood under
+    it at that one step).
+  - A head that sticks over its rows asks for room on its rows: the Regelstudienplan's rows 96 px
+    (its head 74 px high, 97 on two lines, „5. und 6. Fachsemester" and its semesters); its panel
+    jumped to and its head stop where the head sticks, 2 px up into the bar.
+  - Where a page has ended, the window scrolls no further: its last control can stand partly under
+    „Nach oben" while it shows (the module page's „Original bei der BTU", a program plan's
+    „Passender Master"), its right end, as before.
 - **The Stundenplan on a phone** (owner, 2026-09-27: „Es gibt keine Wochenansicht beim Kalender
   auf dem Smartphone"; `folia/crates/planner/src/studyplan/week.rs` `WeekCarousel`, `mod.rs`): „Woche" is
   the week grid of a wide screen too, fitted to the height the screen leaves under the bar of the
@@ -5315,7 +5359,12 @@ paper or take-home exam is due. The first idea, shifting by twelve hours, would 
 - A deadline reads „So bis 24:00", unmarked (it is a reading, not a doubt); the original is the
   row's tooltip.
 - Anything else outside 06:00–22:00, an end before the start, or a date outside the semester keeps
-  the source's value and is only marked (none in the snapshot of 2026-09-21).
+  the source's value and is only marked (none in the snapshot of 2026-09-21; the first in canary's
+  of 2026-11-19: Allgemeine Physik I, 11865, „Mi 01:00–02:30, 17.02.2027" with a room, the
+  placeholder's times on a day of the week in the exam period. `pages`'
+  `exam_readings_never_state_what_the_source_does_not` had asked for a changed slot with every
+  reason, which held only while there was none; it asks now that a slot is changed only where the
+  page reads the entry, the placeholder or a deadline).
 - A marked row carries a line with the info icon: what QIS says where the row shows something
   else („In QIS: So 01:00–02:30 · 27.12.2015"), else what is odd. One note under the list explains
   the marks. Radix and the snapshot keep the entry as read (provenance names what was read); the
@@ -5998,8 +6047,9 @@ Passwort noch Profil". What they are now:
   heights of panels not yet drawn the browser stopped half a screen off the section as often as
   not. The takeover keeps it so while the picture stands and the app's page takes the scroll
   (`boot.js`, `atSection`): the picture's and the app's boxes are new ones, none of them the
-  address's target. On a phone a section stops under the bar at the top (`.home > .panel`, 76 px),
-  not behind it.
+  address's target. On a phone a section stops 14 px under the bar at the top, not behind it, as
+  on a wide screen (the window's `scroll-padding`, „The focus clear of what floats over a phone's
+  window"; until Folia 1.117.2 by 76 px of `.home > .panel`'s own).
 
 „Über Betula" (`/about` until 2026-10-27, the overview `/about/overview` since, `home/overview.rs`;
 `/` until concept A, „The start page" above) answers three questions at a glance: what this is
@@ -9425,7 +9475,9 @@ neighbour painted after it), what cuts it off (the parent that clips), or that i
 out (a frame in the accent on the accent); where the frame goes on in a line of its own colour (a
 chosen profile's bar), it is seen. A focus drawn outside its element fails as well, and an outline
 outside at rest. What floats over the page (a bar, „Nach oben") and lies over a control as it is
-focused is counted, not failed (`FRAMES_VERBOSE=1` names them). On the stylesheet before R26 it
+focused is counted, not failed (`FRAMES_VERBOSE=1` names them): on the phone's views 40 under the
+bars or „Nach oben" until the window kept room for them (Folia 1.117.2, „The focus clear of what
+floats over a phone's window"), none since (2026-11-19). On the stylesheet before R26 it
 found 1,011 of 1,336 frames failing: 872 focus rings or outlines outside their element, and 139
 frames cut — 34 sides covered, 150 clipped, 6 not standing out; with R26 none of 1,336
 (2026-11-19). `FRAMES_ONLY=grid,phone-study` runs the views whose names contain one of these; all

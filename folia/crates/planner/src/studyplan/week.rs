@@ -753,23 +753,16 @@ fn reveal(id: String) {
 }
 
 /// Scrolls the week `id` to the top of what scrolls around it (the page's column, on a phone the
-/// window). `false` if the agenda has no such week.
+/// window, below its top bar: the window's `scroll-padding`, app.css „phone and tablet"). `false`
+/// if the agenda has no such week.
 #[allow(unused_variables)]
 fn week_to_top(id: &str) -> bool {
     #[cfg(feature = "csr")]
     {
-        let Some(window) = web_sys::window() else { return false };
-        let Some(document) = window.document() else { return false };
         let Some(element) = folia_design::stage::by_id(id) else { return false };
         let options = web_sys::ScrollIntoViewOptions::new();
         options.set_block(web_sys::ScrollLogicalPosition::Start);
         element.scroll_into_view_with_scroll_into_view_options(&options);
-        // On a phone the window scrolls under the top bar, which stays: the week goes below it.
-        if nav::is_phone() {
-            if let Some(bar) = document.query_selector(".topbar").ok().flatten() {
-                window.scroll_by_with_x_and_y(0.0, -bar.get_bounding_client_rect().bottom());
-            }
-        }
         true
     }
     #[cfg(not(feature = "csr"))]

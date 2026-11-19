@@ -1563,7 +1563,19 @@ fn exam_readings_never_state_what_the_source_does_not() {
                 assert!(shown.is_none() || shown == stated, "{id}: {reading:?}");
             }
             assert!(shown.weekday.is_none() || shown.weekday == stated.weekday, "{id}: {reading:?}");
-            assert_eq!(reading.reasons.is_empty(), shown == stated, "{id}: {reading:?}");
+            // A page shows otherwise than the source only where it reads the entry (the
+            // placeholder's time and date, a deadline's start). Every other reason marks the row
+            // and keeps the source's value (`Reason`: „shown as stated"), and without a reason the
+            // two are the same. Until 2026-11-19 this asked for a changed slot with every reason,
+            // which held only while the snapshot had no row that is merely marked.
+            let reads = reading.has(Reason::PlaceholderTime) || reading.has(Reason::PlaceholderDate) || reading.has(Reason::Deadline);
+            assert!(reads || shown == stated, "{id}: {reading:?}");
+            if reading.has(Reason::PlaceholderDate) {
+                assert_eq!((&shown.first_date, &shown.last_date), (&None, &None), "{id}");
+            }
+            if reading.has(Reason::Deadline) {
+                assert_eq!(shown.start_time, None, "{id}");
+            }
 
             let minutes = |time: &Option<String>| time.as_deref().and_then(|t| Some(t.get(..2)?.parse::<i64>().ok()? * 60 + t.get(3..5)?.parse::<i64>().ok()?));
             let outside = [minutes(&stated.start_time), minutes(&stated.end_time)].into_iter().flatten().any(|m| !(360..=1320).contains(&m));
@@ -1590,6 +1602,20 @@ fn exam_readings_never_state_what_the_source_does_not() {
         }
     } else {
         eprintln!("note: 11103 no longer carries the 2015 placeholder; its reading is not asserted");
+    }
+
+    // Allgemeine Physik I (11865): „Mi 01:00–02:30, 17.02.2027" in the WiSe 2026/27, with a room
+    // and „Klausur, Dauer 1 Block": the placeholder's times on a day of the week in the exam
+    // period. Not the placeholder (a Sunday's, or one without a weekday), so the source's value is
+    // shown and the row marked, the first such row (canary's snapshot of 2026-11-19).
+    let physik: Vec<_> = queries::module_exams(&db, "11865").unwrap().into_iter().filter(|date| date.start_time.as_deref() == Some("01:00") && date.weekday == Some(3)).collect();
+    if physik.is_empty() {
+        eprintln!("note: 11865 no longer carries „Mi 01:00–02:30“; its reading is not asserted");
+    }
+    for date in &physik {
+        let reading = exam_reading::read(date, semesters.iter().find(|semester| semester.key == date.semester_key));
+        assert_eq!(reading.reasons, [Reason::UnusualTime], "{reading:?}");
+        assert!(reading.is_marked() && reading.shown == reading.stated, "{reading:?}");
     }
 }
 
