@@ -81,6 +81,8 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     let t = i18n::t();
     // Betula Sync, where the server offers it: the browser reads where Phloem answers from here.
     let sync = use_context::<SyncOffer>().map(|offer| view! { <meta name=folia_stores::sync::META content=offer.0.to_string()/> });
+    // Notifications, where the server offers them: `enhance.js` reads where Xylem answers from here.
+    let push = use_context::<PushOffer>().map(|offer| view! { <meta name=PUSH_META content=offer.0.to_string()/> });
     view! {
         <!DOCTYPE html>
         <html lang=t.locale.code()>
@@ -104,6 +106,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 // The app a home screen installs from this page: this language's (`/en/…`).
                 <link rel="manifest" href=t.path(MANIFEST)/>
                 {sync}
+                {push}
                 <script inner_html=HEAD_SCRIPT></script>
                 // The font and the stylesheet are the same on every page, so they are part of the
                 // document and not of `App`: the browser app does not hydrate, it mounts fresh, and

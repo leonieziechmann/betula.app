@@ -88,6 +88,190 @@
     },
   };
 
+  // ---- notifications (docs/folia/frontend.md, „Notifications"; docs/xylem/protocol.md section 5) ----
+  // (owner, 2026-11-19: „mach beides und dann Folias Teil"). Where the site offers them (the
+  // page's `<meta name="betula-push">`: where Xylem answers, empty for `/push/v1/` of this host),
+  // a browser can be told what Betula announces: the exam periods, a semester's turn, the breaks
+  // of the lectures. Switched on in the menu of the profiles (chrome.rs, `Preferences`), kept by
+  // this browser and the same in every profile: a push subscription belongs to a browser, and
+  // Xylem knows no profile.
+  //
+  // - `betula.push.v1` keeps the topics this browser listens to (`exams,semester,breaks`); none:
+  //   off. The subscription itself is the browser's, made with Xylem's key and put to Xylem with
+  //   the page's language and those topics.
+  // - Switching on is a tap's: only then may a page ask for the permission. Switching off always
+  //   works here, with or without a network (a subscription Xylem could not be told of ends at
+  //   the push service, and Xylem forgets it with its next message).
+  // - At a start, at most twice a day and at once after the language changed or where the
+  //   browser has no subscription any more, the subscription is put again: that is how a Xylem
+  //   brought back from a backup, or one that lost its key, has this browser again without
+  //   anybody doing anything.
+  // - `window.betulaPush` for the app: `state()` says it all in one line,
+  //   `<support>;<permission>;<topics>;<busy>;<error>` (support `yes`, `install`: an iPhone or
+  //   iPad, where only the app on the home screen may ask, `no`; empty where the site offers no
+  //   notifications), `set(topics)` puts a choice. Each change is told to the page
+  //   (`betula:push`). The menu's buttons are handled below (`push-set`, `push-topic`).
+  const PUSH_KEY = "betula.push.v1";
+  const PUSH_SEEN_KEY = "betula.push.seen.v1";
+  const PUSH_TOPICS = ["exams", "semester", "breaks"];
+  const PUSH_AGAIN = 12 * 3600 * 1000;
+  // What the service worker reads when the browser replaces the subscription by itself
+  // (`pushsubscriptionchange`, sw.js): a cache no build drops, one small answer in it.
+  const PUSH_CACHE = "betula-push";
+  const PUSH_SETTINGS = "/push-settings";
+  const pushMeta = document.querySelector('meta[name="betula-push"]');
+  const pushBase = pushMeta ? pushMeta.content.trim() || "/push/v1/" : null;
+  const pushCan = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  // `navigator.standalone` exists on iOS alone, and is false in Safari's own tab.
+  const pushNeedsApp = !pushCan && navigator.standalone === false;
+  let pushBusy = false;
+  let pushError = "";
+  const pushKept = () => {
+    try { return (localStorage.getItem(PUSH_KEY) || "").split(",").filter((topic) => PUSH_TOPICS.includes(topic)); } catch { return []; }
+  };
+  const pushKeep = (topics) => {
+    try { if (topics.length) localStorage.setItem(PUSH_KEY, topics.join(",")); else localStorage.removeItem(PUSH_KEY); } catch {}
+  };
+  const pushTell = () => dispatchEvent(new Event("betula:push"));
+  const pushLang = () => (root.lang || "de").toLowerCase();
+  class PushError extends Error {
+    constructor(code) { super(code); this.code = code; }
+  }
+  // One request to Xylem; what it answered, or a PushError: `network` where nothing answered,
+  // `service` for a browser whose push service Xylem does not write to, `full`, `later`, `failed`.
+  const pushCall = async (method, path, body) => {
+    let response;
+    try {
+      response = await fetch(pushBase + path, {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : {},
+        body: body ? JSON.stringify(body) : undefined,
+        cache: "no-store",
+        credentials: "omit",
+      });
+    } catch {
+      throw new PushError("network");
+    }
+    if (response.ok) return response.status === 204 ? null : response.json().catch(() => null);
+    const answer = await response.json().catch(() => null);
+    const code = answer && answer.error;
+    throw new PushError(code === "endpoint" ? "service" : code === "full" ? "full" : response.status === 429 ? "later" : response.status >= 500 ? "network" : "failed");
+  };
+  const pushBytes = (text) => {
+    const raw = atob(String(text).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+  };
+  const pushSameKey = (buffer, key) => {
+    if (!buffer) return false;
+    const have = new Uint8Array(buffer);
+    return have.length === key.length && have.every((byte, i) => byte === key[i]);
+  };
+  // The service worker in charge; a page whose worker never came (a browser that refused it)
+  // does not wait for ever.
+  const pushRegistration = () => Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, reject) => setTimeout(() => reject(new PushError("failed")), 10000)),
+  ]);
+  // This browser's subscription with Xylem's key: the one it has, or a new one. One made with
+  // another key (a Xylem that lost its database) is given up for a new one.
+  const pushSubscription = async () => {
+    const registration = await pushRegistration();
+    const answer = await pushCall("GET", "key");
+    const key = pushBytes((answer && answer.key) || "");
+    let subscription = await registration.pushManager.getSubscription();
+    if (subscription && !pushSameKey(subscription.options && subscription.options.applicationServerKey, key)) {
+      await subscription.unsubscribe().catch(() => {});
+      subscription = null;
+    }
+    return subscription || registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  };
+  const pushRemember = async (topics) => {
+    try { localStorage.setItem(PUSH_SEEN_KEY, JSON.stringify({ at: Date.now(), lang: pushLang() })); } catch {}
+    try {
+      const cache = await caches.open(PUSH_CACHE);
+      if (topics.length) await cache.put(PUSH_SETTINGS, new Response(JSON.stringify({ base: new URL(pushBase, location.href).href, lang: pushLang(), topics })));
+      else await cache.delete(PUSH_SETTINGS);
+    } catch {}
+  };
+  const pushPut = async (topics) => {
+    const subscription = await pushSubscription();
+    await pushCall("PUT", "subscription", { ...subscription.toJSON(), lang: pushLang(), topics });
+    await pushRemember(topics);
+  };
+  const pushOff = async () => {
+    await pushRemember([]);
+    try { localStorage.removeItem(PUSH_SEEN_KEY); } catch {}
+    if (!pushCan) return;
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = registration && (await registration.pushManager.getSubscription());
+    if (!subscription) return;
+    await pushCall("DELETE", "subscription", { endpoint: subscription.endpoint }).catch(() => {});
+    await subscription.unsubscribe().catch(() => {});
+  };
+  // Puts a choice of topics: none switches the notifications off. From a tap where it switches
+  // them on, since the permission is asked for here, before anything is awaited.
+  const pushSet = async (wanted) => {
+    const topics = PUSH_TOPICS.filter((topic) => (wanted || []).includes(topic));
+    if (pushBase === null || pushBusy) return;
+    pushBusy = true;
+    pushError = "";
+    pushTell();
+    try {
+      if (!topics.length) {
+        pushKeep([]);
+        await pushOff();
+      } else {
+        if (!pushCan) throw new PushError(pushNeedsApp ? "install" : "unsupported");
+        const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+        if (permission !== "granted") throw new PushError(permission === "denied" ? "denied" : "dismissed");
+        // Kept first: a choice that could not be sent now (no network) is sent at the next start.
+        pushKeep(topics);
+        await pushPut(topics);
+      }
+    } catch (error) {
+      pushError = (error && error.code) || (error && error.name === "NotAllowedError" ? "denied" : "failed");
+      // What is kept and was not sent is sent at the next start, not half a day later.
+      try { localStorage.removeItem(PUSH_SEEN_KEY); } catch {}
+      // A browser Xylem cannot write to listens to nothing, whatever was chosen.
+      if (pushError === "service") {
+        pushKeep([]);
+        await pushOff().catch(() => {});
+      }
+    }
+    pushBusy = false;
+    pushTell();
+  };
+  window.betulaPush = {
+    state: () => (pushBase === null ? "" : [pushCan ? "yes" : pushNeedsApp ? "install" : "no", pushCan ? Notification.permission : "default", pushKept().join(","), pushBusy ? "1" : "0", pushError].join(";")),
+    set: pushSet,
+  };
+  addEventListener("storage", (e) => {
+    if (e.key === PUSH_KEY || e.key === null) pushTell();
+  });
+  // At a start: the subscription put again where this browser listens (see above), once the page
+  // has had its first seconds to itself.
+  if (pushBase !== null && pushCan) {
+    setTimeout(async () => {
+      const topics = pushKept();
+      if (!topics.length || Notification.permission !== "granted" || pushBusy) return;
+      let seen = null;
+      try { seen = JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || "null"); } catch {}
+      // A browser that lost its subscription (its data cleared in part) gets a new one now.
+      const registration = await navigator.serviceWorker.getRegistration().catch(() => null);
+      const subscribed = registration ? await registration.pushManager.getSubscription().catch(() => null) : null;
+      if (subscribed && seen && seen.lang === pushLang() && Date.now() - seen.at < PUSH_AGAIN) return;
+      try {
+        await pushPut(topics);
+      } catch (error) {
+        if (error && error.code === "service") {
+          pushKeep([]);
+          pushError = "service";
+          pushTell();
+        }
+      }
+    }, 5000);
+  }
+
   // ---- vibrations: what the hand feels (docs/folia/frontend.md, „Vibrations") ----
   // (owner, 2026-11-17: „ich möchte dass in der ganzen app vibrations richtig umgesetzt werden und
   // die Benutzung unterstreichen und satisfying macht"). One small vocabulary for the whole app,
@@ -2796,6 +2980,19 @@
       case "haptics-set":
         setHaptics(target.dataset.hapticsValue !== "off");
         break;
+      case "push-set": {
+        // The switch: on with what was chosen before, else with every topic; or off.
+        const kept = pushKept();
+        pushSet(target.dataset.pushValue === "off" ? [] : kept.length ? kept : PUSH_TOPICS);
+        break;
+      }
+      case "push-topic": {
+        // One topic ticked or unticked; the last one unticked switches the notifications off.
+        const topic = target.dataset.pushTopic;
+        const kept = pushKept();
+        pushSet(kept.includes(topic) ? kept.filter((other) => other !== topic) : [...kept, topic]);
+        break;
+      }
       case "sheet-open":
         e.preventDefault();
         openSheet();
@@ -3516,8 +3713,9 @@
   //   at its foot names the keys of the control that no button can carry. Esc or a click leads out.
   // - `data-stop` makes a group one stop of the Tab key (the rail, the list's rows, the heads of the
   //   columns, a module's buttons): Tab comes in where the keyboard was last in it (else at the
-  //   current one or the one it names its home, `data-kb-home`, else the first in view) and leaves
-  //   past it; the arrows of its axis (`x` ← →, `y` ↑ ↓) go from one to the next. `grid` is a
+  //   current one, an option group's choice, or the one it names its home, `data-kb-home`, else the
+  //   first in view) and leaves past it; the arrows of its axis (`x` ← →, `y` ↑ ↓) go from one to
+  //   the next, and in an option group (`role="radiogroup"`) choose it. `grid` is a
   //   table of controls, as the eye sees it (the Gesamtplan, the Regelstudienplan): ↑ ↓ the nearest
   //   control above or below in the same column, ← → the one beside in the same row (`gridMove`).
   //   A mode is one stop as well, seen from outside.
@@ -3659,7 +3857,7 @@
     const last = lastOf(group);
     if (last) return last;
     const items = itemsOf(group);
-    const HERE = '[aria-current="true"], [aria-current="page"], [aria-selected="true"], [data-kb-home]';
+    const HERE = '[aria-current="true"], [aria-current="page"], [aria-selected="true"], [role="radio"][aria-checked="true"], [data-kb-home]';
     return items.find((el) => el.matches(HERE) && inView(el))
       || items.find((el) => el.matches(HERE))
       || items.find(inView) || items[0] || null;
@@ -4399,7 +4597,9 @@
   // below in the same column (whose box spans where the keyboard came from across, `stickyX`, as in
   // a mode), past a row with none there (a row of the Regelstudienplan with nothing to plan); where
   // the column has none, the nearest row and in it the one nearest across; ← → the nearest beside
-  // it in its own row (whose box overlaps its height, a tall head of a row too). Nothing past the
+  // it in its own row (whose box overlaps its height, a tall head of a row too); where its row has
+  // none on that side, the nearest column there and in it the one nearest in height (the
+  // Stundenplan's week: → to the next day with a Termin, at the time nearest). Nothing past the
   // edges.
   const gridMove = (group, el, key) => {
     const mid = (b) => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
@@ -4409,9 +4609,18 @@
     const overlaps = (a, b) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
     if (key === "ArrowLeft" || key === "ArrowRight") {
       const right = key === "ArrowRight";
-      const beside = others.filter(({ b }) => overlaps(b, r) && (right ? mid(b).x > m.x + 1 : mid(b).x < m.x - 1));
-      beside.sort((a, b) => Math.abs(mid(a.b).x - m.x) - Math.abs(mid(b.b).x - m.x));
-      return beside[0]?.one ?? null;
+      const side = others.filter(({ b }) => (right ? mid(b).x > m.x + 1 : mid(b).x < m.x - 1));
+      const beside = side.filter(({ b }) => overlaps(b, r));
+      if (beside.length) {
+        beside.sort((a, b) => Math.abs(mid(a.b).x - m.x) - Math.abs(mid(b.b).x - m.x));
+        return beside[0].one;
+      }
+      if (!side.length) return null;
+      // The nearest column on that side, and in it the one nearest in height.
+      const near = side.reduce((best, c) => (Math.abs(mid(c.b).x - m.x) < Math.abs(mid(best.b).x - m.x) ? c : best));
+      const column = side.filter(({ b }) => Math.min(b.right, near.b.right) - Math.max(b.left, near.b.left) > 1);
+      column.sort((a, b) => Math.abs(mid(a.b).y - m.y) - Math.abs(mid(b.b).y - m.y));
+      return column[0]?.one ?? null;
     }
     const down = key === "ArrowDown";
     const past = others.filter(({ b }) => (down ? mid(b).y > r.bottom - 1 : mid(b).y < r.top + 1));
@@ -4453,6 +4662,9 @@
     const to = items[at + (down ? 1 : -1)] ?? (y ? goesOn(group, el, down) : null);
     e.preventDefault();
     if (to) focusOn(to);
+    // An option group that is a stop (the Stundenplan's A, B and A/B): the arrows choose, as in a
+    // mode and as the ARIA pattern of radios has it.
+    if (to && group.getAttribute("role") === "radiogroup" && to.getAttribute("role") === "radio" && to.getAttribute("aria-checked") !== "true") to.click();
     return true;
   };
 

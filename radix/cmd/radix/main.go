@@ -52,6 +52,10 @@ var commands = [][]command{
 		{"secret", "Manage credentials in the OS credential store: set | status | delete | migrate-config", runSecret},
 	},
 	{
+		{"privacy", "The people whose personal data is taken out (DSGVO): add | list | remove | find", runPrivacy},
+		{"history", "Every published state of the catalog: status | record | at | log | export | redact", runHistory},
+	},
+	{
 		{"raw-vocab", "Print the distinct raw values of the normalized module fields", runRawVocab},
 	},
 }

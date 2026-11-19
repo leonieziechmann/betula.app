@@ -2244,6 +2244,364 @@ groups:
           summary: "Phloem ({{ $labels.stack }}): {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}many{{ end }} spaces made in an hour"
           description: "More than 250 profiles started Betula Sync within an hour: half of what Phloem takes at most (500 an hour, 20 per address). A launch, an announcement - or someone filling the budget with spaces of their own (each space is a token and a key nobody but its devices has). Phloem's own limits hold either way; the rule says only that it is unusual. Dashboard Sync (Spaces made, Refused by reason, Budget used); the addresses: Traefik's access log, {service=\"edge_traefik\"} |= \"/sync/v1/space\"."
 
+  - orgId: 1
+    name: betula-xylem
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # Xylem (docs/xylem/xylem.md, „On the server") is seen as Phloem is, through the file it writes
+      # every 15 s, never over a network (config/monitoring/alloy/config.alloy). The rules are Phloem's
+      # of group betula-phloem, with Xylem's names: down is a file that has not changed for two minutes,
+      # one that is gone though there was one in the last 7 days, or xylem_up 0.
+      - uid: betula-xylem-down
+        title: "Xylem: not running"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "label_replace(((time() - max by (stack) (node_textfile_mtime_seconds{job=\"xylem\"})) > 120) and ((time() - max by (stack) (node_textfile_mtime_seconds{job=\"xylem\"})) < 604800), \"why\", \"stale\", \"\", \"\") or label_replace((max by (stack) (node_textfile_scrape_error{job=\"xylem\"}) > 0) and on (stack) max by (stack) (max_over_time(node_textfile_mtime_seconds{job=\"xylem\"}[7d])), \"why\", \"missing\", \"\", \"\") or label_replace(((1 - max by (stack) (xylem_up{job=\"xylem\"})) > 0) and on (stack) ((time() - max by (stack) (node_textfile_mtime_seconds{job=\"xylem\"})) < 604800), \"why\", \"stopped\", \"\", \"\")"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "2m"
+        noDataState: OK
+        execErrState: KeepLast
+        labels:
+          severity: critical
+        annotations:
+          summary: "Xylem ({{ $labels.stack }}): {{ if eq $labels.why \"stale\" }}its stats file has not changed for {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} s{{ else }}minutes{{ end }}{{ else if eq $labels.why \"missing\" }}its stats file is gone{{ else }}it stopped{{ end }}"
+          description: "Xylem, the service of Betula's notifications, writes /run/betula/xylem/{{ $labels.stack }}/stats/xylem.prom every 15 s; it shares no network with the monitoring, so that file is all Alloy sees of it. An old file means the process has stopped writing (it hangs, or its container is gone and the file stayed behind); a missing one, that the tmpfs is gone (a reboot before Xylem came back); xylem_up 0 is what a Xylem that stops on purpose writes last. The site keeps working without it; nobody can subscribe meanwhile, and an announcement that is due waits in xylem.db for the next start (one whose time ran out meanwhile is not sent late). docker service ps --no-trunc {{ $labels.stack }}_push; docker service logs {{ $labels.stack }}_push; bash /opt/betula/vps/91-verify-stacks.sh xylem. Retired on purpose: remove the stats file, or wait 7 days; the rule forgets an instance whose file is older."
+
+      # What betula-xylem-guard sees from outside Xylem's container, every minute (job phloem-guard,
+      # like every file of /run/betula/metrics). Two minutes, so that the moment of a start, before
+      # "xylem start" has dropped its rights, is never one.
+      - uid: betula-xylem-isolation
+        title: "Xylem: its firewall or its rights are not as they should be"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "label_replace((1 - max by (stack) (betula_xylem_guard_firewall)) > 0, \"why\", \"firewall\", \"\", \"\") or label_replace(max by (stack) (betula_xylem_guard_privileged) > 0, \"why\", \"rights\", \"\", \"\") or label_replace((time() - max(betula_xylem_guard_last_run_timestamp_seconds)) > 300, \"why\", \"guard\", \"\", \"\")"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "2m"
+        noDataState: OK
+        execErrState: KeepLast
+        labels:
+          severity: critical
+        annotations:
+          summary: "Xylem{{ if $labels.stack }} ({{ $labels.stack }}){{ end }}: {{ if eq $labels.why \"firewall\" }}no firewall in its container{{ else if eq $labels.why \"rights\" }}a process of its container has rights{{ else }}the guard has not looked for {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} s{{ else }}minutes{{ end }}{{ end }}"
+          description: "Xylem is kept as Phloem is, as if it were an outside service: in its container the table inet xylem lets out a name asked of Docker's resolver and port 443 of an address on the internet, nothing inside the house, and \"xylem start\" drops to uid 65532 without capabilities before it serves. betula-xylem-guard (vps/files/betula-phloem-guard.sh with BETULA_GUARD_KIND=xylem, every minute as root) looks at that from outside. firewall: a running container of the stack has no table inet xylem, so it could reach every address its networks lead to (Traefik, the host, the metadata service). rights: a process in the container runs as root or holds a capability, so it could change the firewall. guard: the guard itself did not run for five minutes (systemctl status betula-xylem-guard.timer; journalctl -u betula-xylem-guard.service -n 20). Look: sudo BETULA_GUARD_KIND=xylem betula-phloem-guard; cat /run/betula/metrics/xylem-guard.prom; bash /opt/betula/vps/91-verify-stacks.sh xylem. A Xylem without its firewall should not stay: bash /opt/betula/vps/49-xylem.sh {{ $labels.stack }} deploys it anew, and \"xylem start\" refuses to serve without it."
+
+      # Any packet a counting drop of the table counted (per chain), but in the 15 minutes after the
+      # checks probed on purpose (49-xylem.sh, 91-verify-stacks.sh).
+      - uid: betula-xylem-drops
+        title: "Xylem: its firewall drops connections"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "sum by (stack, chain) (increase(betula_xylem_guard_dropped_packets_total[10m])) > 0 unless on () ((time() - max(betula_verify_probes_timestamp_seconds)) < 900)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        labels:
+          severity: warning
+        annotations:
+          summary: "Xylem ({{ $labels.stack }}): its firewall dropped {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}some{{ end }} packets ({{ $labels.chain }}) in 10 minutes"
+          description: "The counting drop rules of table inet xylem in Xylem's container dropped packets. output: something in the container tried to reach an address inside the house (another container, the host, the metadata service), a port other than 443, or sent a datagram or IPv6 - which Xylem never does: it asks Docker's resolver for names and speaks HTTPS to the push services and to the site (docs/xylem/xylem.md, „On the server\"). A bug, a push service or a feed whose name leads to a private address (Xylem's own dialer refuses those before a packet leaves), or someone in the container. input: something knocked on a port other than 8300, and only Traefik and this host reach it. Who: docker service logs {{ $labels.stack }}_push; sudo nsenter -t <pid> -n nft list table inet xylem (the rule's comment says what it drops). Probes of 49-xylem.sh and 91-verify-stacks.sh cause such drops on purpose and say so first (betula_verify_probes_timestamp_seconds): the 15 minutes after them are left out."
+
+      # Every read of the feed failed for an hour and a half (an hour of reads, 30 minutes of waiting).
+      # An instance without a feed (XYLEM_FEED=off) reads nothing and is no data.
+      - uid: betula-xylem-feed
+        title: "Xylem: the feed does not read"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "(sum by (stack) (increase(xylem_feed_reads_total{job=\"xylem\", result=\"failed\"}[1h])) > 0) unless on (stack) (sum by (stack) (increase(xylem_feed_reads_total{job=\"xylem\", result=~\"read|unchanged\"}[1h])) > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "30m"
+        noDataState: OK
+        execErrState: KeepLast
+        labels:
+          severity: warning
+        annotations:
+          summary: "Xylem ({{ $labels.stack }}): the site's feed did not read once in an hour"
+          description: "Xylem reads what Betula announces by itself every ten minutes at https://<the site>/api/announcements (docs/xylem/protocol.md section 7), from its container through its own way out, at the site's public address. Every read of the last hour failed. Nothing is lost at once: the announcements Xylem holds already are told at their time, and what a person announces (xylem announce) is told as before; but a new date of the catalog (the next exam period, a break) is not learned until the feed reads again, and one that the catalog withdrew is still told. Why: docker exec <container> /bin/xylem status (feed.failing) and docker exec <container> /bin/xylem feed. Usual causes: the site is down or answers 503 (no snapshot yet), its Folia is older than 1.108.0, or the host does not answer its own public address from a container (curl -sI https://<the site>/api/announcements from outside works then)."
+
+      # A notification Xylem gave up on: refused for good, or not taken before its announcement ended.
+      - uid: betula-xylem-failed
+        title: "Xylem: an announcement did not reach everybody"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "sum by (stack) (increase(xylem_pushes_total{job=\"xylem\", result=~\"gave_up|unauthorized|invalid|too_big|refused\"}[1h])) > 0"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        labels:
+          severity: warning
+        annotations:
+          summary: "Xylem ({{ $labels.stack }}): {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}some{{ end }} notifications were given up on in an hour"
+          description: "Xylem gave up on notifications: a push service refused them for good (a 4xx that is not „gone\"), or did not take them until the announcement's time ran out (docs/xylem/xylem.md, „Sending\"). A few browsers of one push service that is down for a while are the usual case, and nothing to do. Many, or all of one service: its operators changed something (xylem_pushes_total by service and result says which and how: unauthorized is a refused token, invalid and too_big a message the service does not take; docker service logs {{ $labels.stack }}_push), or Xylem's VAPID key is not the one the subscriptions were made with (a xylem.db restored from elsewhere)."
+
 # Rules this file provisioned once and no longer defines (see the header). Grafana deletes them on
 # every provisioning run; a uid that is already gone is a no-op there, so an entry may stay.
 # orgId is the first key of an entry: 91-verify-stacks.sh counts the lines "- uid: " as defined rules.

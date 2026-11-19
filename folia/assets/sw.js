@@ -35,10 +35,21 @@
 // The semantic search's model (`/models/e5-de-en-<hash>.bin`, 15 MB; `boot.js` loads it once the
 // app runs) is kept apart from the shell, in a cache no build drops: its address names its
 // content, so a new build keeps it, and only a new model replaces it.
+//
+// Notifications (docs/xylem/protocol.md sections 4 and 5; `enhance.js`, „notifications"): what
+// Betula announces arrives as a push message that says everything a notification shows, and the
+// worker shows it; a tap opens the address it names. A browser that shows such a message by
+// itself (Safari from 18.4) never wakes the worker for it. Every push ends in a notification, also
+// one the worker cannot read: a browser that is woken and shows nothing takes the subscription
+// away (Safari) or shows a notice of its own (Chrome). What the page chose (the topics, the
+// language, where Xylem answers) is kept in a cache no build drops, for the day the browser
+// replaces the subscription by itself (`pushsubscriptionchange`).
 const VERSION = "__BUILD__";
 const SHELL = "betula-shell-" + VERSION;
 const PAGES = "betula-pages-" + VERSION;
 const MODELS = "betula-models";
+const PUSH = "betula-push";
+const PUSH_SETTINGS = "/push-settings";
 const KEPT_PAGES = 60;
 // How a page of this build asks for the files that change with a build.
 const TAG = new URL("?v=" + VERSION, self.location.href).search;
@@ -100,7 +111,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((names) => Promise.all(names.filter((name) => name !== SHELL && name !== PAGES && name !== MODELS).map((name) => caches.delete(name))))
+      .then((names) => Promise.all(names.filter((name) => name !== SHELL && name !== PAGES && name !== MODELS && name !== PUSH).map((name) => caches.delete(name))))
       .then(() => self.clients.claim()),
   );
 });
@@ -199,3 +210,73 @@ async function forget(cache) {
   if (keys.length <= KEPT_PAGES) return;
   await Promise.all(keys.slice(0, keys.length - KEPT_PAGES).map((key) => cache.delete(key)));
 }
+
+// What a push message says, as a notification: Xylem's declarative message (`web_push: 8030`),
+// else the least there is to say.
+self.addEventListener("push", (event) => {
+  let message = null;
+  try {
+    message = event.data ? event.data.json() : null;
+  } catch {}
+  const told = message && message.web_push === 8030 && message.notification && typeof message.notification.title === "string" ? message.notification : null;
+  const title = told ? told.title : "Betula";
+  const options = {
+    icon: "/assets/icon-192.png",
+    badge: "/assets/icon-monochrome-512.png",
+    data: { navigate: "/" },
+  };
+  if (told) {
+    if (typeof told.body === "string") options.body = told.body;
+    if (typeof told.lang === "string") options.lang = told.lang;
+    if (typeof told.tag === "string") options.tag = told.tag;
+    if (typeof told.timestamp === "number") options.timestamp = told.timestamp;
+    options.data = { ...(told.data && typeof told.data === "object" ? told.data : {}), navigate: typeof told.navigate === "string" ? told.navigate : "/" };
+  }
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// A tap on a notification: the page it names, in a window that shows it already, else in a new
+// one (the installed app's, where there is one). Only ever an address of this site.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  let target = new URL("/", self.location.origin);
+  try {
+    const named = new URL((event.notification.data && event.notification.data.navigate) || "/", self.location.origin);
+    if (named.origin === self.location.origin) target = named;
+  } catch {}
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const there = windows.find((client) => {
+      try {
+        const at = new URL(client.url);
+        return at.pathname === target.pathname && at.search === target.search;
+      } catch {
+        return false;
+      }
+    });
+    if (there && "focus" in there) return there.focus();
+    return self.clients.openWindow(target.href);
+  })());
+});
+
+// The browser replaced the subscription by itself (its push service moved it, or it ran out):
+// the new one is put to Xylem with what the page chose, and the old one deleted there. Without
+// what the page chose (never switched on here, or switched off), nothing: the page's next start
+// puts the subscription again in any case (`enhance.js`).
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(PUSH);
+    const kept = await cache.match(PUSH_SETTINGS);
+    const settings = kept ? await kept.json().catch(() => null) : null;
+    if (!settings || !Array.isArray(settings.topics) || !settings.topics.length || typeof settings.base !== "string") return;
+    const send = (method, body) => fetch(settings.base + "subscription", { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store", credentials: "omit" });
+    let fresh = event.newSubscription || (await self.registration.pushManager.getSubscription());
+    if (!fresh && event.oldSubscription && event.oldSubscription.options && event.oldSubscription.options.applicationServerKey) {
+      fresh = await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: event.oldSubscription.options.applicationServerKey });
+    }
+    if (fresh) await send("PUT", { ...fresh.toJSON(), lang: settings.lang, topics: settings.topics });
+    if (event.oldSubscription && (!fresh || event.oldSubscription.endpoint !== fresh.endpoint)) {
+      await send("DELETE", { endpoint: event.oldSubscription.endpoint }).catch(() => {});
+    }
+  })());
+});

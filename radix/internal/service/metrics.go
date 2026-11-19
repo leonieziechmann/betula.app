@@ -62,7 +62,7 @@ func init() {
 		cyclesTotal.Add(0, result)
 	}
 	for _, stage := range []string{"lists", "modules", "qis-modules", "tree", "event-list", "events",
-		"retention", "build", "archive", "validate", "export", "semantic"} {
+		"retention", "build", "archive", "validate", "export", "history", "semantic"} {
 		for _, outcome := range []string{"ok", "failed", "skipped", "interrupted"} {
 			stageRuns.Add(0, stage, outcome)
 		}

@@ -38,13 +38,15 @@ pub struct Texts {
 
     // Datenschutzerklärung, in the order of the page: what Betula is built to do with data, who
     // answers for it, what stays on the device, what leaves it when the student says so (Betula
-    // Sync, sharing, a calendar subscription), what the server needs to run, and the rest.
+    // Sync, sharing, a calendar subscription, notifications), what the server needs to run, and
+    // the rest.
     pub summary: Summary,
     pub controller: Controller,
     pub local: Local,
     pub sync: Sync,
     pub share: Share,
     pub calendar: Calendar,
+    pub push: Push,
     pub hosting: Prose,
     pub access_log: AccessLog,
     pub cookies: Cookies,
@@ -189,6 +191,24 @@ pub struct Calendar {
     pub download: &'static str,
 }
 
+/// „Benachrichtigungen": what the service of the notifications (Xylem, docs/xylem/protocol.md)
+/// keeps of a browser that switched them on, and whose push service carries a message.
+pub struct Push {
+    pub heading: &'static str,
+    pub intro: &'static str,
+    /// What the service keeps, one point each …
+    pub data: &'static [&'static str],
+    /// … and what it does not know.
+    pub not_known: &'static str,
+    /// The way of a message, through the browser's own push service.
+    pub course: &'static str,
+    pub logs: &'static str,
+    pub legal_basis: &'static str,
+    pub disclosure: &'static str,
+    pub retention: &'static str,
+    pub ending: &'static str,
+}
+
 /// „Zugriffsprotokoll": the edge's access log and Folia's own.
 pub struct AccessLog {
     pub heading: &'static str,
@@ -297,6 +317,7 @@ pub const DE: Texts = Texts {
             "Dein Profil liegt auf deinem Gerät. Merkliste, Stundenplan, „Mein Studium“ und „Mein Studiengang“ speichert dein Browser; nach deinem Namen oder einer E-Mail-Adresse fragt Betula nicht.",
             "Auf den Server kommt ein Profil nur, wenn du Betula Sync dafür einschaltest, und dann verschlüsselt: Nur deine Geräte können es öffnen, der Server nicht.",
             "Geteilt wird nur, was du selbst teilst, als Link oder als Kalender-Abo, und nur mit dem, was dafür nötig ist.",
+            "Benachrichtigungen bekommst du nur, wenn du sie einschaltest. Betula speichert dafür, wohin sie gehen und welche Themen du gewählt hast, aber nicht, wer du bist.",
             "Der Server protokolliert jeden Aufruf mit IP-Adresse, um Betula zu betreiben und vor Missbrauch zu schützen, und löscht die Einträge nach 7 Tagen.",
             "Keine Werbung, kein Tracking: Betula nutzt keine Analysedienste und setzt keine Cookies, die dich wiedererkennen. Schrift, Symbole und Skripte liefert betula.app selbst aus; von fremden Servern wird nichts geladen.",
             "Betula zeigt die Namen von Lehrenden, die die BTU in ihren Modulbeschreibungen veröffentlicht.",
@@ -324,13 +345,14 @@ pub const DE: Texts = Texts {
             "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst, welchen Studiengang du im Stundenplan gewählt hast und wie weit du gescrollt hast,",
             "ob Betula hier als App installiert ist, an welchen Tagen du die Startseite geöffnet hast (die letzten 16) und ob du „Später“ oder „Nicht mehr anzeigen“ gewählt hast, damit Betula nur selten anbietet, sich zu installieren,",
             "eine Kopie des Katalogs, das Sprachmodell der Suche (sie läuft ganz in deinem Browser), die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert,",
-            "für ein Profil mit Betula Sync seinen Schlüssel, eine zufällige Kennung dieses Geräts und den Stand des Abgleichs, mit den Änderungen, die noch nicht beim Dienst sind, und den Fassungen einer Notiz, die auf zwei Geräten gleichzeitig geändert wurde, und für einen Tag, welche deiner anderen Geräte nur über die Weiterleitung des Dienstes zu erreichen waren.",
+            "für ein Profil mit Betula Sync seinen Schlüssel, eine zufällige Kennung dieses Geräts und den Stand des Abgleichs, mit den Änderungen, die noch nicht beim Dienst sind, und den Fassungen einer Notiz, die auf zwei Geräten gleichzeitig geändert wurde, und für einen Tag, welche deiner anderen Geräte nur über die Weiterleitung des Dienstes zu erreichen waren,",
+            "wenn du Benachrichtigungen einschaltest, die gewählten Themen und wann dein Browser sich zuletzt beim Benachrichtigungsdienst von Betula gemeldet hat; die Anmeldung selbst verwaltet dein Browser.",
         ],
         texts: &[
             "Das alles liegt auf deinem Gerät, und ich kann es nicht einsehen. Ein anderes Gerät oder ein anderer Browser hat seine eigenen Profile. Sicherst du ein Profil als Datei, entsteht die Datei in deinem Browser, und auch eine Sicherung, die du lädst, liest nur dein Browser. Legst du Betula auf einem iPhone oder Mac auf den Home-Bildschirm oder ins Dock, legt Betula dein Profil in die Zwischenablage deines Geräts, weil die App dort ihren eigenen Speicher hat, und die App liest es nur, wenn du „Studium einfügen“ tippst; auch das bleibt auf deinem Gerät.",
             "Liest du in „Mein Studium“ deine Notenübersicht ein, öffnet dein Browser die PDF auf deinem Gerät, in einem Hintergrundprozess, der danach beendet wird: Sie erreicht keinen Server und wird nicht gespeichert, und gelesen werden nur dein Studiengang, dein Studienbeginn und deine Module mit ihrem Status, keine Noten und nichts über dich. Was du übernimmst, gehört danach zu „Mein Studium“ wie alles, was du dort abhakst.",
             "Den Server erreicht davon nur, was in der Adresse einer Seite steht, wenn du sie aufrufst, neu lädst oder teilst. Eine Adresse sagt, was gerade angezeigt wird, aber nie, was auf deiner Merkliste oder in deinem Stundenplan steht, was du bestanden hast oder in deiner Merkliste suchst; eine Sammlung nennt sie nur bei ihrer Nummer, nie bei ihrem Namen. In einer Adresse steht etwa der Studiengang, nach dem der Katalog gefiltert ist (auch „Mein Studiengang“, wenn du den Katalog darüber öffnest), das Modul, das neben Merkliste, Stundenplan oder „Mein Studium“ offen ist, oder Semester und Platzhalter, für die du Module suchst. Solche Adressen stehen wie alle anderen im Zugriffsprotokoll.",
-            "Mehr verlässt dein Gerät nur, wenn du es selbst auslöst: wenn du Betula Sync einschaltest, etwas teilst oder deinen Stundenplan als Kalender abonnierst. Was dann wohin geht, steht in den nächsten drei Teilen.",
+            "Mehr verlässt dein Gerät nur, wenn du es selbst auslöst: wenn du Betula Sync einschaltest, etwas teilst, deinen Stundenplan als Kalender abonnierst oder Benachrichtigungen einschaltest. Was dann wohin geht, steht in den nächsten vier Teilen.",
             "Für all das nutzt Betula den Speicher deines Browsers (Local Storage, Session Storage, IndexedDB und Cache Storage). Die Speicherung ist für die Funktionen nötig, die du nutzt, und braucht deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG). Ein Profil leeren oder löschen kannst du auf der Seite „Profil“, alles zusammen jederzeit in den Einstellungen deines Browsers, indem du die Websitedaten von betula.app löschst.",
         ],
     },
@@ -381,10 +403,26 @@ pub const DE: Texts = Texts {
         ending: "Entferne den Kalender in deinem Kalenderdienst; dann wird die Adresse nicht mehr abgerufen. Ein Abo, das aktuell bleibt, nimmst du im Dialog „Teilen“ mit „Nicht mehr teilen“ zurück: Danach zeigt die Adresse nichts mehr.",
         download: "Eine heruntergeladene .ics-Datei entsteht in deinem Browser, mit deinen Notizen zu Terminen, und erreicht den Server nicht.",
     },
+    push: Push {
+        heading: "Benachrichtigungen",
+        intro: "Betula kann dir Bescheid geben, wenn eine Prüfungsphase beginnt, die Vorlesungen pausieren oder die Termine des nächsten Semesters da sind. Das ist aus, bis du es einschaltest: im Menü der Profile unter „Benachrichtigungen“. Dein Browser fragt dann, ob Betula dir Benachrichtigungen schicken darf, und richtet beim Benachrichtigungsdienst seines Herstellers eine Adresse nur für Betula ein. Diese Adresse meldet er beim Benachrichtigungsdienst von Betula an, der auf dem Server von Betula läuft. Alle, die ein Thema gewählt haben, bekommen dieselbe Nachricht; eine Nachricht nur an dich gibt es nicht.",
+        data: &[
+            "die Adresse deines Browsers bei seinem Benachrichtigungsdienst und zwei Schlüssel, mit denen nur dein Browser eine Nachricht öffnen kann,",
+            "die Themen, die du gewählt hast, und die Sprache, in der du Betula nutzt,",
+            "den Zeitpunkt, zu dem die Anmeldung angelegt wurde.",
+        ],
+        not_known: "Wem ein Browser gehört, weiß der Dienst nicht: Er kennt kein Profil, keinen Namen und keine E-Mail-Adresse, und er bewahrt weder die IP-Adresse auf, von der eine Anmeldung kam, noch wann dein Browser zuletzt da war. Die Einstellung gilt für diesen Browser und ist in allen seinen Profilen dieselbe; mit Betula Sync hat sie nichts zu tun.",
+        course: "Eine Nachricht verschlüsselt der Server von Betula so, dass nur dein Browser sie öffnen kann, und übergibt sie dem Benachrichtigungsdienst deines Browsers: je nach Browser dem von Google, Mozilla, Apple oder Microsoft. Der stellt sie deinem Gerät zu. Er sieht dabei, dass Betula eine Nachricht an diese Adresse schickt, wann und wie groß sie ist, aber nicht, was darin steht. Solange die Benachrichtigungen eingeschaltet sind, meldet dein Browser seine Anmeldung von Zeit zu Zeit erneut beim Dienst von Betula, höchstens zweimal am Tag und nur, wenn du Betula öffnest.",
+        logs: "Im Zugriffsprotokoll stehen die Anfragen an den Dienst wie jeder andere Aufruf, mit IP-Adresse, aber ohne die Adresse beim Benachrichtigungsdienst und ohne Inhalt; wie alles dort werden sie nach 7 Tagen gelöscht. Der Dienst selbst bewahrt keine IP-Adressen auf: Er zählt nur im Arbeitsspeicher, wie viele Anmeldungen in der letzten Stunde von einer Adresse kamen, um Missbrauch zu bremsen. In seinem eigenen Protokoll steht nie etwas von einer Anmeldung.",
+        legal_basis: "Art. 6 Abs. 1 lit. f DSGVO. Mein berechtigtes Interesse ist, dir die Benachrichtigungen anzubieten, die du selbst einschaltest. Die gewählten Themen im Speicher deines Browsers braucht diese Funktion und deshalb keine Einwilligung (§ 25 Abs. 2 Nr. 2 TDDDG).",
+        disclosure: "Der Benachrichtigungsdienst gehört zu deinem Browser, nicht zu Betula: Dein Browser nutzt ihn auch für andere Seiten, und Betula hat mit seinem Anbieter keinen Vertrag. Er bekommt von Betula nur die verschlüsselte Nachricht für die Adresse, die er selbst vergeben hat. Er kann Daten auch außerhalb der EU verarbeiten; dafür gilt die Datenschutzerklärung des Herstellers deines Browsers.",
+        retention: "Bis du die Benachrichtigungen ausschaltest, oder bis der Benachrichtigungsdienst deines Browsers meldet, dass es die Adresse nicht mehr gibt, etwa weil du Betula die Erlaubnis im Browser entzogen oder die App entfernt hast; dann löscht der Dienst die Anmeldung. Eine Frist nach Zeit gibt es nicht: Ein Handy, das nur Benachrichtigungen empfängt, meldet sich von selbst nicht wieder. Die Anmeldungen sind in der täglichen Sicherung des Servers enthalten.",
+        ending: "Schalte „Benachrichtigungen“ im Menü der Profile aus: Dein Browser gibt die Adresse bei seinem Benachrichtigungsdienst auf, und der Dienst von Betula löscht die Anmeldung. Einzelne Themen wählst du dort ab. Entziehst du Betula die Erlaubnis in den Einstellungen deines Browsers, kommt ebenfalls nichts mehr an.",
+    },
     hosting: Prose {
         heading: "Wo Betula läuft",
         texts: &[
-            "Betula läuft auf einem gemieteten Server der Contabo GmbH, Welfenstraße 22, 81541 München, in einem Rechenzentrum in Deutschland. Dort wird alles verarbeitet, was beim Besuch anfällt, auch die Protokolle und ihre Auswertung, und dort läuft der Dienst von Betula Sync; andere Dienste sind daran nicht beteiligt.",
+            "Betula läuft auf einem gemieteten Server der Contabo GmbH, Welfenstraße 22, 81541 München, in einem Rechenzentrum in Deutschland. Dort wird alles verarbeitet, was beim Besuch anfällt, auch die Protokolle und ihre Auswertung, und dort laufen der Dienst von Betula Sync und der Benachrichtigungsdienst von Betula; andere Dienste sind daran nicht beteiligt, außer dem Benachrichtigungsdienst deines Browsers, wenn du Benachrichtigungen einschaltest („Benachrichtigungen“).",
             "Contabo stellt den Server bereit und verarbeitet die Daten darauf nur in meinem Auftrag; dafür besteht ein Vertrag zur Auftragsverarbeitung (Art. 28 DSGVO). Die Verbindung zwischen deinem Browser und Betula ist verschlüsselt (HTTPS).",
         ],
     },
@@ -433,7 +471,7 @@ pub const DE: Texts = Texts {
     recipients: Prose {
         heading: "Weitergabe und Links",
         texts: &[
-            "Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, dein Kalenderdienst, wenn du ein Abo anlegst, und wem du selbst einen Link gibst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU; für einen Kalenderdienst, den du wählst, gilt dessen Datenschutzerklärung. Es gibt keine automatisierten Entscheidungen und kein Profiling im Sinne der DSGVO; ein Profil in Betula ist nur der Ort, an dem deine eigenen Daten liegen.",
+            "Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, dein Kalenderdienst, wenn du ein Abo anlegst, der Benachrichtigungsdienst deines Browsers, wenn du Benachrichtigungen einschaltest, und wem du selbst einen Link gibst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU, mit einer Ausnahme: Die verschlüsselte Nachricht einer Benachrichtigung geht an den Benachrichtigungsdienst deines Browsers, wo auch immer dessen Anbieter sie verarbeitet. Für diesen Dienst und für einen Kalenderdienst, den du wählst, gilt die Datenschutzerklärung des jeweiligen Anbieters. Es gibt keine automatisierten Entscheidungen und kein Profiling im Sinne der DSGVO; ein Profil in Betula ist nur der Ort, an dem deine eigenen Daten liegen.",
             "Du musst keine Daten angeben, um Betula zu nutzen. Ohne die Angaben, die dein Browser bei jedem Aufruf mitschickt, etwa die IP-Adresse, lassen sich die Seiten aber nicht ausliefern.",
             "Betula verlinkt auf die Originale bei der BTU und auf andere Seiten. Folgst du einem solchen Link, erfährt die andere Seite nur, dass du von betula.app kommst, nicht von welcher Seite; ab da gilt ihre Datenschutzerklärung.",
         ],
@@ -442,7 +480,7 @@ pub const DE: Texts = Texts {
         heading: "Deine Rechte",
         before: "Du hast das Recht auf Auskunft über deine Daten (Art. 15 DSGVO), auf Berichtigung (Art. 16), Löschung (Art. 17) und Einschränkung der Verarbeitung (Art. 18). Verarbeitungen, die auf Art. 6 Abs. 1 lit. f DSGVO beruhen – das sind alle hier beschriebenen –, kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen (Art. 21). Eine formlose E-Mail an ",
         after: " genügt.",
-        finding: "Betula weiß nicht, wer hinter einem Aufruf oder einem Profil steht (Art. 11 DSGVO). Einträge im Zugriffsprotokoll kann ich deshalb nur finden, wenn du mir sagst, von welcher IP-Adresse und wann du Betula aufgerufen hast. Ein Profil auf deinem Gerät kann ich nicht einsehen. Bei Betula Sync liegt ein Profil unter einer zufälligen Kennung, ohne Namen, und lesen kann ich es nicht: Was darin steht, zeigt dir dein eigenes Gerät, und löschen kannst du es jederzeit selbst mit „Sync beenden“.",
+        finding: "Betula weiß nicht, wer hinter einem Aufruf oder einem Profil steht (Art. 11 DSGVO). Einträge im Zugriffsprotokoll kann ich deshalb nur finden, wenn du mir sagst, von welcher IP-Adresse und wann du Betula aufgerufen hast. Ein Profil auf deinem Gerät kann ich nicht einsehen. Bei Betula Sync liegt ein Profil unter einer zufälligen Kennung, ohne Namen, und lesen kann ich es nicht: Was darin steht, zeigt dir dein eigenes Gerät, und löschen kannst du es jederzeit selbst mit „Sync beenden“. Eine Anmeldung für Benachrichtigungen liegt ohne Namen unter der Adresse deines Browsers bei seinem Benachrichtigungsdienst, die nur dein Browser kennt; du löschst sie, indem du „Benachrichtigungen“ ausschaltest.",
         complaint: "Außerdem kannst du dich bei einer Datenschutz-Aufsichtsbehörde beschweren (Art. 77 DSGVO), zum Beispiel bei der für Brandenburg zuständigen:",
     },
 };
@@ -500,6 +538,7 @@ pub const EN: Texts = Texts {
             "Your profile is kept on your device. Your browser stores your saved modules, timetable, “My studies” and “My programme”; Betula does not ask for your name or an e-mail address.",
             "A profile reaches the server only if you switch on Betula Sync for it, and then encrypted: only your devices can open it, the server cannot.",
             "Only what you share yourself is shared, as a link or as a calendar subscription, and only with what that takes.",
+            "You only get notifications if you switch them on. For that, Betula keeps where they go and which topics you chose, but not who you are.",
             "The server logs every request with its IP address, to run Betula and protect it from abuse, and deletes the entries after 7 days.",
             "No advertising, no tracking: Betula uses no analytics services and sets no cookies that recognise you. betula.app serves its fonts, icons and scripts itself; nothing is loaded from other servers.",
             "Betula shows the names of lecturers that BTU publishes in its module descriptions.",
@@ -527,13 +566,14 @@ pub const EN: Texts = Texts {
             "for the current browser session, where you last were in each area, which degree programme you chose in the timetable and how far you had scrolled,",
             "whether Betula is installed as an app here, on which days you opened the start page (the last 16) and whether you chose “Later” or “Don't show again”, so that Betula offers to install itself only now and then,",
             "a copy of the catalogue, the language model of the search (it runs entirely in your browser), the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline,",
-            "for a profile with Betula Sync, its key, a random id of this device and the state of the syncing, with the changes not yet at the service and the versions of a note that was changed on two devices at the same time, and for one day which of your other devices could be reached only through the service's relay.",
+            "for a profile with Betula Sync, its key, a random id of this device and the state of the syncing, with the changes not yet at the service and the versions of a note that was changed on two devices at the same time, and for one day which of your other devices could be reached only through the service's relay,",
+            "when you switch on notifications, the chosen topics and when your browser last registered with Betula's notification service; the registration itself is managed by your browser.",
         ],
         texts: &[
             "All of this is kept on your device, and I cannot see it. Another device or another browser has its own profiles. If you save a profile as a file, the file is made in your browser, and a backup you load is read only by your browser too. If you put Betula on the home screen or in the Dock of an iPhone or a Mac, Betula puts your profile on your device's clipboard, because the app keeps storage of its own there, and the app reads it only when you tap “Paste study”; this too stays on your device.",
             "When you read your transcript in “My studies”, your browser opens the PDF on your device, in a background process that is ended afterwards: it reaches no server and is not stored, and only your programme, the start of your studies and your modules with their status are read, no grades and nothing about you. What you take over then belongs to “My studies” like everything you tick off there.",
             "Of all this, only what is in the address of a page reaches the server, when you open, reload or share it. An address says what is being shown, but never what is among your saved modules or in your timetable, what you have passed or what you search for among your saved modules; it names a collection only by its number, never by its name. An address holds for example the degree programme the catalogue is filtered by (also “My programme”, if you open the catalogue through it), the module open beside your saved modules, your timetable or “My studies”, or the semester and placeholder you are looking for modules for. Such addresses are in the access log like all others.",
-            "More than that leaves your device only when you start it yourself: when you switch on Betula Sync, share something or subscribe to your timetable as a calendar. The next three parts say what then goes where.",
+            "More than that leaves your device only when you start it yourself: when you switch on Betula Sync, share something, subscribe to your timetable as a calendar or switch on notifications. The next four parts say what then goes where.",
             "For all of this Betula uses your browser's storage (Local Storage, Session Storage, IndexedDB and Cache Storage). Storing it is necessary for the functions you use and therefore requires no consent (§ 25(2) no. 2 TDDDG). You can empty or delete a profile on the “Profile” page, and all of it at any time in your browser's settings by deleting the site data of betula.app.",
         ],
     },
@@ -584,10 +624,26 @@ pub const EN: Texts = Texts {
         ending: "Remove the calendar in your calendar service; then the address is no longer fetched. A subscription that stays current you take back in the dialog “Share” with “Stop sharing”: after that the address shows nothing.",
         download: "A downloaded .ics file is created in your browser, with your notes on sessions, and does not reach the server.",
     },
+    push: Push {
+        heading: "Notifications",
+        intro: "Betula can let you know when an exam period begins, when lectures pause or when the next semester's dates are published. This is off until you switch it on: in the profiles menu under “Notifications”. Your browser then asks whether Betula may send you notifications, and sets up an address for Betula alone at the notification service of its maker. It registers this address with Betula's notification service, which runs on Betula's server. Everybody who has chosen a topic gets the same message; there is no message to you alone.",
+        data: &[
+            "your browser's address at its notification service and two keys with which only your browser can open a message,",
+            "the topics you have chosen and the language you use Betula in,",
+            "the time the registration was made.",
+        ],
+        not_known: "The service does not know whose browser it is: it knows no profile, no name and no e-mail address, and it keeps neither the IP address a registration came from nor when your browser was last there. The setting belongs to this browser and is the same in all of its profiles; it has nothing to do with Betula Sync.",
+        course: "Betula's server encrypts a message so that only your browser can open it, and hands it to your browser's notification service: depending on the browser, that of Google, Mozilla, Apple or Microsoft. That service delivers it to your device. It sees that Betula sends a message to this address, when, and how large it is, but not what it says. While notifications are switched on, your browser registers again with Betula's service from time to time, at most twice a day and only when you open Betula.",
+        logs: "The access log holds the requests to the service like every other request, with the IP address, but without the address at the notification service and without content; like everything there, they are deleted after 7 days. The service itself keeps no IP addresses: it only counts in memory how many registrations came from an address in the last hour, to slow down abuse. Its own log never holds anything of a registration.",
+        legal_basis: "Art. 6(1)(f) GDPR (DSGVO). My legitimate interest is offering you the notifications you switch on yourself. The chosen topics in your browser's storage are necessary for this function and therefore require no consent (§ 25(2) no. 2 TDDDG).",
+        disclosure: "The notification service belongs to your browser, not to Betula: your browser uses it for other sites as well, and Betula has no contract with its provider. From Betula it only receives the encrypted message for the address it issued itself. It may process data outside the EU as well; for that, the privacy policy of your browser's maker applies.",
+        retention: "Until you switch notifications off, or until your browser's notification service reports that the address no longer exists, for example because you withdrew Betula's permission in the browser or removed the app; the service then deletes the registration. There is no time limit: a phone that only receives notifications does not come back by itself. The registrations are part of the server's daily backup.",
+        ending: "Switch off “Notifications” in the profiles menu: your browser gives up the address at its notification service, and Betula's service deletes the registration. You can untick single topics there. If you withdraw Betula's permission in your browser's settings, nothing arrives any more either.",
+    },
     hosting: Prose {
         heading: "Where Betula runs",
         texts: &[
-            "Betula runs on a rented server of Contabo GmbH, Welfenstraße 22, 81541 München, in a data centre in Germany. Everything that arises during a visit is processed there, including the logs and their analysis, and the service of Betula Sync runs there too; no other services are involved.",
+            "Betula runs on a rented server of Contabo GmbH, Welfenstraße 22, 81541 München, in a data centre in Germany. Everything that arises during a visit is processed there, including the logs and their analysis, and the service of Betula Sync and Betula's notification service run there too; no other services are involved, except your browser's notification service when you switch on notifications (“Notifications”).",
             "Contabo provides the server and processes the data on it only on my behalf; there is a data processing agreement for this under Art. 28 GDPR (DSGVO). The connection between your browser and Betula is encrypted (HTTPS).",
         ],
     },
@@ -636,7 +692,7 @@ pub const EN: Texts = Texts {
     recipients: Prose {
         heading: "Disclosure and links",
         texts: &[
-            "I do not sell your data and do not pass it on. Others only receive it as described above: Contabo as the operator of the server, my e-mail provider when you write to me, your calendar service when you set up a subscription, and whoever you give a link to yourself. Betula itself transfers no data to countries outside the EU; for a calendar service you choose, its privacy policy applies. There are no automated decisions and no profiling within the meaning of the GDPR (DSGVO); a profile in Betula is only the place where your own data is kept.",
+            "I do not sell your data and do not pass it on. Others only receive it as described above: Contabo as the operator of the server, my e-mail provider when you write to me, your calendar service when you set up a subscription, your browser's notification service when you switch on notifications, and whoever you give a link to yourself. Betula itself transfers no data to countries outside the EU, with one exception: the encrypted message of a notification goes to your browser's notification service, wherever its provider processes it. For that service and for a calendar service you choose, the privacy policy of the respective provider applies. There are no automated decisions and no profiling within the meaning of the GDPR (DSGVO); a profile in Betula is only the place where your own data is kept.",
             "You do not have to provide any data to use Betula. Without the information your browser sends with every request, such as the IP address, the pages cannot be delivered, though.",
             "Betula links to the originals at BTU and to other pages. If you follow such a link, the other site only learns that you come from betula.app, not from which page; from then on, its privacy policy applies.",
         ],
@@ -645,7 +701,7 @@ pub const EN: Texts = Texts {
         heading: "Your rights",
         before: "Under the GDPR (DSGVO), you have the right of access to your data (Art. 15), to rectification (Art. 16), to erasure (Art. 17) and to restriction of processing (Art. 18). You can object to processing based on Art. 6(1)(f) GDPR (DSGVO) – which is all the processing described here – on grounds relating to your particular situation (Art. 21). An informal e-mail to ",
         after: " is enough.",
-        finding: "Betula does not know who is behind a request or a profile; see Art. 11 GDPR (DSGVO). I can therefore only find entries in the access log if you tell me from which IP address and when you visited Betula. A profile on your device I cannot see. At Betula Sync a profile is kept under a random id, without a name, and I cannot read it: your own device shows you what is in it, and you can delete it yourself at any time with “End Sync”.",
+        finding: "Betula does not know who is behind a request or a profile; see Art. 11 GDPR (DSGVO). I can therefore only find entries in the access log if you tell me from which IP address and when you visited Betula. A profile on your device I cannot see. At Betula Sync a profile is kept under a random id, without a name, and I cannot read it: your own device shows you what is in it, and you can delete it yourself at any time with “End Sync”. A registration for notifications is kept without a name under your browser's address at its notification service, which only your browser knows; you delete it by switching off “Notifications”.",
         complaint: "You also have the right to lodge a complaint with a data protection supervisory authority under Art. 77 GDPR (DSGVO), for example with the one responsible for Brandenburg:",
     },
 };
