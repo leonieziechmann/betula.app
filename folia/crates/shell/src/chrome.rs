@@ -1045,6 +1045,8 @@ struct PushState {
 }
 
 impl PushState {
+    /// (The server's build reads nothing: only the browser app and the tests parse a line.)
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
     fn parse(line: &str) -> Self {
         let mut parts = line.split(';');
         let Some(support) = parts.next().filter(|support| !support.is_empty()) else { return Self::default() };
