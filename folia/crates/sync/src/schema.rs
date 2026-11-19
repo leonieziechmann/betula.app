@@ -8,7 +8,8 @@
 //! day; a note once per Termin or module; a share by its id, what a calendar follows by the
 //! calendar; a saved plan by its name; a field of „Mein Studiengang" by its name. Where a line holds a set (the kinds a semester hides, the dates hidden of a
 //! Termin, a module's collections, the collections new marks go into), each element is a record of
-//! its own, so two devices adding to one set keep both. A line of a tag this build does not know,
+//! its own, so two devices adding to one set keep both; and so is each kind, event, Termin and date
+//! a calendar of one's own hides (`u`), its town one record per semester. A line of a tag this build does not know,
 //! or one whose fields could not be a key, is one opaque record: kept as it is, never split.
 //!
 //! `project` writes the records back in the order the store writes its text: what the store keeps
@@ -45,6 +46,11 @@ const MAX_FOLLOWED: usize = 16;
 const MINE_KEYS: [&str; 8] = ["program", "name", "caption", "direction", "start", "leave", "until", "town"];
 
 const ONE: &str = "1";
+
+/// The codes of the kinds in the frozen order of `folia_calendar::kind::EventKind::ALL`, in which
+/// `KindSet::codes` writes them (the tests hold the two alike); a code this build does not know
+/// comes after them.
+const KINDS: [&str; 12] = ["lecture", "exercise", "seminar", "practical", "project", "tutorial", "consultation", "excursion", "self_study", "paper", "other", "exam"];
 
 /// The five stores of a profile (`folia_stores::profiles::KEYS`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -255,6 +261,26 @@ fn plan_records(text: &str, r: &mut Records) {
             "l" if all(&[1]) => r.first(format!("P|l|{}", g(1)), line.to_string()),
             "n" if all(&[1, 2, 3]) => r.last(format!("P|n|{}|{}|{}", g(1), g(2), g(3)), ONE.into()),
             "o" if all(&[1, 2, 3]) => r.last(format!("P|o|{}|{}|{}", g(1), g(2), g(3)), ONE.into()),
+            // What a calendar hides: each kind, event, Termin and date a record, the town one per
+            // semester; what a newer build hides besides is a line of its own.
+            "u" if all(&[1, 2, 3]) => match g(3) {
+                "k" => {
+                    for kind in g(4).split(',').map(str::trim).filter(|k| keyable(k)) {
+                        r.last(format!("P|u|{}|{}|k|{kind}", g(1), g(2)), ONE.into());
+                    }
+                }
+                "e" | "r" if keyable(g(4)) => r.last(format!("P|u|{}|{}|{}|{}", g(1), g(2), g(3), g(4)), ONE.into()),
+                "h" if keyable(g(4)) => {
+                    for day in g(5).split(',').map(str::trim).filter(|d| keyable(d)) {
+                        r.last(format!("P|u|{}|{}|h|{}|{day}", g(1), g(2), g(4)), ONE.into());
+                    }
+                }
+                "w" => r.last(format!("P|u|{}|{}|w", g(1), g(2)), line.to_string()),
+                _ => {
+                    let (key, val) = opaque();
+                    r.first(key, val);
+                }
+            },
             "t" if all(&[1]) => r.first(format!("P|t|{}", g(1)), line.to_string()),
             "f" if all(&[1]) => r.first(format!("P|f|{}", g(1)), line.to_string()),
             "s" if all(&[1]) => r.first(format!("P|s|{}", g(1)), line.to_string()),
@@ -390,10 +416,69 @@ struct Semester<'a> {
 /// fingerprint as numbers.
 type NoteOrder<'a> = (&'a str, u64, u64);
 
+/// What a calendar of one's own hides of a semester (its `u` lines).
+#[derive(Default)]
+struct Hides<'a> {
+    kinds: Vec<&'a str>,
+    events: Vec<&'a str>,
+    rows: Vec<&'a str>,
+    dates: Vec<(&'a str, Vec<&'a str>)>,
+    town: Option<&'a str>,
+}
+
+/// A Termin's key (`<event>-<fp in hex>`) by its numbers, as the plan orders Termine; its text after
+/// them, for what is no key.
+fn row_order(row: &str) -> (u64, u64, &str) {
+    let (event, fp) = row.split_once('-').unwrap_or((row, ""));
+    (event.parse().unwrap_or(u64::MAX), u64::from_str_radix(fp, 16).unwrap_or(u64::MAX), row)
+}
+
+/// The `u` lines of calendar `id` as `PlanDoc` writes them: by semester the kinds (in their
+/// frozen order), the events and the Termine (by their numbers), the dates by Termin, the town;
+/// what belongs to an earlier life of the calendar left out.
+fn hidden_lines(doc: &Doc, id: u32, belongs: impl Fn(&Entry) -> bool) -> Vec<String> {
+    let mut semesters: BTreeMap<&str, Hides> = BTreeMap::new();
+    let mut dates: BTreeMap<(&str, &str), Vec<&str>> = BTreeMap::new();
+    let prefix = format!("P|u|{id}|");
+    for (key, e) in doc.live_with(&prefix).filter(|(_, e)| belongs(e)) {
+        match parts(key, "P|u|").as_slice() {
+            [_, s, "k", kind] => semesters.entry(s).or_default().kinds.push(kind),
+            [_, s, "e", event] => semesters.entry(s).or_default().events.push(event),
+            [_, s, "r", row] => semesters.entry(s).or_default().rows.push(row),
+            [_, s, "h", row, day] => {
+                semesters.entry(s).or_default();
+                dates.entry((s, row)).or_default().push(day);
+            }
+            [_, s, "w"] => semesters.entry(s).or_default().town = e.val.as_deref(),
+            _ => {}
+        }
+    }
+    for ((s, row), days) in dates {
+        if let Some(semester) = semesters.get_mut(s) {
+            semester.dates.push((row, days));
+        }
+    }
+    let mut out = Vec::new();
+    for (s, mut h) in semesters {
+        h.kinds.sort_by_key(|kind| (KINDS.iter().position(|k| k == kind).unwrap_or(KINDS.len()), *kind));
+        h.events.sort_by_key(|event| (event.parse::<u64>().unwrap_or(u64::MAX), *event));
+        h.rows.sort_by_key(|row| row_order(row));
+        h.dates.sort_by_key(|(row, _)| row_order(row));
+        if !h.kinds.is_empty() {
+            out.push(format!("u\t{id}\t{s}\tk\t{}", h.kinds.join(",")));
+        }
+        out.extend(h.events.iter().map(|event| format!("u\t{id}\t{s}\te\t{event}")));
+        out.extend(h.rows.iter().map(|row| format!("u\t{id}\t{s}\tr\t{row}")));
+        out.extend(h.dates.iter().map(|(row, days)| format!("u\t{id}\t{s}\th\t{row}\t{}", days.join(","))));
+        out.extend(h.town.map(str::to_string));
+    }
+    out
+}
+
 /// As `PlanDoc::stored`: `g`; `m` by semester, then in planning order; `v` the same; `p` by pid;
 /// `d` and `q` in the order they were marked; per semester `k`, `e`, `r`, `c`, `h`, `x`, `b` and
-/// `a`; the plan's own Termine; per calendar `l`, its `n`, `o`, `t`, `x`, `b` and `f`; the shares;
-/// the rest in the order it came.
+/// `a`; the plan's own Termine; per calendar `l`, its `n`, `o`, `u`, `t`, `x`, `b` and `f`; the
+/// shares; the rest in the order it came.
 fn plan_project(doc: &Doc) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
 
@@ -559,6 +644,7 @@ fn plan_project(doc: &Doc) -> Vec<String> {
                 out.push(format!("o\t{id}\t{s}\t{row}"));
             }
         }
+        out.extend(hidden_lines(doc, *id, |e| belongs(*id, e)));
         out.extend(own.iter().filter(|o| o.1 == *id && belongs(*id, o.3)).map(|o| o.2.to_string()));
         out.extend(calendar_changes.get(id).into_iter().flatten().map(|line| line.to_string()));
         out.extend(calendar_notes.get(id).into_iter().flatten().map(|(_, line)| line.to_string()));

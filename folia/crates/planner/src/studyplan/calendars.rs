@@ -304,13 +304,18 @@ pub(super) fn plan_of_text(text: &str) -> Option<SharedPlan> {
 }
 
 /// Makes a calendar of `plan` named `name` (one without a name is named by its number), with its
-/// groups and its changes of Termine of QIS; its number, or `None` at the cap. A click runs it
-/// after the next frame (R21).
+/// groups, its changes of Termine of QIS and what it hides, so that its week is its owner's (owner,
+/// 2026-11-19: „Beide sollen den gleichen kalender sehen"); its number, or `None` at the cap. A
+/// click runs it after the next frame (R21).
 pub(super) fn create(ctx: PlanCtx, plan: &SharedPlan, name: &str) -> Option<u8> {
     let store = ctx.plan?;
     let key = plan.key()?;
-    let (modules, chosen, changes, program) = (plan.module_ids(), plan.chosen_rows(), plan.change_list(), plan.program.clone());
-    store.update(|doc| doc.add_calendar(name, program.as_deref(), key, &modules, &chosen, &changes))
+    let (modules, chosen, changes, program, hidden) = (plan.module_ids(), plan.chosen_rows(), plan.change_list(), plan.program.clone(), plan.hidden());
+    store.update(|doc| {
+        let id = doc.add_calendar(name, program.as_deref(), key, &modules, &chosen, &changes)?;
+        doc.hide_in_calendar(id, key, &hidden);
+        Some(id)
+    })
 }
 
 /// A calendar of one's own without a link („Neuer Kalender" takes a name alone): empty, of the

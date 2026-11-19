@@ -11,7 +11,9 @@ use folia_calendar::change::{Change, Scope, Values};
 use folia_calendar::day::Day;
 use folia_calendar::kind::EventKind;
 use folia_calendar::own::{OwnRhythm, OwnTermin};
-use folia_calendar::select::{Town, TownChoice};
+use folia_calendar::kind::KindSet;
+use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::{Selection, Town, TownChoice};
 use folia_plans::studyplan::{DoneRow, Import, MineDoc, PlanDoc, Placeholder, SavedPlans};
 use folia_sync::{codec, project, records, Doc, Store, Writer};
 
@@ -66,6 +68,9 @@ pub fn rich_plan() -> PlanDoc {
     assert_eq!(doc.add_own(0, w, termin("Arbeit", 5)), Some(1));
     assert_eq!(doc.add_own(0, w, termin("Lerngruppe", 2)), Some(2));
     let lena = doc.add_calendar("Lena", Some("013-82-2018"), w, &["11109".to_string(), "13977".to_string()], &[row(1)], &[]).unwrap();
+    // What Lena's link hid: kinds, events and Termine whose text sorts otherwise than their kinds
+    // and numbers, dates of two Termine, and her town.
+    assert!(doc.hide_in_calendar(lena, w, &lenas_hidden()));
     let max = doc.add_calendar("Max", None, s, &["12160".to_string()], &[], &[]).unwrap();
     assert!(doc.add_to_calendar(lena, w, "12229"));
     assert_eq!(doc.add_own(lena, w, termin("Volleyball", 4)), Some(3));
@@ -97,6 +102,7 @@ pub fn rich_plan() -> PlanDoc {
     let part = folia_calendar::live::LivePart {
         semester: s.index(),
         modules: vec![12160, 12101],
+        hidden_events: vec![99_999, 150_349],
         notes: vec![
             folia_calendar::live::CodeNote { key: row(1).packed(), text: "Altklausur".into() },
             folia_calendar::live::CodeNote { key: folia_calendar::rowkey::RowKey { event: 99_999, fp: 2 }.packed(), text: "vorher".into() },
@@ -105,6 +111,18 @@ pub fn rich_plan() -> PlanDoc {
     };
     assert!(doc.take_part(max, &part));
     doc
+}
+
+/// What Lena's link hid in the rich plan.
+fn lenas_hidden() -> Selection {
+    Selection {
+        hidden_kinds: KindSet::default().with(EventKind::Lecture).with(EventKind::Exercise).with(EventKind::Exam),
+        hidden_events: [149_408, 99_999].into(),
+        hidden_rows: [row(1), RowKey { event: 99_999, fp: 2 }].into(),
+        hidden_dates: [(row(2), day("2026-11-04")), (row(2), day("2026-11-11")), (RowKey { event: 99_999, fp: 3 }, day("2026-11-05"))].into(),
+        town: TownChoice::Only(Town::Senftenberg),
+        ..Selection::default()
+    }
 }
 
 fn with_newer_lines(text: &str) -> String {
@@ -260,4 +278,62 @@ fn a_record_outside_the_stores_travels_and_no_store_shows_it() {
     assert!(gone.val.is_none() && doc.live("D|abc").is_none());
     assert!(writer.put(&mut doc, "D|abc", None, 5_000).is_none(), "deleting what is gone writes nothing");
     assert!(writer.put(&mut doc, "D|new", None, 5_000).is_none());
+}
+
+/// A calendar that follows a share hides on every device of the profile what the share hides, and
+/// what each device hides there merges by its records (owner, 2026-11-19: „Beide sollen den
+/// gleichen kalender sehen").
+#[test]
+fn what_a_calendar_hides_reaches_every_device() {
+    let w = key("2026W");
+    let mut phone = Device::new(1);
+    let mut laptop = Device::new(2);
+    let made = phone.plan(1_000, |doc| {
+        let id = doc.add_calendar("Max", None, w, &["12104".to_string()], &[], &[]).unwrap();
+        assert!(doc.hide_in_calendar(id, w, &lenas_hidden()));
+    });
+    assert!(made.iter().any(|op| op.key.starts_with("P|u|")), "{made:?}");
+    laptop.receive(&made);
+    same(&phone, &laptop);
+    let id = laptop.plan_doc().calendars[0].id;
+    assert_eq!(laptop.plan_doc().calendar(id).unwrap().selection(w).hidden_events, lenas_hidden().hidden_events);
+    // The share shows the Sachsendorf lecture again and hides another date: one record each.
+    let ops = phone.plan(2_000, |doc| {
+        let shown = Selection { hidden_events: [99_999].into(), hidden_dates: lenas_hidden().hidden_dates.into_iter().chain([(row(0), day("2026-11-18"))]).collect(), ..lenas_hidden() };
+        assert!(doc.hide_in_calendar(id, w, &shown));
+    });
+    let mut keys: Vec<(&str, bool)> = ops.iter().map(|op| (op.key.as_str(), op.val.is_some())).collect();
+    keys.sort_unstable();
+    assert_eq!(keys, [(format!("P|u|{id}|2026W|e|149408").as_str(), false), (format!("P|u|{id}|2026W|h|{}|2026-11-18", row(0).text()).as_str(), true)]);
+    laptop.receive(&ops);
+    same(&phone, &laptop);
+    // Another town on the laptop meanwhile: the later write of it stands on both.
+    let town = laptop.plan(3_000, |doc| {
+        assert!(doc.hide_in_calendar(id, w, &Selection { town: TownChoice::Both, ..doc.calendar(id).unwrap().selection(w) }));
+    });
+    assert_eq!(town.len(), 1, "{town:?}");
+    phone.receive(&town);
+    same(&phone, &laptop);
+    assert_eq!(phone.plan_doc().calendar(id).unwrap().selection(w).town, TownChoice::Both);
+    // The calendar deleted: what it hid goes with it.
+    let gone = phone.plan(4_000, |doc| {
+        doc.remove_calendar(id);
+    });
+    laptop.receive(&gone);
+    same(&phone, &laptop);
+    assert!(!laptop.text(Store::Plan).contains("\nu\t") && !laptop.text(Store::Plan).starts_with("u\t"));
+}
+
+/// Every kind a calendar hides comes back in the order `KindSet::codes` writes them: the sync
+/// crate's list of the kinds is `EventKind::ALL`'s.
+#[test]
+fn a_calendar_hiding_every_kind_comes_back_as_written() {
+    let w = key("2026W");
+    let mut doc = PlanDoc::default();
+    let id = doc.add_calendar("Max", None, w, &[], &[], &[]).unwrap();
+    assert!(doc.hide_in_calendar(id, w, &Selection { hidden_kinds: KindSet(u16::MAX), ..Selection::default() }));
+    let text = doc.stored_without_program();
+    let every = EventKind::ALL.iter().map(|kind| kind.code()).collect::<Vec<_>>().join(",");
+    assert!(text.contains(&format!("u\t{id}\t2026W\tk\t{every}\n")), "{text}");
+    assert_eq!(project(Store::Plan, &written(Store::Plan, &text).doc), text);
 }

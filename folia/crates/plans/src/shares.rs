@@ -362,12 +362,13 @@ impl PlanDoc {
     }
 
     /// The part a share holds now, from the plan as it is: one semester of its calendar (the
-    /// semester it shows today, `semester`), with what it takes along. A share for a person
-    /// carries nothing of what is hidden.
+    /// semester it shows today, `semester`) as it shows it, what it hides included, for a person as
+    /// for a calendar app (owner, 2026-11-19: „Beide sollen den gleichen kalender sehen"), with
+    /// what it takes along.
     pub fn live_part(&self, share: &Share, semester: SemesterKey) -> LivePart {
         use folia_calendar::live::Along;
         use folia_calendar::select::TownChoice;
-        let along = Along { hidden: share.to == ShareTo::App, own: share.own, notes: share.notes };
+        let along = Along { own: share.own, notes: share.notes };
         if share.calendar == 0 {
             let selection = self.selection(semester, TownChoice::Derive);
             return LivePart::of(semester, &self.week_in(semester), &self.visits_in(semester), share.program.as_deref(), &selection, along);
@@ -382,11 +383,12 @@ impl PlanDoc {
         }
     }
 
-    /// What a following calendar gets of a part: its modules, groups, changes, Termine of one's
-    /// own and notes of the part's semester in place of what it had there, its program; the other
-    /// semesters as they were (what the share showed before stays to look at). Its Termine of one's
-    /// own keep their numbers where they stand at the same place, so that what names them stays.
-    /// `false` where nothing changed.
+    /// What a following calendar gets of a part: its modules, groups, changes, what it hides and
+    /// its town, Termine of one's own and notes of the part's semester in place of what it had
+    /// there, its program; the other semesters as they were (what the share showed before stays to
+    /// look at). Its Termine of one's own keep their numbers where they stand at the same place, so
+    /// that what names them stays. A part of a build before 2026-11-19 hides nothing for a person:
+    /// the calendar then shows what it holds, as it did. `false` where nothing changed.
     pub fn take_part(&mut self, calendar: u8, part: &LivePart) -> bool {
         let Some(s) = part.key() else { return false };
         let before = self.clone();
@@ -416,6 +418,7 @@ impl PlanDoc {
         for change in part.change_list() {
             cal.set_change(s, change);
         }
+        cal.hide_as(s, &part.selection());
         for (termin, (_, number)) in termine.into_iter().zip(renumbered.iter()) {
             let termin = folia_calendar::own::OwnTermin { number: *number, ..termin };
             if termin.is_valid() && cal.own.len() < crate::studyplan::MAX_OWN {
@@ -538,7 +541,7 @@ mod tests {
     }
 
     #[test]
-    fn a_part_for_a_person_leaves_out_what_is_hidden_and_what_is_not_taken_along() {
+    fn a_part_for_a_person_carries_what_is_hidden_and_leaves_out_what_is_not_taken_along() {
         let w = key("2026W");
         let mut doc = PlanDoc::default();
         for id in ["12104", "12107"] {
@@ -554,7 +557,8 @@ mod tests {
         assert_eq!(person.module_ids(), ["12104", "12107", "13977"]);
         assert_eq!(person.visits, [13977]);
         assert_eq!(person.chosen_rows(), [RowKey { event: 148_369, fp: 0xa4d12 }]);
-        assert!(person.hidden_events.is_empty() && person.hidden_kinds == 0 && person.own.is_empty() && person.notes.is_empty());
+        assert_eq!((person.hidden_events.as_slice(), person.hidden_kinds), (&[149_408][..], EventKind::Tutorial.bit()), "what is hidden, as for a calendar app");
+        assert!(person.own.is_empty() && person.notes.is_empty());
         let app = doc.live_part(&Share { to: ShareTo::App, once: false, parcel: String::new(), own: true, notes: true, ..share(2, 0) }, w);
         assert_eq!((app.hidden_events.as_slice(), app.own.len(), app.notes.len()), (&[149_408][..], 1, 1));
         assert!(app.hidden_kinds != 0);
@@ -603,6 +607,51 @@ mod tests {
         assert!(lena.end_follow(id, 9) && !lena.end_follow(id, 10));
         assert_eq!(lena.follow_of(id).map(|f| f.ended), Some(9));
         assert!(lena.unfollow(id) && lena.follow_of(id).is_none() && lena.calendar(id).is_some());
+    }
+
+    /// Max hides a lecture, an Übung, one date and his Tutorien: Lena's calendar that follows his
+    /// share hides them too, and shows them again once he does (owner, 2026-11-19: „wenn ich bei mir
+    /// ein modul/veranstaltung ausblende dann sollte das auch bei der person, die das ding aboniert
+    /// hat ausgeblendet werden. Beide sollen den gleichen kalender sehen.").
+    #[test]
+    fn a_following_calendar_hides_what_the_sharer_hides() {
+        use folia_calendar::day::Day;
+        use folia_calendar::select::TownChoice;
+        let w = key("2026W");
+        let (evs, uebung) = (RowKey { event: 148_369, fp: 0xaaf38 }, RowKey { event: 148_369, fp: 0xa4d12 });
+        let fourth = Day::parse("2026-11-04").unwrap();
+        let mut max = PlanDoc::default();
+        for id in ["12104", "12102"] {
+            assert!(max.plan(w, id, 1, None));
+        }
+        max.set_event(w, 149_408, true);
+        max.set_row(w, evs, true);
+        max.set_date(w, uebung, fourth, true);
+        max.set_kind(w, EventKind::Tutorial, true);
+        let mut lena = PlanDoc::default();
+        let id = lena.add_calendar("Max", None, w, &[], &[], &[]).unwrap();
+        assert!(lena.follow(id, &encode(&[1; LINK_BYTES]), 5));
+        assert!(lena.take_part(id, &max.live_part(&share(1, 0), w)));
+        let max_sees = max.selection(w, TownChoice::Derive);
+        let lena_sees = lena.calendar(id).unwrap().selection(w);
+        assert_eq!(
+            (lena_sees.hidden_kinds, &lena_sees.hidden_events, &lena_sees.hidden_rows, &lena_sees.hidden_dates, lena_sees.town),
+            (max_sees.hidden_kinds, &max_sees.hidden_events, &max_sees.hidden_rows, &max_sees.hidden_dates, max_sees.town),
+            "both see the same calendar"
+        );
+        // Lena's devices keep it with the calendar.
+        assert_eq!(PlanDoc::restored(&lena.stored_without_program()), lena);
+        // Max shows everything again: so does Lena's calendar with the next part.
+        max.show_hidden(w);
+        assert!(lena.take_part(id, &max.live_part(&share(1, 0), w)));
+        assert!(lena.calendar(id).unwrap().hidden.is_empty());
+        // A part of a build before it hides nothing for a person: the calendar shows what it holds.
+        max.set_event(w, 149_408, true);
+        let mut older = max.live_part(&share(1, 0), w);
+        assert_eq!(older.hidden_events, [149_408]);
+        older.hidden_events.clear();
+        assert!(!lena.take_part(id, &older), "nothing hidden, as before");
+        assert!(lena.calendar(id).unwrap().hidden.is_empty());
     }
 
     #[test]
