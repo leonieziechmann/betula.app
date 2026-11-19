@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # crawlers.sh - the filter in front of the sites in a real Traefik: config/traefik/dynamic/crawlers.yml,
-# fleets.yml, crawler-networks.yml and europe.yml, who gets 403 and who is served. Needs Docker and curl, no
+# fleets.yml, crawler-networks.yml and europe.yml, who gets 403 and who is served; and probes.yml,
+# which of its rules a request matches. Needs Docker and curl, no
 # swarm; pulls the Traefik image of stacks/edge.yml. Never on the server (it publishes 127.0.0.1:18444).
 #
 #   bash deploy/test/crawlers.sh        # up, check, down; exit 1 when a check fails
@@ -8,6 +9,9 @@
 # Traefik runs with the four files as they are, next to two stand-ins of the sites' routers:
 # Folia's for the host betula.app (priority 37, the colour's) and Phloem's /sync/v1/ (1000). Both
 # lead to Traefik's ping, which answers 200 to every path, so 200 is "served" and 403 is the filter.
+# probes.yml runs with middlewares.yml, its service (Folia's) replaced by one that reaches the same
+# ping through an entrypoint of its own: what a probe matches is served too, and the access log
+# names the probe (the stand-ins lead to Traefik's own ping, and Traefik logs no router of it).
 # The user agents are the ones the crawlers send (their operators' documentation, 2026-11), and the
 # fleets' (Traefik's access log of 2026-11-19) next to the browsers closest to them. Then the
 # networks, in copies that Traefik reloads: the test's own address (Docker's bridge) put among the
@@ -42,9 +46,10 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${WORK}/dynamic"
-for file in crawlers.yml fleets.yml crawler-networks.yml europe.yml; do
+for file in crawlers.yml fleets.yml crawler-networks.yml europe.yml middlewares.yml; do
   cp "${DEPLOY_DIR}/config/traefik/dynamic/${file}" "${WORK}/dynamic/"
 done
+sed 's/service: betula-folia@swarm/service: folia-stand-in@file/' "${DEPLOY_DIR}/config/traefik/dynamic/probes.yml" >"${WORK}/dynamic/probes.yml"
 cat >"${WORK}/dynamic/sites.yml" <<'EOF'
 http:
   routers:
@@ -60,12 +65,22 @@ http:
       priority: 1000
       tls: {}
       service: ping@internal
+    stand-in:
+      entryPoints: [stand-in]
+      rule: "PathPrefix(`/`)"
+      service: ping@internal
+  services:
+    folia-stand-in:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:8081"
 EOF
 chmod -R a+rX "${WORK}"
 
 docker rm -f "${NAME}" >/dev/null 2>&1 || true
 docker run -d --name "${NAME}" -p "127.0.0.1:${PORT}:8443" -v "${WORK}/dynamic:/etc/traefik/dynamic:ro" "${IMAGE}" \
   --entryPoints.websecure.address=:8443 \
+  --entryPoints.stand-in.address=127.0.0.1:8081 \
   --providers.file.directory=/etc/traefik/dynamic \
   --ping=true --ping.manualRouting=true \
   --accessLog=true --accessLog.format=json \
@@ -207,15 +222,80 @@ expect 200 /robots.txt "${W} Chrome/120.0.0.0 Safari/537.36"
 expect 200 /calendar/x.ics "${W} Chrome/146.0.0.0 Safari/537.36"
 expect 200 /healthz 'Lightpanda/1.0'
 sleep 1
-logged="$(docker logs "${NAME}" 2>/dev/null | grep -c '"DownstreamStatus":403,.*"RouterName":"edge-crawler-fleets@file"' || true)"
+logged="$(docker logs "${NAME}" 2>/dev/null | grep -c '"DownstreamStatus":403,.*"RouterName":"edge-crawler-fleets[a-z-]*@file"' || true)"
 if [[ "${logged}" -ge "${TURNED_AWAY}" && "${TURNED_AWAY}" -gt 0 ]]; then
-  printf 'PASS  the access log has the %s requests of the fleets turned away (%s lines of edge-crawler-fleets@file)
+  printf 'PASS  the access log has the %s requests of the fleets turned away (%s lines of edge-crawler-fleets*@file)
 ' "${TURNED_AWAY}" "${logged}"
 else
   FAILED=$((FAILED + 1))
-  printf 'FAIL  the access log has %s lines of edge-crawler-fleets@file for %s requests turned away
+  printf 'FAIL  the access log has %s lines of edge-crawler-fleets*@file for %s requests turned away
 ' "${logged}" "${TURNED_AWAY}"
 fi
+
+# The probes (probes.yml): which rule a request matches, by the router the access log names, with
+# the headers a browser sends. Every request has a path of its own, so that its line can be found;
+# "-" is no line, i.e. Folia's or Phloem's stand-in (Traefik logs no router of its own ping).
+# hstatus PATH AGENT HEADER... -> the status code, with those headers
+hstatus() {
+  local path="$1" agent="$2" args=() h
+  shift 2
+  for h in "$@"; do args+=(-H "${h}"); done
+  curl -sk --noproxy '*' --max-time 5 --resolve "betula.app:${PORT}:127.0.0.1" -A "${agent}" "${args[@]}" -o /dev/null -w '%{http_code}' "https://betula.app:${PORT}${path}" 2>/dev/null || echo 000
+}
+PROBES=()
+probe() { # ROUTER STATUS PATH AGENT HEADER...: sent now, judged once the log is written
+  local router="$1" want="$2" path="$3" got
+  shift 3
+  got="$(hstatus "${path}" "$@")"
+  PROBES+=("${router}|${want}|${got}|${path}|$1")
+}
+NAV='Sec-Fetch-Mode: navigate'
+CH150='Sec-Ch-Ua: "Chromium";v="150", "Google Chrome";v="150", "Not.A/Brand";v="99"'
+W150='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
+M150='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
+FF146='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0'
+# Browsers as they are: no rule.
+probe - 200 /p/chrome "${W150}" "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "Windows"'
+probe - 200 /p/chrome-mac "${M150}" "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "macOS"'
+probe - 200 /p/chrome-android 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="150"' 'Sec-Ch-Ua-Platform: "Android"'
+probe - 200 /p/firefox "${FF146}" "${NAV}"
+probe - 200 /p/safari 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1' "${NAV}"
+probe - 200 /p/webview 'Mozilla/5.0 (Linux; Android 14; SM-S918B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/150.0.0.0 Mobile Safari/537.36' "${NAV}"
+# Without Sec-Fetch-*, but older than the browsers that send them, a crawler, or no browser's agent.
+probe - 200 /p/safari-16-3 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1'
+probe - 200 /p/googlebot 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.6778.204 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+probe - 200 /p/curl 'curl/8.5.0'
+# Each rule, served all the same.
+probe edge-probe-nobrowser@file 200 /p/nobrowser "${W150}"
+probe edge-probe-nobrowser@file 200 /p/nobrowser-hints "${W150}" "${CH150}"
+probe edge-probe-firefox-hints@file 200 /p/firefox-hints "${FF146}" "${NAV}" "${CH150}"
+probe edge-probe-platform@file 200 /p/platform "${W150}" "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "Linux"'
+probe edge-probe-platform@file 200 /p/platform-mac "${M150}" "${NAV}" "${CH150}" 'Sec-Ch-Ua-Platform: "Windows"'
+probe edge-probe-chrome-nohints@file 200 /p/chrome-nohints "${W150}" "${NAV}"
+# Phloem's path keeps its router whatever the headers.
+probe - 200 /sync/v1/p "${W150}"
+# The fleets, by the same rules, turned away; the rest of them stays fleets.yml's.
+probe edge-crawler-fleets-nobrowser@file 403 /p/fleet-nobrowser 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36'
+probe edge-crawler-fleets-nobrowser@file 403 /p/fleet-lightpanda 'Lightpanda/1.0'
+probe edge-crawler-fleets-firefox-hints@file 403 /p/fleet-firefox-hints 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="120"'
+probe edge-crawler-fleets-platform@file 403 /p/fleet-platform 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="120"' 'Sec-Ch-Ua-Platform: "Linux"'
+probe edge-crawler-fleets-chrome-nohints@file 403 /p/fleet-chrome-nohints 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36' "${NAV}"
+probe edge-crawler-fleets@file 403 /p/fleet-consistent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' "${NAV}" 'Sec-Ch-Ua: "Chromium";v="120"' 'Sec-Ch-Ua-Platform: "Windows"'
+probe edge-crawler-fleets@file 403 /p/fleet-firefox 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0' "${NAV}"
+sleep 1
+LOG="$(docker logs "${NAME}" 2>/dev/null)"
+for entry in "${PROBES[@]}"; do
+  IFS='|' read -r router want got path agent <<<"${entry}"
+  line="$(grep -F "\"RequestPath\":\"${path}\"" <<<"${LOG}" | tail -n 1)"
+  routed="$(sed -n 's/.*"RouterName":"\([^"]*\)".*/\1/p' <<<"${line}")"
+  routed="${routed:--}"
+  if [[ "${got}" == "${want}" && "${routed}" == "${router}" ]]; then
+    printf 'PASS  %s %-22s %-38s %s\n' "${got}" "${path}" "${routed}" "${agent:0:70}"
+  else
+    FAILED=$((FAILED + 1))
+    printf 'FAIL  %s %-22s %-38s %s (expected %s by %s)\n' "${got}" "${path}" "${routed}" "${agent:0:70}" "${want}" "${router}"
+  fi
+done
 
 # The clouds' networks: Docker's bridge, where the test's requests come from, among them (the IPv4
 # list, behind its guard). Written beside the directory and moved in, so that Traefik never reads

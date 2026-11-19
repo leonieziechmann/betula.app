@@ -47,7 +47,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/about/<topic>` | A page about Betula on one topic (`url::AboutTopic`, `folia/crates/home/src/home/topics.rs`; 2026-10-27): `overview` („Überblick", `home/overview.rs`: what „Über Betula" kept — the first panel with the figures on a birch, the carousel with the map, what the app can do, the `WebApplication` data), `finding` („Module finden": the way to a module, the filters with their board, the Merkliste, the ways into the catalog), `planning` („Studium planen": the Regelstudienpläne, „Mein Studium", the Stundenplan, the programs by faculty), `data` („Deine Daten": the profile kept on the device, Betula Sync, sharing, where the catalog's data comes from), `technology` („Technik": with and without JavaScript, the devices), `questions` („Häufige Fragen", with the `FAQPage` data). Each with its own title and description, „Zurück" to the start page (Esc), the row of the topics and the others as tiles; in the sitemap, the stage of no tab (`stage::Key::Other`), as the legal pages; another name after `/about/` is a 404. The start page's tiles lead to five of them (all but „Technik"), the setup's „Was ist Betula?" to the overview |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `choice` (the FÜS list's choice of the negative list, „The choice of a FÜS list"), `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
-| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view"); the view of 600 px it was, not the card the Stundenplan and the start page open since Folia 1.100.0 |
+| `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel („Einplanen", „Merken", the prerequisites, the place in Mein Studiengang), the module on the rest of the screen. `?termin=<key>&on=<day>`: a Termin of it in the app's dialog over the page to look up, on a phone the sheet every dialog is (the app's alone; „A Termin in its own view"); the view of 600 px it was, not the card the Stundenplan and the start page open since Folia 1.100.0 |
 | `/event/<key>[/<day>]` | A Termin's own page to look up (`url::event_path`, 2026-10-26; „A Termin in its own view" below), where a line of a module's Termine leads: the key a `RowKey`, the day a date of it (without one the next, the server's the first). The server renders it the same for everybody, `noindex`, not in the sitemap, its links to other dates `nofollow`; an event no module links is a 404. A page of a while: it lies on the tab it was opened from |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas\|documents][&choice=<n>][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; 2026-11-10 `documents` the program's regulations; on a phone each a page of its own that Back leaves), on a phone a choice of the Wahlpflicht as a page of its own behind its list (`choice`, an index of the plan's choices, Folia 1.74.0), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
@@ -225,7 +225,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     still find an area when typed. An area filters to the modules the tree places in it or in
     an area below it; that is how the elective modules of a program are listed, whatever the plan
     says about their semester.
-  - **Each list of a program has its own filters** (Folia 1.114.0; owner, 2026-11-19: „wenn man
+  - **Each list of a program has its own filters** (Folia 1.115.0; owner, 2026-11-19: „wenn man
     oben füs auswählt für die suche, dann brauchen wir nicht fachsemester anzeigen, oder modulart
     etc. So und die können dann beim filtern auch ignoriert werden"). „Modulart", „Bereich" and
     „Fachsemester laut Plan" are the curriculum's: a FÜS module is in neither the plan nor the
@@ -239,7 +239,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     each tab is what a click on it lists. Another program takes along the plan's semester and the
     kinds, which every program has, and leaves the areas and the choice, which are one program's
     own (until then the areas of the one before stayed and emptied the list).
-  - **The choice of a FÜS list** (Folia 1.114.0; owner, 2026-11-19: „wenn man zum beispiel
+  - **The choice of a FÜS list** (Folia 1.115.0; owner, 2026-11-19: „wenn man zum beispiel
     informatik ausgewählt hat muss man dann noch beim füs katalog sein anwendungsfach angeben
     können, damit das nicht gezeigt wird"): where the program's negative lists in the BTU's FÜS
     catalogs exclude modules for one choice only („Bei Anwendungsfach Physik: …";
@@ -302,7 +302,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     study is added only where two programs would otherwise read the same.
   - What the pickers offer is loaded once per visit (`pages::catalog_choices`), not with every
     list, which keeps a filter change to the queries of the list itself.
-- **Titles are ordered by their letters** (Folia 1.114.0; owner, 2026-11-19: „(Cyber-)Mobbing
+- **Titles are ordered by their letters** (Folia 1.115.0; owner, 2026-11-19: „(Cyber-)Mobbing
   sollte offensichlich bei C stehen und nicht vor A"), as a dictionary orders (DIN 5007-1): what
   stands before the first letter or digit is passed over (brackets, quotation marks, dashes, dots),
   Ä, Ö and Ü are A, O and U, ß is ss, the case does not count, and titles that come out alike stand
@@ -321,14 +321,50 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   same order (times and key facts, then the description); a wide page puts the halves side by
   side, the description on the left. The page keeps the frame of the catalog, so nothing jumps
   when a preview becomes a page: its sidebar has the width and the handle of the filter panel.
-  The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
-  page) and holds the actions: „Merken", copy the link, the original at the BTU, and the place
-  where the semester plan will live.
+- **The module's page on a wide screen** (Folia 1.114.0; owner, 2026-11-19: „wir müssen
+  unbedingt nochmal die volle modulseite auf dem PC überarbeiten … ich brauche keine navigation für
+  eine seite mit nur 1000px zum scrollen. Wir brauchen eine bessere visual hirarchy eine sinnvolle
+  nutzung der Seitenleiste und keine verschwendung von platz"; three concepts in
+  `folia/design/modulseite/konzepte.html`, chosen „mostly leaning to B, nur mit den Buttons von A";
+  `ModuleFull`, `Sidebar`, `Glance`, `Requires`, `Place` in `folia/crates/widgets/src/module.rs`,
+  app.css „the module's page on a wide screen"):
+  - **The sidebar is what the module is to one's study**, and stays in view: at its top
+    „Einplanen" and „Merken", the very switches of the head of the preview, with their arrows,
+    keys and small lines, one over the other and as wide as the sidebar, which behave as
+    everywhere („was ich auf keinen fall ändern wollen würde sind wie die buttons einplanen und
+    merken sich verhalten. Das sollte in der ganzen app konsistent sein"); the note under them;
+    „Link kopieren" and the original at the BTU. Then the prerequisites, by kind, a choice of
+    which one is enough in one frame, the texts of the module description folded under them, and
+    in the app each with what the visitor's plan has of it once the plan holds anything:
+    „bestanden im SoSe 26", „eingeplant im WiSe 26/27", „erst im WiSe 27/28 eingeplant" (amber:
+    no earlier than the module itself), „nicht in deinem Plan" (`held`: passed wins, then the
+    first semester planned). Last, the app's alone, where Mein Studiengang places the module („In
+    Informatik B.Sc.: Pflicht · 1. Semester laut Regelstudienplan", its area under it) — last, so
+    that nothing moves when it comes (R15). No jumps to the page's sections any more, and none in
+    „Befehle".
+  - **The head**: „Zurück", number and abbreviation, the title (28 px) and the English one, and
+    under them the facts in a row, each its label over its value — Leistungspunkte, Angebot (with
+    „Auslaufmodul" where it is one), Sprache, Prüfung, Benotung, Dauer, Plätze — and a line of the
+    teaching forms, the persons responsible, the campuses and „Auch als FÜS anrechenbar": in place
+    of the badges, of the switches (which the sidebar has) and of „Auf einen Blick". 
+  - **One sheet** instead of four boxes, its parts set apart by space and a hairline; the texts
+    on the left, the Termine on the right (44 % of the page, at least 360 px) going along with
+    them as before; headings as headings (17 px, not the grey labels of 11.5 px); the list of the
+    Termine, the literature and every curriculum open („Alles muss hier eingebettet sein"); the
+    items of a list ragged while paragraphs stay justified (Blocksatz): in a column of 470 px a
+    list of long nouns tore wide gaps („Studiengang Wirtschaftsmathematik B.Sc. (grundständig+dual):
+    Pflichtmo-dul").
+  - **On a phone the page is as it was** (`.narrow-acts`, `.glance` not shown): the switches in its
+    head, the facts as tiles under the Termine, the prerequisites in the text, the actions under
+    the module; only the list of the Termine and the literature are open there too, as on the
+    whole page everywhere. `M` and `P` press the switch that is shown (enhance.js
+    `moduleSwitch`).
 - **A module spends the height of a phone on what is read** (owner, 2026-10-17, of the module's
   sheet on a phone, „bestimmt ist das teils auch auf die pc Version übertragbar"; the same parts
   everywhere, `folia/crates/widgets/src/module.rs`, app.css, enhance.js „a module's Termine"):
   - **The Termine under the week are folded** („die Termine können ruhig ausklappbar sein, so dass
-    nicht so viel vertical space verschwendet wird"): a quiet line „Termine als Liste (5) +" as the
+    nicht so viel vertical space verschwendet wird"; on the module's whole page open since Folia
+    1.114.0, see above): a quiet line „Termine als Liste (5) +" as the
     Stundenplan's, which unfolds and folds the list as a thing does, its height from nothing to its
     own and back (`details.evfold`, a `<details>` that opens without JavaScript too). A slot of the
     week is a link to its lines (`GridSlot::lines`, `termin-<n>`): tapped, it unfolds the list, is
@@ -353,7 +389,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **„Studiengänge" is the last section** („die Studiengänge können ganz an den Schluss das
     interessiert einen wahrscheinlich eh nicht"), after the texts, on a wide page at the end of the
     description's column, and shows five curricula at most („zeige da maximal 5 mit
-    Auslauffunktion"): the fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
+    Auslauffunktion"; on the module's page on a wide screen all of them since Folia 1.114.0): the
+    fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
     the focus on the sixth; without JavaScript all of them. On a phone a program's kind stands under
     its line, where the name keeps its width and a long kind is whole („Wahlpflich…" was cut off).
     „Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in 111 Studiengängen" counts the
@@ -4322,11 +4359,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **Not yet**: changing a Termin in a calendar of one's own (its Termine open no card yet);
     a change across Termine of several keys at once.
 - **Tokens:** `folia/assets/app.css` starts with the token block (colors, radii, shadows); everything
-  below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
-  overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
-  primary actions and the marker of the open row; selected chips are neutral (inverted). The
-  accent is a muted birch-leaf green, `oklch(.53 .07 149)` in both themes (owner, 2026-09-22,
-  replacing the blue: "wir nennen das ding betula"): the hue of the owner's favourite tone
+  below uses tokens only. One look, light and dark: dark follows the system, a choice in the menu of
+  the profiles or „Befehle“ overrides it (`data-theme` on `<html>`, remembered in `localStorage`).
+  Accent color only for primary actions and the marker of the open row; selected chips are neutral
+  (inverted). The accent is a muted birch-leaf green, `oklch(.53 .07 149)` in both themes (owner,
+  2026-09-22, replacing the blue: "wir nennen das ding betula"): the hue of the owner's favourite tone
   `oklch(.6867 .0996 149)`, deep enough for white labels. Labels on the accent are always white —
   dark text on the green was "grauenhaft" — and the owner prefers toned-down colours to saturated
   ones.
@@ -6750,9 +6787,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   Studiengang“ of the active profile for `html.mine`.
 - **The way to it** (`chrome::ProfileButton`): the profile's badge (its initial in one of the
   eight soft hues `--t-*`; a person while there is one profile without a name) at the end of the
-  rail above the switch between light and dark, and on a phone, which has no rail, a box at the
-  right of the search at the head of every page (owner, 2026-10-14: „für die mobile Version noch
-  ein Konzept wie man an sein Profil rankommt“), as high and as wide as the search is high, in
+  rail, and on a phone, which has no rail, a box at the right of the search at the head of every
+  page (owner, 2026-10-14: „für die mobile Version noch ein Konzept wie man an sein Profil
+  rankommt“), as high and as wide as the search is high, in
   its style — as the way back of a page is a box at the search's left (`TopBack`), to which it
   gives way while that is there (owner, 2026-10-15). Beside
   it the search keeps its words on a phone 390 px wide (a little less room around its icon and
@@ -6802,8 +6839,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   the page scrolls to and lights up once; under it the active profile's state: with how many other
   devices, offline, „Nur auf diesem Gerät“, a failure), a row of what every profile shares — light,
   dark or the system's as three small buttons with their icons (`chrome::Preferences`, set by
-  `enhance.js` as the rail's switch is, `data-action="theme-set"`, which says so with
-  `betula:theme`; the menu stays open), the language by its code („DE“, „EN“;
+  `enhance.js`, `data-action="theme-set"`, which says so with `betula:theme`; the menu stays open;
+  the rail's switch between light and dark is gone since 2026-11-19, owner: „den theme switcher aus
+  der sidebar raus nehmen, den gibts jetzt ja im profile“), the language by its code („DE“, „EN“;
   `languages::LanguageChoice`: this page in it, a page load) — and at its foot the Impressum and
   the Datenschutz. A phone chooses light or dark here alone. A mouse resting on the rail's
   way for 160 ms opens it beside the way, growing up from its foot, without moving the focus; it
@@ -7076,7 +7114,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `<head>`. So does the language (`betula.language`, `docs/folia/i18n.md`): the first script of the head
   opens the page in it, which is a page load, because a language is an address. They are the
   browser's, the same in every profile (the menu of the profiles sets light, dark or the system's
-  and the language since 2026-11-08, the profile page until then; the rail's switch light or dark).
+  and the language since 2026-11-08, the profile page until then; the rail's switch light or dark
+  until 2026-11-19).
 - **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
   an invisible layer that belongs to the control itself (a wrapper element would receive the click
   instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;
@@ -9120,8 +9159,8 @@ under `betula.p2.…` alone); a switch in the sidebar bringing a profile's marks
 another tab whose Merkliste and rail follow a switch; „Profil leeren“ and „Rückgängig“; the menu of
 the profiles (a mouse resting on the rail's way: the profiles, the page, the other language, a
 profile chosen; a right click: the focus on the active profile, one chosen with the keyboard, Esc);
-light, dark and the system's with the rail's switch and the browser's chrome; a profile as a file
-(its name, its JSON) and a profile made of it, a file that is none; deleting the active profile and
+light, dark and the system's in the menu, kept when it opens again, the rail without a switch of
+its own, and the browser's chrome; a profile as a file (its name, its JSON) and a profile made of it, a file that is none; deleting the active profile and
 „Rückgängig“; the script in `<head>` reading the active profile's program. Privacy: no request
 carries a profile's name or a mark, none leaves the site. English; on a phone the box at the head
 (as high as the search, at its right, nothing on the brand line), a finger held on it (the menu, a

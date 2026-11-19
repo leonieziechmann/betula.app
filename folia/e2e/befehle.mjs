@@ -161,11 +161,13 @@ const where = (page) => page.evaluate(() => ({ id: document.activeElement?.id ||
   await press(page, "Shift+Enter", 1200);
   check(new URL(page.url()).pathname === `/catalog/module/${other?.id}`, `Shift + Enter on the module: ${page.url()}`);
 
-  // On the module's page: its sections, found by typing.
+  // On the module's page: its actions, once each (the sidebar's on a wide screen), and no jumps to
+  // its sections (owner, 2026-11-19: „ich brauche keine navigation für eine seite mit nur 1000px
+  // zum scrollen").
   p = await openPalette(page);
-  check(p?.groups[0]?.heading === `Für „${other?.title}“` && row(p, "Link kopieren"), `the module's page: ${JSON.stringify(p?.groups[0])}`);
+  check(p?.groups[0]?.heading === `Für „${other?.title}“` && row(p, "Link kopieren") && rows(p).filter((r) => r.label === "Link kopieren").length === 1, `the module's page: ${JSON.stringify(p?.groups[0])}`);
   p = await typeIn(page, "termine");
-  check(rows(p).some((r) => r.heading === "Auf dieser Seite" && r.label === "Termine"), `„termine“ on the module's page: ${JSON.stringify(rows(p).map((r) => r.heading + ":" + r.label))}`);
+  check(!rows(p).some((r) => r.heading === "Auf dieser Seite"), `„termine“ on the module's page finds jumps: ${JSON.stringify(rows(p).map((r) => r.heading + ":" + r.label))}`);
   await press(page, "Escape", 200);
   await press(page, "Escape", 900);
 

@@ -483,57 +483,230 @@ pub fn ModulePanel(
     }
 }
 
-/// The sections a module has, in the order of the page: (anchor, heading). The anchors are the
-/// same in every language, so that a link to a section holds in each.
-fn sections(data: &ModuleData, t: &'static Texts) -> Vec<(&'static str, &'static str)> {
-    let m = &data.module;
-    let literature = data.text_items.iter().any(|i| i.kind.is(TextItemKind::Literature));
-    let prerequisites = m.prerequisites_mandatory.is_some() || m.prerequisites_recommended.is_some() || !data.prerequisites.is_empty();
-    let words = &t.module;
-    [
-        (true, "termine", words.dates),
-        (!data.exams.is_empty(), "pruefungstermine", words.exam_dates),
-        (true, "blick", words.at_a_glance),
-        (prerequisites, "voraussetzungen", words.prerequisites),
-        (m.contents.is_some(), "inhalte", words.contents),
-        (m.learning_outcomes.is_some(), "lernziele", words.learning_outcomes),
-        (m.exam_details.is_some(), "pruefungsleistung", words.assessment),
-        (literature, "literatur", words.literature),
-        (m.remarks.is_some(), "bemerkungen", words.remarks),
-        (!data.programs.is_empty(), "studiengaenge", words.programs),
-    ]
-    .into_iter()
-    .filter(|(present, ..)| *present)
-    .map(|(_, anchor, heading)| (anchor, heading))
-    .collect()
-}
-
-/// The sidebar of the module's page: the sections of the page, and what can be done with the
-/// module. It stays in view while the page scrolls, so „Merken" and „Einplanen" are here as well
-/// as beside the badges of the heading; here „Einplanen" also names its semester and offers the
-/// others.
+/// The sidebar of the module's page (folia/design/modulseite/konzepte.html, B with the switches of
+/// A; owner, 2026-11-19: „Also sogar mostly leaning to B, nur mit den Buttons von A"). It stays in
+/// view while the page scrolls. On a wide screen it holds what the module is to the visitor's
+/// study: at its top „Einplanen" and „Merken", the switches of the head of the preview, which
+/// behave as everywhere („was ich auf keinen fall ändern wollen würde sind wie die buttons
+/// einplanen und merken sich verhalten. Das sollte in der ganzen app konsistent sein") and leave
+/// the head of the page there (app.css „the module's page on a wide screen"), the note under them,
+/// „Link kopieren" and the original; the prerequisites with what the visitor's plan has of them
+/// (`Requires`); last where Mein Studiengang places the module (`Place`), the app's alone, so
+/// that nothing above it moves when it comes (R15). No jumps to the page's sections (owner, the
+/// same day: „ich brauche keine navigation für eine seite mit nur 1000px zum scrollen"). On a
+/// phone, where the sidebar stands under the module and the head keeps its switches, the actions
+/// as before. `program`: as `ModulePanel`'s.
 #[component]
-fn Sidebar(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
+fn Sidebar(data: ModuleData, hint: Signal<Option<PlanHint>>, program: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let source_url = data.module.source_url.clone();
     let (id, title) = (data.module.id.clone(), data.module.title.clone());
     let commands = (t.ui.commands_for)(&title);
+    let copy = move || view! { <JsOnly><a class="action" href="#" data-action="copy-link" data-command=""><Icon name="share-2"/><span>{t.module.copy_link}</span></a></JsOnly> };
+    // „Original bei der BTU", in the two links under the switches „Original" (its tooltip says
+    // where it leads), as under the module's text.
+    let original = {
+        let source_url = source_url.clone();
+        move |short: bool| {
+            source_url.clone().map(|href| match short {
+                true => view! { <a class="action" href=href rel="noopener" title=t.module.original_at_btu data-command=t.module.original_at_btu><Icon name="arrow-up-right"/>{t.module.original}</a> }.into_any(),
+                false => view! { <a class="action" href=href rel="noopener" data-command=""><Icon name="arrow-up-right"/>{t.module.original_at_btu}</a> }.into_any(),
+            })
+        }
+    };
     view! {
-        // Its sections and actions are commands of „Befehle" (folia_shell::commands); the sections
-        // found by typing.
-        <nav class="toc jumps" aria-label=t.module.on_this_page data-commands=t.module.on_this_page data-commands-typed="">
-            <p class="flabel label">{t.module.on_this_page}</p>
-            {sections(&data, t).into_iter().map(|(anchor, heading)| view! {
-                <a href=format!("#{anchor}") data-action="jump" data-command="">{heading}</a>
-            }).collect_view()}
-        </nav>
-        <div class="fgroup actions" data-commands=commands>
+        // Its actions are commands of „Befehle" (folia_shell::commands), of whichever of the two
+        // groups is shown.
+        <div class="fgroup module-acts" data-commands=commands.clone()>
+            <div class="switches">
+                {plan_button(&data, hint, PlanLook::Hero)}
+                <MarkButton id=id.clone() title=title.clone() look=MarkLook::Hero/>
+            </div>
+            {APP.then(|| view! { <crate::collect::ModuleNote id=id.clone() title=title.clone()/> })}
+            <div class="module-links">{copy}{original(true)}</div>
+        </div>
+        <Requires data=data.clone()/>
+        {APP.then(|| view! { <Place data=data.clone() program=program/> })}
+        <div class="fgroup actions narrow-acts" data-commands=commands>
             <p class="flabel label">{t.module.actions}</p>
             <MarkButton id title look=MarkLook::Action/>
             {plan_button(&data, hint, PlanLook::Action)}
-            <JsOnly><a class="action" href="#" data-action="copy-link" data-command=""><Icon name="share-2"/><span>{t.module.copy_link}</span></a></JsOnly>
-            {source_url.map(|href| view! { <a class="action" href=href rel="noopener" data-command=""><Icon name="arrow-up-right"/>{t.module.original_at_btu}</a> })}
+            {copy}
+            {original(false)}
         </div>
+    }
+}
+
+/// The state of a prerequisite in the visitor's plan, for `Requires`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    /// Passed, in that semester.
+    Passed(SemesterKey),
+    /// Planned before the module (or the module is not planned), first in that semester.
+    Planned(SemesterKey),
+    /// Planned, but no earlier than the module: first in that semester.
+    Late(SemesterKey),
+    /// Neither passed nor planned.
+    Missing,
+}
+
+/// What the plan has of `required` against the module `of`: passed wins, then the first semester
+/// it is planned in, measured against the first the module is planned in.
+fn held(doc: &folia_plans::studyplan::PlanDoc, required: &str, of: &str) -> Held {
+    if let Some(at) = doc.passed_in(required) {
+        return Held::Passed(at);
+    }
+    let first = |id: &str| doc.planned_in(id).into_iter().min();
+    match (first(required), first(of)) {
+        (Some(at), Some(module)) if at >= module => Held::Late(at),
+        (Some(at), _) => Held::Planned(at),
+        (None, _) => Held::Missing,
+    }
+}
+
+/// The prerequisites of the module in the sidebar on a wide screen, where the page's own section
+/// of them steps back (app.css): the linked modules by kind, a choice of which one is enough in
+/// one frame with „oder" between them, and the texts of the module description folded under
+/// them. In the app each says what the visitor's plan has of it („eingeplant im WiSe 26/27",
+/// „bestanden im SoSe 26", „nicht in deinem Plan"), once the plan holds anything at all; the
+/// server's line says the module's number alone, and the mark before it stands in its room, so
+/// nothing moves when the app takes over (R9, R15).
+#[component]
+fn Requires(data: ModuleData) -> impl IntoView {
+    let t = i18n::t();
+    let words = &t.module;
+    let m = data.module.clone();
+    if data.prerequisites.is_empty() && m.prerequisites_mandatory.is_none() && m.prerequisites_recommended.is_none() {
+        return ().into_any();
+    }
+    let lang = m.page_lang.clone();
+    let plan = Studyplan::expect().filter(|_| APP);
+    let module = m.id.clone();
+    // What the plan has of each of `ids`: nothing to say where the plan is empty (no study is kept).
+    let held_all = {
+        let module = module.clone();
+        move |ids: Vec<String>| {
+            let module = module.clone();
+            Memo::new(move |_| plan.filter(|plan| !plan.is_empty()).map(|plan| plan.with(|doc| ids.iter().map(|id| held(doc, id, &module)).collect::<Vec<Held>>())))
+        }
+    };
+    // A row, and the states of its choice: an option the plan does not have says nothing of it once
+    // another option is passed or planned, and a module no longer offered says that alone.
+    let row = move |p: Prerequisite, at: usize, choice: Memo<Option<Vec<Held>>>| {
+        let off = p.required_offer_status.clone().filter(|status| !status.is(OfferStatus::Active));
+        let quiet = off.is_some();
+        let state = Memo::new(move |_| {
+            choice.get().and_then(|states| {
+                let taken = states.iter().any(|state| matches!(state, Held::Passed(_) | Held::Planned(_) | Held::Late(_)));
+                let own = *states.get(at)?;
+                (!(own == Held::Missing && (taken || quiet))).then_some(own)
+            })
+        });
+        let class = move || match state.get() {
+            Some(Held::Passed(_) | Held::Planned(_)) => "module-req held",
+            Some(Held::Late(_)) => "module-req late",
+            Some(Held::Missing) => "module-req missing",
+            None => "module-req",
+        };
+        let icon = move || match state.get() {
+            Some(Held::Passed(_) | Held::Planned(_)) => view! { <Icon name="circle-check"/> }.into_any(),
+            Some(Held::Late(_)) => view! { <Icon name="triangle-alert"/> }.into_any(),
+            _ => view! { <Icon name="circle"/> }.into_any(),
+        };
+        let said = move || {
+            state.get().map(|state| match state {
+                Held::Passed(at) => (words.required_passed)(&at.short(t.locale)),
+                Held::Planned(at) => (words.required_planned)(&at.short(t.locale)),
+                Held::Late(at) => (words.required_late)(&at.short(t.locale)),
+                Held::Missing => words.required_missing.to_string(),
+            })
+        };
+        let id = p.required_module_id.clone();
+        view! {
+            <a class=class href=t.path(&url::module_path(&p.required_module_id))>
+                {icon}
+                <span>
+                    <b>{p.required_title.clone().unwrap_or_else(|| p.required_module_id.clone())}</b>
+                    <small>
+                        <span class="mono">{id}</span>
+                        {off.map(|status| view! { " · " <span class="off">{status.label(t.locale).to_string()}</span> })}
+                        {move || said().map(|said| format!(" · {said}"))}
+                    </small>
+                </span>
+            </a>
+        }
+    };
+    let kinds: Vec<(&'static str, Vec<Vec<Prerequisite>>)> = [(PrerequisiteKind::Mandatory, words.mandatory), (PrerequisiteKind::Recommended, words.recommended)]
+        .into_iter()
+        .map(|(kind, name)| {
+            let rows: Vec<Prerequisite> = data.prerequisites.iter().filter(|p| p.kind.is(kind)).cloned().collect();
+            let choices = prerequisite_choices(&rows).into_iter().map(|choice| choice.into_iter().cloned().collect()).collect();
+            (name, choices)
+        })
+        .filter(|(_, choices): &(&'static str, Vec<Vec<Prerequisite>>)| !choices.is_empty())
+        .collect();
+    view! {
+        <section class="fgroup module-requires" aria-label=words.prerequisites>
+            <p class="flabel label">{words.prerequisites}</p>
+            {kinds.into_iter().map(|(kind, choices)| view! {
+                <p class="module-req-kind">{kind}</p>
+                {choices.into_iter().map(|choice| match choice.len() {
+                    1 => {
+                        let states = held_all(choice.iter().map(|p| p.required_module_id.clone()).collect());
+                        choice.into_iter().map(|p| row(p, 0, states)).collect_view().into_any()
+                    }
+                    _ => {
+                        let states = held_all(choice.iter().map(|p| p.required_module_id.clone()).collect());
+                        view! {
+                            <div class="module-req-either" role="group" aria-label=(words.one_of)(kind)>
+                                {choice.into_iter().enumerate().map(|(i, p)| view! {
+                                    {(i > 0).then(|| view! { <span class="or">{words.either}</span> })}
+                                    {row(p, i, states)}
+                                }).collect_view()}
+                            </div>
+                        }
+                        .into_any()
+                    }
+                }).collect_view()}
+            }).collect_view()}
+            {m.prerequisites_mandatory.clone().map(|text| view! { <details class="more"><summary>{words.mandatory_verbatim}</summary><Prose text lang=lang.clone()/></details> })}
+            {m.prerequisites_recommended.clone().map(|text| view! { <details class="more"><summary>{words.recommended_verbatim}</summary><Prose text lang=lang.clone()/></details> })}
+        </section>
+    }
+    .into_any()
+}
+
+/// Where Mein Studiengang places the module, on a wide screen at the end of the sidebar: its kind
+/// there, the semester its plan places it in and its area („In Informatik B.Sc.: Pflicht · 1.
+/// Semester laut Regelstudienplan · Grundstudium / Komplex Informatik"). The program the page
+/// stands for where it is of another family than Mein Studiengang (a program's page), as for the
+/// courses (`CourseView::of`). The app's alone (R9), and nothing where the program has no such
+/// curriculum.
+#[component]
+fn Place(data: ModuleData, program: Option<String>) -> impl IntoView {
+    let t = i18n::t();
+    let mine = MineResolved::expect();
+    let source = use_data().ok();
+    let place = Memo::new(move |_| {
+        let page = program.as_ref().and_then(|slug| source.as_ref()?.now(&ProgramsAsk {}).ok()?.into_iter().find(|p| p.slug == *slug));
+        let program = match (page, mine.and_then(MineResolved::exact)) {
+            (Some(page), Some(mine)) if page.family_key == mine.family_key => Some(mine),
+            (page, mine) => page.or(mine),
+        }?;
+        let link = curricula(&data).into_iter().find(|link| link.program_id.as_deref() == Some(program.id.as_str()))?;
+        let kind = link.kind.as_ref().map(|kind| kind.label(t.locale).to_string());
+        let semesters = plan_semesters(&data, &link, t.locale).map(|semesters| (t.module.place_plan)(&semesters));
+        let line = [kind, semesters].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+        Some(((t.module.place_in)(&format!("{} {}", program.name, program.degree())), line, link.area.clone()))
+    });
+    move || {
+        place.get().map(|(heading, line, area)| view! {
+            <section class="fgroup module-place">
+                <p class="flabel label">{heading}</p>
+                {(!line.is_empty()).then(|| view! { <p class="place-line">{line}</p> })}
+                {area.map(|area| view! { <p class="place-area">{area}</p> })}
+            </section>
+        })
     }
 }
 
@@ -570,8 +743,7 @@ pub fn ModuleFull(
         <Title text=(t.module.title)(&data.module.title, &data.module.id)/>
         <Frame
             title=t.module.sidebar_title
-            head={ let id = data.module.id.clone(); move || view! { <span class="mono">{id.clone()}</span> } }
-            sidebar={ let data = data.clone(); move || view! { <Sidebar data=data.clone() hint/> } }
+            sidebar={ let (data, program) = (data.clone(), program.clone()); move || view! { <Sidebar data=data.clone() hint program=program.clone()/> } }
         >
                 <Seo
                     title=format!("{} ({})", data.module.title, data.module.id)
@@ -588,12 +760,14 @@ pub fn ModuleFull(
                             <ModuleIds id=data.module.id.clone() abbrev/>
                         </div>
                         <Heading data=data.clone() hint/>
+                        <Glance data=data.clone()/>
                     </header>
                     // Same parts, same order as the preview; side by side where there is room, the
-                    // times and facts going along with the text (app.css `.module-side`).
+                    // times going along with the text (app.css `.module-side`). The whole page shows
+                    // what the preview folds: the list of the Termine and the literature.
                     <div class="module-grid">
-                        <aside class="panel dbody"><div class="module-side"><Side data=data.clone() program=program/></div></aside>
-                        <div class="panel dbody"><Main data=data.clone()/><DataClient data=data.clone()/></div>
+                        <aside class="panel dbody"><div class="module-side"><Side data=data.clone() program=program full=true/></div></aside>
+                        <div class="panel dbody"><Main data=data.clone() full=true/><DataClient data=data.clone()/></div>
                     </div>
                 </article>
         </Frame>
@@ -685,8 +859,9 @@ fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
                 <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
             </div>
         </div>
-        // The visitor's note of the module, under the switches (the browser app's alone).
-        {APP.then(|| view! { <crate::collect::ModuleNote id=m.id.clone() title=m.title.clone()/> })}
+        // The visitor's note of the module, under the switches (the browser app's alone). On the
+        // module's page on a wide screen under the sidebar's (app.css `.hero-note`).
+        {APP.then(|| view! { <div class="hero-note"><crate::collect::ModuleNote id=m.id.clone() title=m.title.clone()/></div> })}
     }
 }
 
@@ -700,10 +875,82 @@ fn fact_wide(value: Option<&str>) -> bool {
     value.is_some_and(|value| value.chars().count() > FACT_BESIDE)
 }
 
-/// Schedule and key facts: the right column of the page, the top of the preview. `program`: as
-/// `ModulePanel`'s.
+/// The key facts as both `Side` („Auf einen Blick") and `Glance` (the row in the head) word them.
+struct KeyFacts {
+    exam: Option<String>,
+    grading: Option<String>,
+    duration: Option<String>,
+    places: Option<String>,
+    language: Option<String>,
+    location: Option<String>,
+}
+
+fn key_facts(m: &Module, derived: &Derived, t: &'static Texts) -> KeyFacts {
+    let words = &t.module;
+    KeyFacts {
+        exam: m.exam_form.as_ref().map(|form| format::exam_short(form, t.locale)).or(m.exam_form_raw.clone()),
+        grading: m.is_graded.map(|g| if g { words.graded.to_string() } else { words.ungraded.to_string() }).or(m.grading_raw.clone()),
+        duration: m.duration_raw.clone(),
+        places: match (m.is_limited, m.participant_limit) {
+            (Some(true), Some(n)) => Some((words.places_max)(n)),
+            (Some(true), None) => m.limitation_raw.clone().or(Some(words.limited.to_string())),
+            (Some(false), _) => Some(words.unlimited.to_string()),
+            (None, _) => None,
+        },
+        language: m.language_raw.clone(),
+        location: (!derived.campus.is_empty()).then(|| derived.campus.join(", ")),
+    }
+}
+
+/// The facts in a row under the heading of the module's page, on a wide screen (folia/design/
+/// modulseite/konzepte.html, concept B; owner, 2026-11-19: „Wir brauchen eine bessere visual
+/// hirarchy … und keine verschwendung von platz"): the credits, the turnus, the language, the exam,
+/// the grading, the duration and the places, each its label over its value, and under them the
+/// teaching forms, the persons responsible and the campuses. They stand there in place of the
+/// badges and of „Auf einen Blick", which a phone keeps (app.css `.glance`). An unknown value says
+/// so, as „Auf einen Blick" does.
 #[component]
-fn Side(data: ModuleData, program: Option<String>) -> impl IntoView {
+fn Glance(data: ModuleData) -> impl IntoView {
+    let t = i18n::t();
+    let words = &t.module;
+    let m = data.module.clone();
+    let derived = derive(&data, t);
+    let facts = key_facts(&m, &derived, t);
+    let language = facts.language.or_else(|| format::languages(m.teaches_german, m.teaches_english).map(str::to_string));
+    let offer = (!m.offer_status.is(OfferStatus::Active)).then(|| m.offer_status.label(t.locale).to_string());
+    let exam_title = m.exam_form.as_ref().map(|form| form.label(t.locale).to_string());
+    let cell = move |label: &'static str, value: Option<String>, title: Option<String>| {
+        let unknown = value.is_none();
+        view! { <div title=title><dt>{label}</dt><dd class:unknown=unknown>{value.unwrap_or_else(|| t.common.not_stated.to_string())}</dd></div> }
+    };
+    view! {
+        <div class="glance">
+            <dl class="kz">
+                {cell(words.credits_label, Some(format::credits(m.credits, t.locale)), None)}
+                <div>
+                    <dt>{words.offered}</dt>
+                    <dd>{format::turnus(m.turnus_season.as_ref(), m.turnus_parity.as_ref(), t.locale)}{offer.map(|offer| view! { " " <span class="warn">{offer}</span> })}</dd>
+                </div>
+                {cell(words.language, language, None)}
+                {cell(words.exam, facts.exam, exam_title)}
+                {cell(words.grading, facts.grading, None)}
+                {cell(words.duration, facts.duration, None)}
+                {cell(words.places, facts.places, None)}
+            </dl>
+            <p class="who">
+                {(!derived.workload.is_empty()).then(|| view! { <span title=words.teaching_forms><Icon name="layout-list"/>{derived.workload.join(" · ")}</span> })}
+                {(!derived.responsible.is_empty()).then(|| view! { <span title=words.responsible><Icon name="user-round"/>{derived.responsible.join("; ")}</span> })}
+                {facts.location.map(|location| view! { <span title=words.location><Icon name="map-pin"/>{location}</span> })}
+                {m.is_fues.then(|| view! { <span><Icon name="graduation-cap"/>{words.counts_as_fues}</span> })}
+            </p>
+        </div>
+    }
+}
+
+/// Schedule and key facts: the right column of the page, the top of the preview. `program`: as
+/// `ModulePanel`'s. `full`: the module's whole page, whose list of the Termine is open.
+#[component]
+fn Side(data: ModuleData, program: Option<String>, #[prop(optional)] full: bool) -> impl IntoView {
     let t = i18n::t();
     let m = data.module.clone();
     let derived = derive(&data, t);
@@ -711,17 +958,7 @@ fn Side(data: ModuleData, program: Option<String>) -> impl IntoView {
     // Two facts side by side where their values are short (owner, 2026-10-17: „Da könnten einige
     // auch nebeneinander passen. Setz das mal bitte um, so dass möglichst effizient vertical space
     // frei gegeben wird"); the persons and the teaching forms always have a line of their own.
-    let exam = m.exam_form.as_ref().map(|form| format::exam_short(form, t.locale)).or(m.exam_form_raw.clone());
-    let grading = m.is_graded.map(|g| if g { words.graded.to_string() } else { words.ungraded.to_string() }).or(m.grading_raw.clone());
-    let duration = m.duration_raw.clone();
-    let places = match (m.is_limited, m.participant_limit) {
-        (Some(true), Some(n)) => Some((words.places_max)(n)),
-        (Some(true), None) => m.limitation_raw.clone().or(Some(words.limited.to_string())),
-        (Some(false), _) => Some(words.unlimited.to_string()),
-        (None, _) => None,
-    };
-    let language = m.language_raw.clone();
-    let location = (!derived.campus.is_empty()).then(|| derived.campus.join(", "));
+    let KeyFacts { exam, grading, duration, places, language, location } = key_facts(&m, &derived, t);
     view! {
         {(!data.successors.is_empty()).then(|| view! {
             <p class="note">
@@ -734,7 +971,7 @@ fn Side(data: ModuleData, program: Option<String>) -> impl IntoView {
                 </span>
             </p>
         })}
-        <Schedule data=data.clone() program/>
+        <Schedule data=data.clone() program full/>
         <div class="section" id="blick">
             <h3 class="label">{words.at_a_glance}</h3>
             <dl class="facts">
@@ -753,9 +990,10 @@ fn Side(data: ModuleData, program: Option<String>) -> impl IntoView {
 
 /// Prerequisites and the texts of the module description, and last the programs: the main column of
 /// the page. The programs stand at the end of the module (owner, 2026-10-17: „die Studiengänge
-/// können ganz an den Schluss das interessiert einen wahrscheinlich eh nicht").
+/// können ganz an den Schluss das interessiert einen wahrscheinlich eh nicht"). `full`: the
+/// module's whole page, where the literature is open, a section like the others.
 #[component]
-fn Main(data: ModuleData) -> impl IntoView {
+fn Main(data: ModuleData, #[prop(optional)] full: bool) -> impl IntoView {
     let t = i18n::t();
     let words = &t.module;
     let m = data.module.clone();
@@ -819,12 +1057,24 @@ fn Main(data: ModuleData) -> impl IntoView {
         {m.contents.clone().map(|text| view! { <div class="section" id="inhalte"><h3 class="label">{words.contents}</h3><Prose text lang=lang()/></div> })}
         {m.learning_outcomes.clone().map(|text| view! { <div class="section" id="lernziele"><h3 class="label">{words.learning_outcomes}</h3><Prose text lang=lang()/></div> })}
         {m.exam_details.clone().map(|text| view! { <div class="section" id="pruefungsleistung"><h3 class="label">{words.assessment}</h3><Prose text lang=lang()/></div> })}
-        {(!literature.is_empty()).then(|| view! {
-            <div class="section" id="literatur">
-                <details class="more"><summary>{(words.literature_count)(literature.len())}</summary>
-                    <ul class="list-plain">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul>
-                </details>
-            </div>
+        {(!literature.is_empty()).then(|| {
+            let count = literature.len();
+            let list = view! { <ul class="list-plain">{literature.into_iter().map(|l| view! { <li>{l}</li> }).collect_view()}</ul> };
+            match full {
+                true => view! {
+                    <div class="section" id="literatur">
+                        <h3 class="label">{words.literature}{(count > 1).then(|| view! { <span>{count}</span> })}</h3>
+                        {list}
+                    </div>
+                }
+                .into_any(),
+                false => view! {
+                    <div class="section" id="literatur">
+                        <details class="more"><summary>{(words.literature_count)(count)}</summary>{list}</details>
+                    </div>
+                }
+                .into_any(),
+            }
         })}
         {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><h3 class="label">{words.remarks}</h3><Prose text lang=lang()/></div> })}
         <Programs data=data.clone()/>
@@ -848,9 +1098,9 @@ fn DataClient(data: ModuleData) -> impl IntoView {
 /// Teaching events of the newest semester that has any, as a week grid plus a list; exams below. A
 /// module held as courses at two campuses or more shows them as `crate::courses` says, for
 /// `program` (the slug of the program the page stands for) or Mein Studiengang; the choices among
-/// its events and its extras as `crate::options` says.
+/// its events and its extras as `crate::options` says. `full`: as `Side`'s.
 #[component]
-fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
+fn Schedule(data: ModuleData, program: Option<String>, full: bool) -> impl IntoView {
     let t = i18n::t();
     let words = &t.module;
     let beside = use_context::<TerminBeside>();
@@ -920,8 +1170,10 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     // Under a week the list is folded (owner, 2026-10-17: „die Termine können ruhig ausklappbar
     // sein, so dass nicht so viel vertical space verschwendet wird"): a slot unfolds it and marks
     // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open: a
-    // module whose events are all options of a long choice has none.
-    let folded = shown.with_untracked(|shown| !shown.is_empty());
+    // module whose events are all options of a long choice has none. The module's whole page shows
+    // it open (owner, 2026-11-19, concept B of folia/design/modulseite: „Alles muss hier eingebettet
+    // sein"): there it stands in the column beside the text, which takes no room from it.
+    let folded = !full && shown.with_untracked(|shown| !shown.is_empty());
     // The groups of its events, one of which a student attends (folia/design/kalender/raster.html:
     // hatched, one's own in the plan full), and the module's tone in the plan beside the week.
     let newest_semester = newest_key.as_ref().and_then(|key| data.semesters.iter().find(|s| s.key == *key)).cloned();
@@ -1011,7 +1263,10 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     let exam_note = exam_semester.as_ref().and_then(|(_, label)| exam_note(exams.iter().filter_map(|(_, r)| r.as_ref()), label, t));
 
     // A line per Termin (`termine`, `termin_text`), with the id its slots lead to; an exam date as
-    // read (`exam_reading`).
+    // read (`exam_reading`). On the module's whole page a Termin named as the module does not say
+    // the name again (folia/design/modulseite/konzepte.html: „Programmierpraktikum" stood in each of
+    // its five lines): its time and what it is stand on one line.
+    let own_title = StoredValue::new(full.then(|| m.title.trim().to_lowercase()));
     let event_list = move |dates: Vec<ListLine>| {
         dates
             .into_iter()
@@ -1042,9 +1297,10 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
                 // The short form stands in the line; QIS's whole name is the tooltip (owner, 2026-09-25).
                 let room_long = joined(rows.iter().filter(|row| row.room_short.is_some()).map(|row| row.room.as_deref()), " / ");
                 let TerminText { when, head, dates, tail, listed } = text;
+                let named = own_title.with_value(|own| own.as_ref().is_none_or(|own| d.event_title.trim().to_lowercase() != *own));
                 let body = view! {
                     <span class="when" title=stated>{when.unwrap_or_else(|| open.to_string())}</span>
-                    <b>{d.event_title.clone()}</b>
+                    {named.then(|| view! { <b>{d.event_title.clone()}</b> })}
                     {(details || marker.is_none()).then(|| view! { <small title=room_long>{detail_line(head, dates, tail, t.locale)}</small> })}
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
@@ -3036,5 +3292,19 @@ mod tests {
         // Neither Termine nor exam dates the page could state: no instance at all.
         let placeholder = exam(Some(7), Some("01:00"), Some("02:30"), Some("2015-12-27"));
         assert!(structured(&analysis(Vec::new(), vec![placeholder]), &DE)[0].get("hasCourseInstance").is_none());
+    }
+
+    #[test]
+    fn a_prerequisite_is_held_as_the_plan_has_it() {
+        use folia_plans::studyplan::PlanDoc;
+        // Softwarepraktikum (12202) planned into WiSe 27/28; 12102 planned before it, 12104 planned
+        // and passed, 12101 planned only with it.
+        let doc = PlanDoc::restored("m\t2026W\t12102\t1790000000\t\nm\t2026W\t12104\t1790000000\t\nd\t2027S\t12104\nm\t2027W\t12202\t1790000000\t\nm\t2027W\t12101\t1790000000\t\n");
+        assert_eq!(held(&doc, "12104", "12202"), Held::Passed(key("2027S")));
+        assert_eq!(held(&doc, "12102", "12202"), Held::Planned(key("2026W")));
+        assert_eq!(held(&doc, "12101", "12202"), Held::Late(key("2027W")));
+        assert_eq!(held(&doc, "11900", "12202"), Held::Missing);
+        // A module not planned itself: whatever is planned of what it asks for counts as before it.
+        assert_eq!(held(&doc, "12101", "13000"), Held::Planned(key("2027W")));
     }
 }
