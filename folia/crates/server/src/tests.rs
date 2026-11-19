@@ -1969,6 +1969,21 @@ async fn a_trap_pauses_the_address_that_springs_it() {
     assert_eq!(request(&router, TRAP_LINK, &[("x-forwarded-for", "192.0.2.1"), ("sec-fetch-site", "same-origin")]).await.0, StatusCode::TOO_MANY_REQUESTS, "followed from a page of the site itself");
     assert_eq!(paused(&router).await, 7);
 
+    // A search engine or a link preview springs no trap: a link to what a scanner looks for,
+    // somewhere on the web or posted in a chat, must not take the site's pages out of an index.
+    // It hears 404 and is served as always. Its name lifts no pause that is there already.
+    let google = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+    for (address, agent) in [("66.249.66.1", google), ("40.77.167.1", "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)"), ("54.236.1.11", "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)")] {
+        for path in ["/wp-login.php", "/.env", TRAP_LINK, TRAP_IN_SCRIPT] {
+            assert_eq!(request(&router, path, &[("x-forwarded-for", address), ("user-agent", agent)]).await.0, StatusCode::NOT_FOUND, "{agent} asking for {path}");
+        }
+        for path in ["/", "/catalog", "/en/programs", "/sitemap.xml", "/robots.txt"] {
+            assert_eq!(request(&router, path, &[("x-forwarded-for", address), ("user-agent", agent), page]).await.0, StatusCode::OK, "{agent} asking for {path}");
+        }
+    }
+    assert_eq!(paused(&router).await, 7);
+    assert_eq!(request(&router, "/catalog", &[("x-forwarded-for", "198.51.100.2"), ("user-agent", google), page]).await.0, StatusCode::TOO_MANY_REQUESTS, "a paused address that calls itself Googlebot stays paused");
+
     // Behind the gate of closed testing a trap is one too, and the button needs no password.
     let mut closed = state(SnapshotStore::new(temp_dir("trap-gate")).unwrap());
     closed.gate = Some(Arc::new(crate::access::Gate::new("birke im tagebau")));

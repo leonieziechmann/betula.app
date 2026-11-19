@@ -31,6 +31,12 @@
 //!   lasts, and has one button, „Weiter zu Betula" (a POST to `TRAP_RELEASE`), which ends the
 //!   pause for the address at once. A program that follows links presses no button; if it springs
 //!   a trap again, the address is paused again.
+//! - **Search engines:** the laid bait is off limits to every crawler in `robots.txt`, and its
+//!   link says `nofollow`. What a scanner looks for is not off limits there, and a search engine
+//!   follows a link to `/wp-login.php` it found somewhere on the web. So a client that names
+//!   itself one of the search engines or link previews the site serves springs no trap at all
+//!   (`invited`): it hears 404. A made-up name gets through here as it does at the crawler filter;
+//!   an address that is paused stays so whatever it calls itself.
 //! - **Never paused:** an address that is no public one — the server asked directly (its own
 //!   probe, the warm-up, working on the site) or from a private network, which is where every
 //!   IPv6 visitor comes from while `docker_gwbridge` has no IPv6 (deploy/README.md section 15) —
@@ -213,6 +219,16 @@ pub fn public(address: IpAddr) -> bool {
     }
 }
 
+/// A client that names itself one of the search engines or link previews the site serves
+/// (`api::SEARCH_ENGINES`, `api::LINK_PREVIEWS`, the lists of the crawler filter in front of the
+/// site). A name can be made up, here as there; but pausing the real one costs more than letting
+/// a made-up one go, which Traefik's rate limit still holds.
+fn invited(headers: &HeaderMap) -> bool {
+    let Some(agent) = headers.get(header::USER_AGENT).and_then(|value| value.to_str().ok()) else { return false };
+    let agent = agent.to_ascii_lowercase();
+    crate::api::SEARCH_ENGINES.iter().chain(crate::api::LINK_PREVIEWS).any(|name| agent.contains(&name.to_ascii_lowercase()))
+}
+
 /// A request a page of another site made the browser send (a picture, a frame, a link there):
 /// browsers say so themselves, and no page can make them say otherwise.
 fn from_another_site(headers: &HeaderMap) -> bool {
@@ -249,8 +265,13 @@ pub async fn guard(State(state): State<AppState>, request: Request, next: Next) 
         return paused(&state, &request, left);
     }
     let Some(kind) = bait(path) else { return next.run(request).await };
-    // A trap, sprung or not, is nothing this site has.
-    let sprung = address.filter(|_| !from_another_site(request.headers())).and_then(|address| traps.spring(address, now));
+    // A trap, sprung or not, is nothing this site has. A search engine or a link preview springs
+    // none: what a scanner looks for is not off limits in robots.txt, and a link to such an address
+    // somewhere on the web (or one posted in a chat, for its preview) would pause the crawler that
+    // follows it, and with it the site's pages in a search index. It hears 404, as it did before
+    // there were traps. An address that is paused stays paused whatever it calls itself (above).
+    let spared = from_another_site(request.headers()) || invited(request.headers());
+    let sprung = address.filter(|_| !spared).and_then(|address| traps.spring(address, now));
     match sprung {
         Some(left) => {
             tracing::info!(component = "trap", event = "trap.sprung", kind = ?kind, minutes = traps.minutes(), paused = traps.kept(), "a trap was sprung: its address is paused");

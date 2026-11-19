@@ -7725,6 +7725,21 @@ address, and one button. Everything else gets a line of text. Open meanwhile: wh
   the pause of the address at once and leads where the visitor wanted to go (a path of this site,
   never a trap). A program that follows links presses no button; if it springs a trap again, the
   address is paused again, and somebody there presses again.
+- **Search engines** (owner, 2026-11-19: „Hast aufgepasst das search engines damit
+  funktionieren"). The laid bait is off limits to every crawler in `robots.txt` and its link says
+  `nofollow`; no page of the sitemap is a trap or lies under `/api/`. What a scanner looks for is
+  *not* off limits there, and a search engine follows a link to `/wp-login.php` that it found
+  somewhere on the web, as a link preview fetches one posted in a chat: from Folia 1.109.0 to
+  1.109.2 that would have paused the crawler's address for an hour. Since 1.109.3 a client that
+  names itself one of the search engines or link previews the site serves (`api::SEARCH_ENGINES`,
+  `api::LINK_PREVIEWS`, the lists of the crawler filter) springs no trap at all and hears 404, as
+  before there were traps (`trap::invited`). A made-up name gets through here as it does at the
+  crawler filter; an address that is paused stays so whatever it calls itself. Checked as
+  Googlebot from one of Google's addresses against a local Folia (2026-11-19): `robots.txt`, the
+  sitemap's 10,606 pages with none under `/api/`, every 60th of them 200 with its canonical and
+  no `noindex`, a scanner's paths and the bait 404 and nobody paused; and as Google's renderer
+  does it, a Chromium that fetches nothing under `/api/`: the server's page with its text, the
+  app not started, the link nobody sees neither shown nor in the page's text.
 - **Never paused:** an address that is no public one — the server asked without Traefik (its own
   probe, the warm-up, working on the site), a private network (which is where every IPv6 visitor
   comes from while `docker_gwbridge` has no IPv6, deploy/README.md section 15), the carriers'
@@ -8075,7 +8090,9 @@ What `cargo test` checks:
   trap sprung answered 429 with the page of a pause, every request after it too, the page's own
   files and the neighbour as always; the button ending it and leading on, never off the site or
   into a trap; a scanner's paths; IPv6 by its /64; a private network, the server itself and another
-  site pausing nobody; behind the gate of closed testing; off); `/api/status` with the
+  site pausing nobody; a search engine and a link preview springing none and served as always,
+  their name lifting no pause; no page of the sitemap a trap; behind the gate of closed testing;
+  off); `/api/status` with the
   snapshot's schema, `boot.js` with the build's; a broken export is rejected and the old snapshot
   stays; one of an older schema is served; a new one invalidates pages; restart without Radix;
   one description and one absolute canonical address per page, `noindex` on a filtered list,
