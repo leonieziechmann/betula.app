@@ -222,6 +222,22 @@ func PublishedDigest(dir string) (string, error) {
 	return digest, nil
 }
 
+// PublishedSchemaVersion returns the schema (PRAGMA user_version) of the current snapshot of a
+// snapshot directory: the service exports again when it is older than the catalog's, though the
+// content did not change (a migration that adds no content, as schema 25).
+func PublishedSchemaVersion(dir string) (int, error) {
+	snap, err := ReadSnapshotPointer(dir)
+	if err != nil {
+		return 0, err
+	}
+	db, err := OpenReadOnly(filepath.Join(dir, snap.File))
+	if err != nil {
+		return 0, err
+	}
+	defer db.Close()
+	return db.SchemaVersion()
+}
+
 // removeOldSnapshots keeps the newest snapshots. A file that is still open
 // somewhere cannot be removed on Windows; it goes away after a later export.
 func removeOldSnapshots(dir, current string) {
