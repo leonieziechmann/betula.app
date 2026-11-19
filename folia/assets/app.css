@@ -3601,21 +3601,21 @@ html:not(.js) .module-acts .switches { display: none; }
 .module-links { display: flex; gap: 4px; margin-top: 6px; }
 .module-links .action { flex: 1 1 0; justify-content: center; gap: 6px; min-height: 32px; padding: 0 6px; color: var(--text-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .module-links .action .icon { width: 14px; height: 14px; }
-.module-requires .req-kind { margin: 2px 0 2px; color: var(--text-3); font-size: 12px; font-weight: 600; }
-.module-requires .req-kind ~ .req-kind { margin-top: 10px; }
-.req { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 0 9px; align-items: start; margin: 0 -8px; padding: 6px 8px; border-radius: var(--r-s); color: inherit; text-decoration: none; }
-.req:hover { background: var(--panel-3); text-decoration: none; }
-.req > .icon { width: 16px; height: 16px; margin-top: 1px; color: var(--text-3); }
-.req.req-held > .icon { color: var(--ok); }
-.req.req-late > .icon { color: var(--warn); }
-.req b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
-.req small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.4; }
-.req small .mono { font-size: 11.5px; }
-.req small .off, .req.req-late small { color: var(--warn); }
-.req-either { display: grid; margin: 2px -8px; padding: 2px 8px; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); }
-.req-either > .req { margin: 0 -6px; }
-.req-either > .or { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 11.5px; line-height: 1; }
-.req-either > .or::before, .req-either > .or::after { content: ""; flex: 1 1 auto; border-top: 1px solid var(--line); }
+.module-req-kind { margin: 2px 0 2px; color: var(--text-3); font-size: 12px; font-weight: 600; }
+.module-req-kind ~ .module-req-kind { margin-top: 10px; }
+.module-req { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 0 9px; align-items: start; margin: 0 -8px; padding: 6px 8px; border-radius: var(--r-s); color: inherit; text-decoration: none; }
+.module-req:hover { background: var(--panel-3); text-decoration: none; }
+.module-req > .icon { width: 16px; height: 16px; margin-top: 1px; color: var(--text-3); }
+.module-req.held > .icon { color: var(--ok); }
+.module-req.late > .icon { color: var(--warn); }
+.module-req b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.module-req small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.4; }
+.module-req small .mono { font-size: 11.5px; }
+.module-req small .off, .module-req.late small { color: var(--warn); }
+.module-req-either { display: grid; margin: 2px -8px; padding: 2px 8px; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px var(--line); }
+.module-req-either > .module-req { margin: 0 -6px; }
+.module-req-either > .or { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 11.5px; line-height: 1; }
+.module-req-either > .or::before, .module-req-either > .or::after { content: ""; flex: 1 1 auto; border-top: 1px solid var(--line); }
 .module-requires details.more { display: block; margin-top: 6px; }
 .module-requires details.more .prose { font-size: 13px; }
 .module-place .place-line { color: var(--text); font-size: 13.5px; font-weight: 600; }

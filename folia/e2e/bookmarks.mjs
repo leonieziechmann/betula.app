@@ -97,7 +97,10 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // of the list), and the column labels still stand over their columns.
   const geometry = await page.evaluate(() => {
     const rows = [...allOnPage(".rows .row-wrap")].slice(0, 12);
-    const label = onPage(".cols .c-events").getBoundingClientRect();
+    // The label's words, not its box: a label's link has 4 px of room round its words since Folia
+    // 1.113.0 (every frame inside its element), its box 4 px out of the column.
+    const labelled = onPage(".cols .c-events");
+    const label = labelled.getBoundingClientRect().left + parseFloat(getComputedStyle(labelled).paddingLeft);
     const head = onPage(".list-tools").getBoundingClientRect();
     return rows.map((wrap) => {
       const [row, mark, glyph, events] = [wrap.querySelector("a.row"), wrap.querySelector(":scope > .mark-toggle"), wrap.querySelector(":scope > .mark-toggle .icon"), wrap.querySelector(".events")].map((el) => el?.getBoundingClientRect());
@@ -108,7 +111,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
         clear: mark.left - events.right,
         edge: row.right - glyph.right,
         head: Math.abs(glyph.right - head.right),
-        labelled: Math.abs(events.left - label.left),
+        labelled: Math.abs(events.left - label),
         visible: getComputedStyle(wrap.querySelector(":scope > .mark-toggle")).visibility,
       };
     });

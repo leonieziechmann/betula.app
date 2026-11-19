@@ -603,10 +603,10 @@ fn Requires(data: ModuleData) -> impl IntoView {
             })
         });
         let class = move || match state.get() {
-            Some(Held::Passed(_) | Held::Planned(_)) => "req req-held",
-            Some(Held::Late(_)) => "req req-late",
-            Some(Held::Missing) => "req req-missing",
-            None => "req",
+            Some(Held::Passed(_) | Held::Planned(_)) => "module-req held",
+            Some(Held::Late(_)) => "module-req late",
+            Some(Held::Missing) => "module-req missing",
+            None => "module-req",
         };
         let icon = move || match state.get() {
             Some(Held::Passed(_) | Held::Planned(_)) => view! { <Icon name="circle-check"/> }.into_any(),
@@ -649,7 +649,7 @@ fn Requires(data: ModuleData) -> impl IntoView {
         <section class="fgroup module-requires" aria-label=words.prerequisites>
             <p class="flabel label">{words.prerequisites}</p>
             {kinds.into_iter().map(|(kind, choices)| view! {
-                <p class="req-kind">{kind}</p>
+                <p class="module-req-kind">{kind}</p>
                 {choices.into_iter().map(|choice| match choice.len() {
                     1 => {
                         let states = held_all(choice.iter().map(|p| p.required_module_id.clone()).collect());
@@ -658,7 +658,7 @@ fn Requires(data: ModuleData) -> impl IntoView {
                     _ => {
                         let states = held_all(choice.iter().map(|p| p.required_module_id.clone()).collect());
                         view! {
-                            <div class="req-either" role="group" aria-label=(words.one_of)(kind)>
+                            <div class="module-req-either" role="group" aria-label=(words.one_of)(kind)>
                                 {choice.into_iter().enumerate().map(|(i, p)| view! {
                                     {(i > 0).then(|| view! { <span class="or">{words.either}</span> })}
                                     {row(p, i, states)}
