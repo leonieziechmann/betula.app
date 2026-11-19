@@ -83,7 +83,7 @@ fn ListPage(ctx: StudyCtx, info: Info, phone: bool) -> impl IntoView {
         .collect_view();
     let body = view! {
         {tally_strip(&info.tally, t)}
-        <ul class="st-area-list">{cards}</ul>
+        <ul class="st-area-list" data-stop="y">{cards}</ul>
     };
     if phone {
         view! {

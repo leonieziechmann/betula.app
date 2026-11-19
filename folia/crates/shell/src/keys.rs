@@ -2,13 +2,15 @@
 //! „Tasten" und ? mit den Tasten des Ortes, … der Schalter für die einzelnen Tasten"): a dialog
 //! with what the keys do everywhere and, on a page that has more, at its places (the catalog: the
 //! list, the filters, the module beside it; the Merkliste: its list, its collections and filters;
-//! a Termin in its own view, wherever it stands), the group of where the keyboard was first and
+//! „Mein Studium": its semester, its Gesamtplan, its views; a Termin in its own view, wherever it
+//! stands), the group of where the keyboard was first and
 //! marked „Hier"; under them the switch for Betula's single keys
 //! (`folia_design::keys::LettersSwitch`).
 //!
 //! The button that opens it stands in the rail (`KeysButton`; no action is a key's alone, CLAUDE.md
 //! „Design"); `?` presses it (enhance.js, „the keyboard"), which hands over where the keyboard was
-//! (`data-from`: `side`, `list`, `module`, `nav`, `search`). A page that gets keys of its own adds
+//! (`data-from`: `side`, `list`, `module`, `nav`, `search`, or what a part names itself,
+//! `data-keys-place`: the Gesamtplan's `grid`). A page that gets keys of its own adds
 //! its groups to `groups`.
 
 use leptos::prelude::*;
@@ -46,6 +48,9 @@ enum Group {
     Marked,
     Sidebar,
     Termin,
+    Study,
+    StudySide,
+    Grid,
 }
 
 impl Group {
@@ -58,6 +63,9 @@ impl Group {
             Group::Marked => t.keys.marked,
             Group::Sidebar => t.keys.sidebar,
             Group::Termin => t.keys.termin,
+            Group::Study => t.keys.study,
+            Group::StudySide => t.keys.study_side,
+            Group::Grid => t.keys.grid,
         }
     }
 
@@ -70,14 +78,20 @@ impl Group {
             Group::Marked => t.keys.marked_rows,
             Group::Sidebar => t.keys.sidebar_rows,
             Group::Termin => t.keys.termin_rows,
+            Group::Study => t.keys.study_rows,
+            Group::StudySide => t.keys.study_side_rows,
+            Group::Grid => t.keys.grid_rows,
         }
     }
 
-    /// The group of a place the keyboard was at (`data-from`) on a page of `area`.
-    fn of(place: &str, area: Area) -> Option<Self> {
-        match (place, area) {
-            ("side", Area::Bookmarks) => Some(Group::Sidebar),
-            ("list", Area::Bookmarks) => Some(Group::Marked),
+    /// The group of a place the keyboard was at (`data-from`) on `page`.
+    fn of(place: &str, page: Page) -> Option<Self> {
+        match (place, page) {
+            ("side", Page::Area(Area::Bookmarks)) => Some(Group::Sidebar),
+            ("list", Page::Area(Area::Bookmarks)) => Some(Group::Marked),
+            ("side", Page::Study) => Some(Group::StudySide),
+            ("list", Page::Study) => Some(Group::Study),
+            ("grid", Page::Study) => Some(Group::Grid),
             ("side", _) => Some(Group::Filters),
             ("list", _) => Some(Group::List),
             ("module", _) => Some(Group::Module),
@@ -87,13 +101,32 @@ impl Group {
     }
 }
 
+/// The page whose keys the overview shows: an area's, or „Mein Studium" (the Studium tab's first
+/// page, whose other pages, the programs', have none of its keys).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Page {
+    Area(Area),
+    Study,
+}
+
+impl Page {
+    fn of(path: &str) -> Self {
+        if crate::i18n::Locale::split(path).1 == url::STUDY {
+            Page::Study
+        } else {
+            Page::Area(Area::of(path))
+        }
+    }
+}
+
 /// The groups of a page, its own after those of everywhere; a Termin's where one stands in its
 /// own view (`termin`: beside the page, filling it, or as its own page).
-fn groups(area: Area, termin: bool) -> Vec<Group> {
-    let mut groups = match area {
-        Area::Catalog => vec![Group::Everywhere, Group::List, Group::Filters, Group::Module],
-        Area::Bookmarks => vec![Group::Everywhere, Group::Marked, Group::Sidebar, Group::Module],
-        _ => vec![Group::Everywhere],
+fn groups(page: Page, termin: bool) -> Vec<Group> {
+    let mut groups = match page {
+        Page::Area(Area::Catalog) => vec![Group::Everywhere, Group::List, Group::Filters, Group::Module],
+        Page::Area(Area::Bookmarks) => vec![Group::Everywhere, Group::Marked, Group::Sidebar, Group::Module],
+        Page::Study => vec![Group::Everywhere, Group::Study, Group::Grid, Group::StudySide, Group::Module],
+        Page::Area(_) => vec![Group::Everywhere],
     };
     if termin {
         groups.push(Group::Termin);
@@ -159,9 +192,9 @@ pub fn KeysHelp() -> impl IntoView {
     let body = move || {
         from.get().map(|from| {
             let path = location.pathname.get_untracked();
-            let area = Area::of(&path);
-            let here = Group::of(&from, area);
-            let mut shown = groups(area, termin_at(&path, &location.search.get_untracked()));
+            let page = Page::of(&path);
+            let here = Group::of(&from, page);
+            let mut shown = groups(page, termin_at(&path, &location.search.get_untracked()));
             // Where the keyboard was comes first.
             if let Some(here) = here.filter(|here| shown.contains(here)) {
                 shown.retain(|group| *group != here);
@@ -217,8 +250,23 @@ mod tests {
         assert!(termin_at("/studyplan", "?termin=148370-eb017&on=2026-11-02&full=1"));
         assert!(termin_at("/", "?termin=148370-eb017"));
         assert!(!termin_at("/studyplan", "?open=12104") && !termin_at("/profile", "") && !termin_at("/", "?termin="));
-        assert_eq!(groups(Area::Studyplan, true), [Group::Everywhere, Group::Termin]);
-        assert_eq!(groups(Area::Catalog, false), [Group::Everywhere, Group::List, Group::Filters, Group::Module]);
-        assert_eq!(Group::of("termin", Area::Home), Some(Group::Termin));
+        assert_eq!(groups(Page::Area(Area::Studyplan), true), [Group::Everywhere, Group::Termin]);
+        assert_eq!(groups(Page::Area(Area::Catalog), false), [Group::Everywhere, Group::List, Group::Filters, Group::Module]);
+        assert_eq!(Group::of("termin", Page::Area(Area::Home)), Some(Group::Termin));
+    }
+
+    /// „Mein Studium" has its keys (its semester, the Gesamtplan, the sidebar of the views), the
+    /// programs' pages of the same tab none of them; the place the keyboard was at comes first.
+    #[test]
+    fn mein_studium_brings_its_keys() {
+        assert_eq!(Page::of("/study"), Page::Study);
+        assert_eq!(Page::of("/en/study"), Page::Study);
+        assert_eq!(Page::of("/programs"), Page::Area(Area::Programs));
+        assert_eq!(groups(Page::Study, false), [Group::Everywhere, Group::Study, Group::Grid, Group::StudySide, Group::Module]);
+        assert_eq!(groups(Page::of("/programs/informatik/plan"), false), [Group::Everywhere]);
+        assert_eq!(Group::of("list", Page::Study), Some(Group::Study));
+        assert_eq!(Group::of("grid", Page::Study), Some(Group::Grid));
+        assert_eq!(Group::of("side", Page::Study), Some(Group::StudySide));
+        assert_eq!(Group::of("side", Page::Area(Area::Catalog)), Some(Group::Filters));
     }
 }

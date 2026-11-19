@@ -639,7 +639,9 @@ fn PlanTable(ctx: StudyCtx, sheet: Sheet) -> impl IntoView {
                     <i aria-hidden="true"></i>{v.mine}
                 </button>
             </header>
-            <div class="table-scroll">
+            // One stop of Tab: ↑ ↓ from module to module, ← → to „Einplanen" in its row
+            // (enhance.js, `data-stop="grid"`).
+            <div class="table-scroll" data-stop="grid">
                 <table class="st-mx" style=format!("--fs: {}", sheet.columns.len())>
                     <colgroup>
                         <col class="c-name"/>

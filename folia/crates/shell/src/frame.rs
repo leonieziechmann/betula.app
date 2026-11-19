@@ -7,8 +7,26 @@ use folia_design::stage::Title;
 
 use folia_data::DataError;
 use crate::i18n;
+use folia_design::keys::Keys;
 use folia_design::modal::Sheet;
 use folia_design::ui::{Icon, Shortcut};
+
+/// A framed page made for the keyboard (enhance.js, „the keyboard"; folia/design/tastatur/
+/// konzept.html, „Die anderen Seiten": „Jede Seite hat dieselben Bereiche, darum gilt dasselbe
+/// Schema überall"), as the catalog and the Merkliste are: the frame is the content region, round
+/// which Tab goes past the sidebar, and the sidebar a mode that F leads into (its key at its head)
+/// and Esc out of, in „Befehle" a command of „Gehe zu" with its key. Its sections the page marks
+/// itself (`data-section`), and its commands (`data-command`): a sidebar of few ways shows them as
+/// they are, not only to what is typed, as the catalog's many filters are. A page not yet made for the keyboard leaves
+/// it off, and Tab goes there as the browser goes.
+#[derive(Clone, Copy, Debug)]
+pub struct FrameKeys {
+    /// The sidebar as a command of „Gehe zu": „Ansichten und Studiengang".
+    pub sidebar: &'static str,
+    /// What a screen reader hears at either end of the sidebar: the way out („Escape führt zum
+    /// Semester").
+    pub leave: &'static str,
+}
 
 /// The frame of a page (owner decision 2026-09-20: a basic element of the layout, R17): a sidebar
 /// as wide as the filter panel of the catalog, with the same handle and the same remembered
@@ -51,18 +69,52 @@ pub fn Frame(
     /// sidebar step back until it is closed. (The browser app renders such a pick as a page of
     /// its own; this is for the same HTML without it.)
     #[prop(optional, into)] aside_picked: Signal<bool>,
+    /// The page is made for the keyboard (`FrameKeys`).
+    #[prop(optional)]
+    keys: Option<FrameKeys>,
     children: Children,
 ) -> impl IntoView {
     let t = i18n::t();
     let label = title.clone();
     let has_aside = aside.is_some();
+    let on = keys.is_some();
     view! {
         // One scroll area (app.css „one scroll area"): the sidebar and
         // the panel on the right are pinned beside the page.
-        <div class="work framed flowing" id="page-scroll" class:sidebar-first=sidebar_first class:with-aside=has_aside class:aside-picked=move || has_aside && aside_picked.get()>
-            <aside class="panel sidebar" class:sheet=sheet data-sheet=sheet.then_some(sheet_way.attr()) id="sidebar" aria-label=label>
-                <div class="panel-head">
-                    <h2>{title}</h2>
+        <div
+            class="work framed flowing"
+            id="page-scroll"
+            class:sidebar-first=sidebar_first
+            class:with-aside=has_aside
+            class:aside-picked=move || has_aside && aside_picked.get()
+            data-region=on.then_some("content")
+            data-cycle=on.then_some("")
+        >
+            <aside
+                class="panel sidebar"
+                class:sheet=sheet
+                data-sheet=sheet.then_some(sheet_way.attr())
+                id="sidebar"
+                aria-label=label
+                aria-describedby=on.then_some("frame-leave")
+                aria-keyshortcuts=on.then_some("F")
+                data-region=on.then_some("side")
+                data-mode=on.then_some("")
+                data-command=keys.map(|keys| keys.sidebar)
+                data-command-icon=on.then_some("layout-list")
+                data-command-group=on.then_some("go")
+                data-command-keys=on.then_some("F")
+                data-command-act=on.then_some("go side")
+            >
+                // Its own id: the Merkliste's page, kept built beside it, has `sidebar-leave`.
+                {keys.map(|keys| view! { <span class="visually-hidden" id="frame-leave">{keys.leave}</span> })}
+                <div class="panel-head" data-section=on.then_some("plain")>
+                    // The key that leads in, at the head (R10): F.
+                    {if on {
+                        view! { <div class="panel-title"><h2>{title}</h2><span class="js-only" aria-hidden="true"><Keys spec="F"/></span></div> }.into_any()
+                    } else {
+                        view! { <h2>{title}</h2> }.into_any()
+                    }}
                     {head.run()}
                     {sheet.then(|| view! { <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.common.close><Icon name="x"/></a> })}
                 </div>

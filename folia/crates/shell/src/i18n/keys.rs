@@ -31,6 +31,13 @@ pub struct Texts {
     pub marked_rows: &'static [Row],
     pub sidebar: &'static str,
     pub sidebar_rows: &'static [Row],
+    /// „Mein Studium": a semester and its rows, the sidebar of the views, the Gesamtplan.
+    pub study: &'static str,
+    pub study_rows: &'static [Row],
+    pub study_side: &'static str,
+    pub study_side_rows: &'static [Row],
+    pub grid: &'static str,
+    pub grid_rows: &'static [Row],
 }
 
 pub const DE: Texts = Texts {
@@ -108,6 +115,34 @@ pub const DE: Texts = Texts {
         (&["a–z"], "Sammlungen und Filter finden"),
         (&["Esc"], "zurück zur Liste"),
     ],
+    study: "In „Mein Studium“",
+    study_rows: &[
+        (&["↑", "↓"], "wählen"),
+        (&["Enter"], "öffnen, ein zweites Mal im Vollbild"),
+        (&["←", "→"], "am Namen des Semesters: das davor, das danach"),
+        (&["Space"], "auswählen"),
+        (&["Shift+↑", "Shift+↓"], "mehrere auswählen"),
+        (&["Mod+A"], "alle des Semesters auswählen"),
+        (&["Shift+F10"], "das Menü der Zeile: bestanden, verschieben, entfernen"),
+        (&["Del"], "herausnehmen, mit „Rückgängig“"),
+        (&["Tab"], "Bereiche, Semester, Zeilen, rundherum"),
+        (&["F"], "in die Ansichten und den Studiengang"),
+    ],
+    study_side: "In den Ansichten",
+    study_side_rows: &[
+        (&["Tab"], "nächster Abschnitt; oben und unten ist Schluss"),
+        (&["↑", "↓"], "von Ansicht zu Ansicht"),
+        (&["Enter"], "die Ansicht zeigen"),
+        (&["a–z"], "Ansichten finden"),
+        (&["Esc"], "zurück zur Ansicht"),
+    ],
+    grid: "Im Gesamtplan",
+    grid_rows: &[
+        (&["↑", "↓", "←", "→"], "von Zelle zu Zelle, hinauf zu den Semestern"),
+        (&["Enter"], "an einem Modul sein Menü mit „Verschieben nach“, an + einplanen, an einem Bereich auf- und zuklappen"),
+        (&["Shift+F10"], "das Menü eines Moduls"),
+        (&["Del"], "ein Modul herausnehmen, mit „Rückgängig“"),
+    ],
 };
 
 pub const EN: Texts = Texts {
@@ -184,5 +219,33 @@ pub const EN: Texts = Texts {
         (&["Space"], "a filter on and off"),
         (&["a–z"], "find collections and filters"),
         (&["Esc"], "back to the list"),
+    ],
+    study: "In “My studies”",
+    study_rows: &[
+        (&["↑", "↓"], "select"),
+        (&["Enter"], "open, a second time as a full page"),
+        (&["←", "→"], "at the semester's name: the one before, the one after"),
+        (&["Space"], "select"),
+        (&["Shift+↑", "Shift+↓"], "select several"),
+        (&["Mod+A"], "select all of the semester"),
+        (&["Shift+F10"], "the row's menu: passed, move, remove"),
+        (&["Del"], "take out, with “Undo”"),
+        (&["Tab"], "areas, semester, rows, and round"),
+        (&["F"], "into the views and the programme"),
+    ],
+    study_side: "In the views",
+    study_side_rows: &[
+        (&["Tab"], "next section; it stops at the top and the bottom"),
+        (&["↑", "↓"], "from view to view"),
+        (&["Enter"], "show the view"),
+        (&["a–z"], "find views"),
+        (&["Esc"], "back to the view"),
+    ],
+    grid: "In the whole plan",
+    grid_rows: &[
+        (&["↑", "↓", "←", "→"], "from cell to cell, up to the semesters"),
+        (&["Enter"], "at a module its menu with “Move to”, at + plan, at an area fold and unfold"),
+        (&["Shift+F10"], "a module's menu"),
+        (&["Del"], "take a module out, with “Undo”"),
     ],
 };

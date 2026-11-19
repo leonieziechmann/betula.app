@@ -3,6 +3,7 @@
 pub mod study;
 pub mod study_bench;
 pub mod study_btu;
+pub mod study_keys;
 pub mod study_transcript;
 pub mod study_views;
 pub mod studyplan;
@@ -39,6 +40,7 @@ folia_design::texts! {
     study = crate::i18n::study,
     study_bench = crate::i18n::study_bench,
     study_btu = crate::i18n::study_btu,
+    study_keys = crate::i18n::study_keys,
     study_transcript = crate::i18n::study_transcript,
     study_views = crate::i18n::study_views,
     studyplan = crate::i18n::studyplan,

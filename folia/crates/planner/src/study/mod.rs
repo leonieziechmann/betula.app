@@ -71,7 +71,7 @@ use folia_data::{use_data, DataClient, DataError};
 use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_design::waitnote::WaitNote;
-use folia_shell::frame::Frame;
+use folia_shell::frame::{Frame, FrameKeys};
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
@@ -726,7 +726,10 @@ pub fn StudyPage() -> impl IntoView {
         }
         view! {
             <Title text=t.study.title/>
-            <Frame title=t.study.title sheet=true sidebar=move || view! { <side::StudySidebar ctx/> } aside aside_picked=picked>
+            // Made for the keyboard as the catalog and the Merkliste are (`FrameKeys`; folia/design/
+            // tastatur/konzept.html, „Die anderen Seiten"): F into the views and the program, Esc
+            // back to the view, Tab round the page past the sidebar.
+            <Frame title=t.study.title sheet=true sidebar=move || view! { <side::StudySidebar ctx/> } aside aside_picked=picked keys=FrameKeys { sidebar: t.study_keys.sidebar, leave: t.study_keys.leave }>
                 <StudySeo/>
                 <div class="page-inner study">
                     <folia_widgets::syncnote::MovedNotes title/>

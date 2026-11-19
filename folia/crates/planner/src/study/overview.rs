@@ -328,7 +328,8 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
                         </ul>
                     </div>
                     <Bar segments=info.segments.clone()/>
-                    <div class="st-cards">
+                    // The areas are one stop of Tab, ← and → go from one to the next (enhance.js).
+                    <div class="st-cards" data-stop="x">
                         {info.cards.into_iter().map(|card| view! { <AreaCard ctx card/> }).collect_view()}
                     </div>
                 </section>

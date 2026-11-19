@@ -233,8 +233,10 @@ pub(super) fn open_under_button(ctx: StudyCtx, what: MenuFor, ev: &leptos::ev::M
     ctx.menu.set(Some(Menu { what, at }));
 }
 
-/// Opens the menu `what` at the pointer: a right click.
+/// Opens the menu `what` at the pointer: a right click, or Shift + F10 at a row, whose focus the
+/// menu gives back.
 pub(super) fn open_at_pointer(ctx: StudyCtx, what: MenuFor, ev: &leptos::ev::MouseEvent) {
+    dom::keep_focus_within(ev);
     ctx.menu.set(Some(Menu { what, at: Anchor::Point(f64::from(ev.client_x()), f64::from(ev.client_y())) }));
 }
 

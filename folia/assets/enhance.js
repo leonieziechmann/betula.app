@@ -3516,8 +3516,15 @@
   //   at its foot names the keys of the control that no button can carry. Esc or a click leads out.
   // - `data-stop` makes a group one stop of the Tab key (the rail, the list's rows, the heads of the
   //   columns, a module's buttons): Tab comes in where the keyboard was last in it (else at the
-  //   current one, else the first in view) and leaves past it; the arrows of its axis (`x` ← →,
-  //   `y` ↑ ↓) go from one to the next. A mode is one stop as well, seen from outside.
+  //   current one or the one it names its home, `data-kb-home`, else the first in view) and leaves
+  //   past it; the arrows of its axis (`x` ← →, `y` ↑ ↓) go from one to the next. `grid` is a
+  //   table of controls, as the eye sees it (the Gesamtplan, the Regelstudienplan): ↑ ↓ the nearest
+  //   control above or below in the same column, ← → the one beside in the same row (`gridMove`).
+  //   A mode is one stop as well, seen from outside.
+  // - `data-find` in a mode makes its links and buttons found by their names as its chips are (the
+  //   views of „Mein Studium"); Enter in the bubble follows the one found.
+  // - `data-keys-place` names the place for the overview of the keys (`?`), where it is not the
+  //   region's (the Gesamtplan: `grid`).
   // - `data-cycle` makes Tab go round within a region (the catalog's content: owner, 2026-10-20: „so
   //   dass man mit n mal tab dann wieder beim content landet"), past the regions inside it.
   // - `data-kb-as` lets a control stand for another where the arrows go (the field a digit opens
@@ -3547,6 +3554,7 @@
         person: [["← →", "mit, ohne"], ["Del", "entfernen"]],
         slider: [["+", "mehr"], ["−", "weniger"], ["0–9", "Zahl"]],
         find: [["↑ ↓", "Treffer"], ["Enter", "mit"], ["Shift+Enter", "ohne"]],
+        findGo: [["↑ ↓", "Treffer"], ["Enter", "öffnen"]],
       },
       names: { Mod: "Strg", Ctrl: "Strg", Del: "Entf", Home: "Pos1", End: "Ende", PgUp: "Bild ↑", PgDn: "Bild ↓", Space: "Leertaste" },
     },
@@ -3570,6 +3578,7 @@
         person: [["← →", "with, without"], ["Del", "remove"]],
         slider: [["+", "more"], ["−", "less"], ["0–9", "number"]],
         find: [["↑ ↓", "matches"], ["Enter", "with"], ["Shift+Enter", "without"]],
+        findGo: [["↑ ↓", "matches"], ["Enter", "open"]],
       },
       names: { Mod: "Ctrl", Ctrl: "Ctrl", Del: "Del", Home: "Home", End: "End", PgUp: "Page ↑", PgDn: "Page ↓", Space: "Space" },
     },
@@ -3650,8 +3659,9 @@
     const last = lastOf(group);
     if (last) return last;
     const items = itemsOf(group);
-    return items.find((el) => el.matches('[aria-current="true"], [aria-current="page"], [aria-selected="true"]') && inView(el))
-      || items.find((el) => el.matches('[aria-current="true"], [aria-current="page"], [aria-selected="true"]'))
+    const HERE = '[aria-current="true"], [aria-current="page"], [aria-selected="true"], [data-kb-home]';
+    return items.find((el) => el.matches(HERE) && inView(el))
+      || items.find((el) => el.matches(HERE))
       || items.find(inView) || items[0] || null;
   };
   // The stops of Tab in `scope`, in order: each group once, at its entry; past the regions inside
@@ -3766,21 +3776,28 @@
   };
   addEventListener("resize", placeTag);
   const sectionOf = (el) => el?.closest?.("[data-section]") || null;
-  // A section is entered at its start: its first control, an option group at its chosen option.
+  // A section is entered at its start: its first control, an option group at its chosen option, a
+  // list of ways at the one shown (the view of „Mein Studium").
   const sectionEntry = (section) => {
-    const first = tabbables(section).find((el) => sectionOf(el) === section);
+    const own = tabbables(section).filter((el) => sectionOf(el) === section);
+    const first = own[0];
     if (!first) return null;
+    const current = own.find((el) => el.matches('[aria-current="page"]'));
+    if (current) return current;
     const group = first.closest('[role="radiogroup"]');
     return (group && [...group.querySelectorAll('[role="radio"][aria-checked="true"]')].find(tabbable)) || first;
   };
   const sectionsOf = (mode) => [...mode.querySelectorAll("[data-section]")].filter((s) => shown(s) && sectionEntry(s));
   // Where F lands: where the keyboard was last in the mode, never its head („Zurücksetzen"); else at
-  // the start of its first section.
+  // the way to what is shown, where the mode has one (the view of „Mein Studium"); else at the start
+  // of its first section.
   const modeEntry = (mode) => {
     const last = lastOf(mode);
     if (last && sectionOf(last)?.dataset.section !== "plain") return last;
-    const first = sectionsOf(mode).find((s) => s.dataset.section !== "plain");
-    return first ? sectionEntry(first) : null;
+    const sections = sectionsOf(mode).filter((s) => s.dataset.section !== "plain");
+    const shownWay = sections.map(sectionEntry).find((el) => el?.matches('[aria-current="page"]'));
+    if (shownWay) return shownWay;
+    return sections[0] ? sectionEntry(sections[0]) : null;
   };
   // What scrolls in a mode, and the band of it the keyboard stays in: 20 % off either edge.
   const modeScroller = (el, mode) => {
@@ -3995,6 +4012,13 @@
       const { text, parts } = labelText(lab);
       if (text.trim()) out.push({ kind: el.getAttribute("role") === "radio" ? "radio" : "chip", el, text, parts });
     }
+    // The ways of a part that says so (`data-find`): by their own words, a line under them too.
+    for (const el of mode.querySelectorAll("[data-find] a[href], [data-find] button")) {
+      if (!reachable(el) || !tabbable(el) || el.matches('[role="checkbox"], [role="radio"]')) continue;
+      const lab = el.querySelector(":scope > span") || el;
+      const { text, parts } = labelText(lab);
+      if (text.trim()) out.push({ kind: "way", el, text, parts });
+    }
     return out;
   };
   // How a target matches the words typed: each word has to match one of its words. 0 its first word
@@ -4151,6 +4175,7 @@
     focusOn(to);
     if (h.kind === "chip") to.dispatchEvent(new KeyboardEvent("keydown", { key: shift ? "-" : "+", bubbles: true, cancelable: true }));
     else if (h.kind === "radio" && to.getAttribute("aria-checked") !== "true") to.click();
+    else if (h.kind === "way") to.click();
   };
   const findKey = (e) => {
     const q = FIND.input.value.trim();
@@ -4189,7 +4214,7 @@
   // nur das ungewöhnliche rein") ----
   const barKind = (el) => {
     if (!el) return null;
-    if (el === FIND.input && FIND.el) return "find";
+    if (el === FIND.input && FIND.el) return FIND.hits[FIND.at]?.kind === "way" ? "findGo" : "find";
     const control = asEl(el);
     if (control.getAttribute("role") === "checkbox" && control.classList.contains("chip")) return control.hasAttribute("data-tri") ? "chip3" : "chip2";
     // A chosen lecturer: its switch is the person's stop, Entf takes the person out (catalog.rs).
@@ -4267,12 +4292,13 @@
 
   // ---- going between regions ----
   const regionsNow = () => ["nav", "search", "side", "content"].map((name) => ({ name, el: findAll(`[data-region="${name}"]`).find((r) => onPage(r) && shown(r)) || (name === "content" ? stage() : null) })).filter((r) => r.el);
-  // Into the content: its list where the keyboard was last in it, else its first stop. Where a page
-  // names no content region (`strict`), none.
+  // Into the content: its list (or its table of controls, the Gesamtplan's) where the keyboard was
+  // last in it, else its first stop. Where a page names no content region (`strict`), none.
+  const HOMES = '[data-stop="y"], [data-stop="grid"]';
   const contentHome = (strict) => {
     const content = find('[data-region="content"]') || (strict ? null : stage());
     if (!content) return null;
-    const list = [...content.querySelectorAll('[data-stop="y"]')].find((g) => !g.closest("[data-mode]") && shown(g) && itemsOf(g).length);
+    const list = [...content.querySelectorAll(HOMES)].find((g) => !g.closest("[data-mode]") && shown(g) && itemsOf(g).length);
     // An empty list: the first way on in the content, not a panel's handle.
     return (list && entryOf(list)) || stopsIn(content, true).find((s) => s.getAttribute("role") !== "separator") || null;
   };
@@ -4369,10 +4395,54 @@
     }
     return null;
   };
+  // A table of controls as the eye sees it (`data-stop="grid"`): ↑ ↓ the nearest control above or
+  // below in the same column (whose box spans where the keyboard came from across, `stickyX`, as in
+  // a mode), past a row with none there (a row of the Regelstudienplan with nothing to plan); where
+  // the column has none, the nearest row and in it the one nearest across; ← → the nearest beside
+  // it in its own row (whose box overlaps its height, a tall head of a row too). Nothing past the
+  // edges.
+  const gridMove = (group, el, key) => {
+    const mid = (b) => ({ x: b.left + b.width / 2, y: b.top + b.height / 2 });
+    const r = el.getBoundingClientRect();
+    const m = mid(r);
+    const others = itemsOf(group).filter((one) => one !== el).map((one) => ({ one, b: one.getBoundingClientRect() })).filter(({ b }) => b.width > 0 && b.height > 0);
+    const overlaps = (a, b) => Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+    if (key === "ArrowLeft" || key === "ArrowRight") {
+      const right = key === "ArrowRight";
+      const beside = others.filter(({ b }) => overlaps(b, r) && (right ? mid(b).x > m.x + 1 : mid(b).x < m.x - 1));
+      beside.sort((a, b) => Math.abs(mid(a.b).x - m.x) - Math.abs(mid(b.b).x - m.x));
+      return beside[0]?.one ?? null;
+    }
+    const down = key === "ArrowDown";
+    const past = others.filter(({ b }) => (down ? mid(b).y > r.bottom - 1 : mid(b).y < r.top + 1));
+    if (!past.length) return null;
+    const x = stickyX ?? m.x;
+    stickyX = x;
+    const nearest = (list) => list.reduce((best, c) => ((down ? c.b.top < best.b.top : c.b.bottom > best.b.bottom) ? c : best));
+    const column = past.filter(({ b }) => b.left <= x && b.right >= x);
+    if (column.length) return nearest(column).one;
+    // The nearest of them, and the row it stands in.
+    const near = nearest(past);
+    const row = past.filter(({ b }) => overlaps(b, near.b));
+    row.sort((a, b) => Math.abs(mid(a.b).x - x) - Math.abs(mid(b.b).x - x));
+    return row[0]?.one ?? null;
+  };
   const groupKey = (e, el) => {
     const group = el.closest("[data-stop]");
     if (!group || modeOf(group)) return false;
     const axis = group.dataset.stop;
+    if (axis === "grid") {
+      if (!/^Arrow/.test(e.key)) return false;
+      e.preventDefault();
+      const to = gridMove(group, el, e.key);
+      const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+      if (to) {
+        movingV = vertical;
+        focusOn(to);
+        movingV = false;
+      }
+      return true;
+    }
     const y = axis.includes("y") && (e.key === "ArrowDown" || e.key === "ArrowUp");
     // ← and → go to the note of a module planned while it stands (folia/crates/widgets/src/plannote.rs).
     const x = axis.includes("x") && (e.key === "ArrowRight" || e.key === "ArrowLeft") && !document.querySelector(".planning-note");
@@ -4456,12 +4526,12 @@
     // With the keyboard nowhere (a click beside the rows), ↑ and ↓ go into the list.
     if (vertical && arrow && (el === document.body || el === document.documentElement)) {
       const home = contentHome(true);
-      if (home && home.closest('[data-stop="y"]')) { e.preventDefault(); return enter(home); }
+      if (home && home.closest(HOMES)) { e.preventDefault(); return enter(home); }
     }
     // In the search: ↓ into the list (owner's concept: „↓ in die Liste").
     if (e.key === "ArrowDown" && plain && el.id === "topsearch") {
       const home = contentHome(true);
-      if (home && home.closest('[data-stop="y"]')) { e.preventDefault(); return enter(home); }
+      if (home && home.closest(HOMES)) { e.preventDefault(); return enter(home); }
     }
     const hit = e.key === "ArrowLeft" || e.key === "ArrowRight" ? resizerOf(e.target) : null;
     if (hit) {
@@ -4501,7 +4571,7 @@
       // The keyboard goes back to the row of the module that was open.
       const close = find('[data-action="close-detail"]');
       if (close && el.closest?.("#preview")) {
-        const row = find('.rows a.row[aria-current="true"]');
+        const row = find('.rows a.row[aria-current="true"], .st-rows a.st-open[aria-current="true"]');
         if (row) row.focus({ preventScroll: true });
       }
       // Then the choice in focus over the plan's week („Fertig"), then a page's „Zurück".
@@ -4509,7 +4579,7 @@
       return;
     }
     // Enter on the row whose module is open: the module in full (Enter opened it beside the list).
-    if (e.key === "Enter" && plain && !e.shiftKey && el.matches?.('a.row[aria-current="true"]')) {
+    if (e.key === "Enter" && plain && !e.shiftKey && el.matches?.('a.row[aria-current="true"], .st-rows a.st-open[aria-current="true"]')) {
       const full = find('[data-action="fullscreen"]');
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); return; }
     }
@@ -4531,7 +4601,8 @@
       if (!button) return;
       e.preventDefault();
       const region = regionName(el);
-      const from = region === "side" ? "side" : el.closest?.(".is-termin") ? "termin" : el.closest?.("#preview") ? "module" : region === "content" ? "list" : region || "";
+      const place = el.closest?.("[data-keys-place]")?.dataset.keysPlace;
+      const from = region === "side" ? "side" : el.closest?.(".is-termin") ? "termin" : el.closest?.("#preview") ? "module" : place || (region === "content" ? "list" : region || "");
       button.setAttribute("data-from", from);
       button.click();
       return;
