@@ -4,7 +4,7 @@
 #   sudo bash /opt/betula/vps/90-verify-host.sh              # everything
 #   sudo bash /opt/betula/vps/90-verify-host.sh ssh ufw      # only some sections
 #
-# Sections: os user ssh ufw fail2ban updates journald sysctl swap time services docker listeners reboot
+# Sections: os user ssh ufw fail2ban updates journald syslog sysctl swap time services docker listeners reboot
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing: no files, no services, no firewall rules. Between the numbered scripts a
 # FAIL can simply mean "not done yet" (ssh before 20-ssh-lockdown.sh, docker before 30-docker.sh).
@@ -19,7 +19,7 @@ require_root
 require_ubuntu
 
 DOCKER_MAJOR=29
-ALL_SECTIONS=(os user ssh ufw fail2ban updates journald sysctl swap time services docker listeners reboot)
+ALL_SECTIONS=(os user ssh ufw fail2ban updates journald syslog sysctl swap time services docker listeners reboot)
 PASSED=0
 WARNED=0
 FAILED=0
@@ -415,7 +415,7 @@ check_updates() {
 
 check_journald() {
   section "journald"
-  local oldest hours
+  local oldest hours cap used
   as_shipped "size and age cap" /etc/systemd/journald.conf.d/50-betula.conf journald-betula.conf
   if [[ -d /var/log/journal ]]; then pass "journal is persistent (/var/log/journal)"; else fail "/var/log/journal is missing"; fi
   pass "$(journalctl --disk-usage 2>/dev/null | sed -n '1p')"
@@ -431,6 +431,99 @@ check_journald() {
     fi
   else
     warning "cannot read the oldest journal entry (journalctl --output=short-unix | head -n 1)"
+  fi
+  # The size cap is meant to leave the age to decide (files/journald-betula.conf): a journal at its
+  # cap whose oldest system entry is younger than 6 days (MaxRetentionSec) holds less than the
+  # 7 days README.md section 9 names for the host's own lines.
+  cap="$(sed -n 's/^SystemMaxUse=\([0-9]\+\)G$/\1/p' "${BETULA_FILES_DIR}/journald-betula.conf")"
+  used="$(find /var/log/journal -name '*.journal' -printf '%s\n' 2>/dev/null | awk '{ s += $1 } END { printf "%.1f", s / 1073741824 }')"
+  oldest="$(journalctl --system --quiet --no-pager --output=short-unix 2>/dev/null | head -n 1 | cut -d. -f1 || true)"
+  if [[ -n "${cap}" && "${oldest}" =~ ^[0-9]+$ ]]; then
+    hours=$((($(date +%s) - oldest) / 3600))
+    if [[ "${hours}" -lt $((6 * 24)) ]] && awk -v u="${used}" -v c="${cap}" 'BEGIN { exit !(u >= 0.9 * c) }'; then
+      warning "the journal is at its cap (${used} of ${cap} GB) and its oldest system entry is ${hours} h old: it holds less than 7 days; raise SystemMaxUse in files/journald-betula.conf (README.md section 9)"
+    else
+      pass "${used} of ${cap} GB used (SystemMaxUse); the oldest system entry is ${hours} h old"
+    fi
+  fi
+}
+
+# journald hands every entry to rsyslog, which keeps /var/log/syslog for 5 weeks (logrotate). The
+# lines of containers on Docker's journald driver, Traefik's access log among them, must not be
+# there: files/rsyslog-betula-containers.conf stops them (10-base.sh).
+check_syslog() {
+  section "rsyslog (the lines of containers stay in the journal, out of /var/log/syslog)"
+  local payload="${BETULA_FILES_DIR}/rsyslog-betula-containers.conf" started id line driver tag name
+  local tags re file stamp when hours held=0 limit=$((7 * 24))
+  # The tags the shipped file stops, one rule per line.
+  tags="$(sed -n 's/^if \$programname == "\([^"]*\)" then stop$/\1/p' "${payload}")"
+  if [[ -z "${tags}" ]]; then
+    fail "files/rsyslog-betula-containers.conf stops no tag (no line 'if \$programname == \"<tag>\" then stop')"
+    return 0
+  fi
+  if pkg_installed rsyslog; then
+    as_shipped "container lines" "${RSYSLOG_CONTAINERS_CONF}" rsyslog-betula-containers.conf
+    if ! unit_active rsyslog.service; then
+      warning "rsyslog.service is not running: nothing writes /var/log/syslog now"
+    elif [[ -f "${RSYSLOG_CONTAINERS_CONF}" ]]; then
+      # rsyslog reads its rules only when it starts.
+      started="$(unit_started_at rsyslog.service)"
+      if [[ -n "${started}" && "${started}" -ge "$(stat -c %Y "${RSYSLOG_CONTAINERS_CONF}")" ]]; then
+        pass "rsyslog started after ${RSYSLOG_CONTAINERS_CONF} was installed: it runs with its rules"
+      else
+        fail "rsyslog runs on rules from before ${RSYSLOG_CONTAINERS_CONF}: it reads them only when it starts (re-run 10-base.sh, or sudo systemctl restart rsyslog)"
+      fi
+    fi
+  else
+    pass "rsyslog is not installed: nothing copies the journal into files under /var/log"
+  fi
+
+  # A container on the journald driver whose tag has no rule would land in /var/log/syslog.
+  if docker_usable; then
+    while IFS= read -r id; do
+      [[ -n "${id}" ]] || continue
+      line="$(docker inspect --format '{{.HostConfig.LogConfig.Type}}|{{index .HostConfig.LogConfig.Config "tag"}}|{{.Name}}' "${id}" 2>/dev/null || true)"
+      IFS='|' read -r driver tag name <<<"${line}"
+      [[ "${driver}" == "journald" ]] || continue
+      name="${name#/}"
+      if [[ -z "${tag}" || "${tag}" == *"{{"* ]]; then
+        fail "container ${name} logs through journald without a fixed tag: give it one (\"tag\" under \"logging:\") and a rule in files/rsyslog-betula-containers.conf"
+      elif grep -qxF -- "${tag}" <<<"${tags}"; then
+        pass "container ${name} logs through journald as ${tag}, which rsyslog stops"
+      else
+        fail "container ${name} logs through journald as ${tag}, which files/rsyslog-betula-containers.conf does not stop: its lines land in /var/log/syslog"
+      fi
+    done < <(docker ps -q 2>/dev/null || true)
+  fi
+
+  # What the files hold already, from before the rules: no such line older than the 7 days of the
+  # privacy notice. A file's first such line is its oldest, and grep stops there.
+  re=""
+  while IFS= read -r tag; do re+="${re:+|}${tag//./\\.}"; done <<<"${tags}"
+  re=" (${re})(\[[0-9]+\])?: "
+  for file in /var/log/syslog /var/log/syslog.[0-9]*; do
+    [[ -f "${file}" ]] || continue
+    if [[ "${file}" == *.gz ]]; then
+      line="$(zcat -- "${file}" 2>/dev/null | grep -m 1 -E -- "${re}" || true)"
+    else
+      line="$(grep -m 1 -E -- "${re}" "${file}" || true)"
+    fi
+    [[ -n "${line}" ]] || continue
+    held=1
+    stamp="${line%% *}"
+    if ! when="$(date -d "${stamp}" +%s 2>/dev/null)"; then
+      fail "${file} holds lines of containers (from '${stamp}' on, a time this check cannot read): remove them (README.md section 9)"
+      continue
+    fi
+    hours=$((($(date +%s) - when) / 3600))
+    if [[ "${hours}" -gt "${limit}" ]]; then
+      fail "${file} holds lines of containers from ${stamp%%.*} on, ${hours} h old: more than the 7 days of the privacy notice; remove them (README.md section 9)"
+    else
+      warning "${file} holds lines of containers from ${stamp%%.*} on (from before ${RSYSLOG_CONTAINERS_CONF##*/}): 7 days old in $((limit - hours)) h; remove them before (README.md section 9)"
+    fi
+  done
+  if [[ "${held}" -eq 0 ]]; then
+    pass "/var/log/syslog*: no line of a container (${tags//$'\n'/ })"
   fi
 }
 
