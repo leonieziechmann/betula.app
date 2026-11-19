@@ -15,12 +15,14 @@ import (
 	"time"
 
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
+	"github.com/leonieziechmann/betula/radix/internal/privacy"
 )
 
-// snapshotDropTables exist for Radix only and are not shipped to readers: the archive, and
-// the caches of the semantic search, whose summaries are Gemini's text, not the university's
-// (readers get module_vector).
-var snapshotDropTables = []string{"raw_page", "module_summary", "passage_embedding"}
+// snapshotDropTables exist for Radix only and are not shipped to readers: the archive, the
+// caches of the semantic search, whose summaries are Gemini's text, not the university's
+// (readers get module_vector), and the privacy register, the names of those who asked to be
+// taken out (docs/radix/privacy.md). The VACUUM after the drop leaves nothing of them in the file.
+var snapshotDropTables = []string{"raw_page", "module_summary", "passage_embedding", "privacy_person", "privacy_meta"}
 
 const (
 	// SnapshotPointer names the current snapshot of a snapshot directory.
@@ -112,7 +114,41 @@ func (db *DB) export(ctx context.Context, dir string) (*Snapshot, error) {
 	}
 
 	removeOldSnapshots(dir, snap.File)
+	db.removeSnapshotsBeforeRegister(ctx, dir, snap.File)
 	return snap, nil
+}
+
+// removeSnapshotsBeforeRegister removes every snapshot but the current one when the current one
+// is the first built with the privacy register as it is now (privacy_meta build_digest, which
+// the build writes, differs from snapshots_digest, which this writes): an older snapshot still
+// names a person added since. A file that cannot be removed (open on Windows) leaves the digest
+// unwritten, and the next export tries again.
+func (db *DB) removeSnapshotsBeforeRegister(ctx context.Context, dir, current string) {
+	built := privacy.Meta(ctx, db.sql, "build_digest")
+	if built == privacy.Meta(ctx, db.sql, "snapshots_digest") {
+		return
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	removed, failed := 0, 0
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || name == current || !strings.HasPrefix(name, snapshotPrefix) || !strings.HasSuffix(name, ".db") {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			failed++
+			continue
+		}
+		removed++
+	}
+	if failed == 0 {
+		_ = privacy.SetMeta(ctx, db.sql, "snapshots_digest", built)
+	}
+	oplog.For("export").Info("snapshots built before the privacy register changed removed", "event", "export.privacy_pruned",
+		"removed", removed, "failed", failed)
 }
 
 // ReadSnapshotPointer returns the current snapshot of a snapshot directory.
