@@ -31,6 +31,7 @@ use folia_stores::bookmarks::{share_fragment, Bookmarks, Brought, ListPart};
 use folia_stores::collections::{Collections, Followed, ListShare, Refused};
 use folia_stores::sync::share::{list_live_path, list_once_path, opening, Opening, ShareProblem, ONCE_TTL};
 use folia_stores::sync::{self as sync, ListShareRequest, OpenedList, Sync};
+use folia_widgets::marknote::{Notice, Notices};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
@@ -732,7 +733,7 @@ pub(crate) fn ListOffer() -> impl IntoView {
         state.set(Some((now.clone(), Found::Opening)));
         open_fragment(what, now);
     });
-    let taken = RwSignal::new(None::<String>);
+    let notices = Notices::expect();
     let full = RwSignal::new(false);
 
     // Answered: the fragment goes from the address (in the same history entry, or for the list
@@ -758,28 +759,34 @@ pub(crate) fn ListOffer() -> impl IntoView {
             Err(_) => leave.with_value(|leave| leave(None)),
         }
     };
+    // What was taken over says the note that waits (owner, 2026-11-19: „Such mal noch nach weiteren
+    // stellen, wo unnötiger weise was on screen gezeigt wird, obwohl es auch eine wait note getan
+    // hätte"; until then a panel over the list with „OK").
     let take = move |code: String| {
         let (Some(bookmarks), Some(part)) = (bookmarks, ListPart::from_code(&code)) else { return };
         let added = take_part(bookmarks, collections, &part);
-        taken.set(Some((s.taken)(added)));
+        if let Some(notices) = notices {
+            notices.say(Notice::done("check", (s.taken)(added)));
+        }
         leave.with_value(|leave| leave(None));
     };
+    // A link that opens nothing says why in the note that waits, and goes from the address.
+    Effect::new(move |_| {
+        let Some((_, found)) = state.get() else { return };
+        let text = match &found {
+            Found::Problem(problem) => link_problem(*problem, t),
+            Found::NotOffered => s.link_not_offered,
+            Found::Live { code, .. } | Found::Copy(code) if ListPart::from_code(code).is_none() => s.link_unknown,
+            _ => return,
+        };
+        if let Some(notices) = notices {
+            notices.say(Notice::warn(text));
+        }
+        leave.with_value(|leave| leave(None));
+    });
 
     move || {
-        let Some((_, now)) = state.get() else {
-            return taken
-                .get()
-                .map(|note| {
-                    view! {
-                        <div class="offer" role="status">
-                            <Icon name="check"/>
-                            <p><b>{note}</b></p>
-                            <button class="mini hit" type="button" id="list-taken-ok" on:click=move |_| taken.set(None)>{s.ok}</button>
-                        </div>
-                    }
-                })
-                .into_any();
-        };
+        let Some((_, now)) = state.get() else { return ().into_any() };
         let part = match &now {
             Found::Live { code, .. } | Found::Copy(code) => ListPart::from_code(code),
             _ => None,
@@ -837,21 +844,8 @@ pub(crate) fn ListOffer() -> impl IntoView {
                 }
                 .into_any()
             }
-            (found, _) => {
-                let text = match found {
-                    Found::Problem(problem) => link_problem(problem, t),
-                    Found::NotOffered => s.link_not_offered,
-                    _ => s.link_unknown,
-                };
-                view! {
-                    <div class="offer" role="alert">
-                        <Icon name="triangle-alert"/>
-                        <p>{text}</p>
-                        <button class="mini hit" type="button" id="list-ok" on:click=move |_| leave.with_value(|leave| leave(None))>{s.ok}</button>
-                    </div>
-                }
-                .into_any()
-            }
+            // A link that opens nothing: the note that waits says why (above).
+            _ => ().into_any(),
         }
     }
 }
@@ -866,19 +860,12 @@ fn now_secs() -> u64 {
 
 // ---------- a list followed ----------
 
-/// How the offer to save the profile with Betula Sync stands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Upgrade {
-    Offered,
-    Saving,
-    Saved,
-    Failed,
-}
-
 /// What stands over a list followed while the page shows it: that it is shared with the visitor
 /// and stays current (or was shared, with its last state), „Alle übernehmen", and once it is not
 /// shared any more „Behalten" and „Löschen". In a private profile what Betula Sync makes better of
-/// it: every change at once, on every device.
+/// it: every change at once, on every device. What „Alle übernehmen" took over, and whether the
+/// profile was saved, says the note that waits (`Notices`; until 2026-11-19 a line added to the
+/// box).
 #[component]
 pub(crate) fn FollowedHead(followed: Memo<Option<Followed>>, go: Callback<CollectionView>) -> impl IntoView {
     let t = i18n::t();
@@ -886,18 +873,22 @@ pub(crate) fn FollowedHead(followed: Memo<Option<Followed>>, go: Callback<Collec
     let bookmarks = Bookmarks::expect();
     let collections = Collections::expect();
     let sync = Sync::expect();
-    let taken = RwSignal::new(None::<(u32, usize)>);
-    let upgrade = RwSignal::new(Upgrade::Offered);
+    let notices = Notices::expect();
+    // „Profil speichern" under way.
+    let saving = RwSignal::new(false);
     let profile = move || bookmarks.map_or(0, Bookmarks::profile);
     let private = Memo::new(move |_| sync.is_some_and(|sync| sync::offered().is_some() && !sync.state(profile()).synced()));
     let save = move |_| {
         let Some(sync) = sync else { return };
-        if upgrade.get_untracked() == Upgrade::Saving {
+        if saving.get_untracked() {
             return;
         }
-        upgrade.set(Upgrade::Saving);
+        saving.set(true);
         sync.activate_then(profile(), move |result| {
-            let _ = upgrade.try_set(if result.is_ok() { Upgrade::Saved } else { Upgrade::Failed });
+            let _ = saving.try_set(false);
+            if let Some(notices) = notices {
+                notices.say(if result.is_ok() { Notice::done("check", s.saved) } else { Notice::warn(s.save_failed) });
+            }
         });
     };
     move || {
@@ -915,31 +906,24 @@ pub(crate) fn FollowedHead(followed: Memo<Option<Followed>>, go: Callback<Collec
         };
         let take = move |_| {
             if let Some(bookmarks) = bookmarks {
-                taken.set(Some((id, take_part(bookmarks, collections, &part))));
+                let added = take_part(bookmarks, collections, &part);
+                if let Some(notices) = notices {
+                    notices.say(Notice::done("check", (s.taken)(added)));
+                }
             }
         };
-        let note = move || taken.get().filter(|(of, _)| *of == id).map(|(_, added)| view! { <span class="fl-taken">" "{(s.taken)(added)}</span> });
         // In a private profile, after its words, what Betula Sync makes better of it, with
         // „Profil speichern" beside „Alle übernehmen": one box, not two.
-        let offer = move || !ended && (private.get() || upgrade.get() == Upgrade::Saved);
-        let offer_text = move || {
-            offer().then(|| {
-                let text = match upgrade.get() {
-                    Upgrade::Saved => s.saved,
-                    Upgrade::Failed => s.save_failed,
-                    _ => s.private,
-                };
-                view! { <span class="fl-up">" "{text}</span> }
-            })
-        };
+        let offer = move || !ended && private.get();
+        let offer_text = move || offer().then(|| view! { <span class="fl-up">" "{s.private}</span> });
         Some(view! {
             <div class="offer fl-head" class:warn=asking role="status">
                 <Icon name=if asking { "triangle-alert" } else { "users-round" }/>
-                <p><b>{line}</b>{note}{offer_text}</p>
+                <p><b>{line}</b>{offer_text}</p>
                 <button class="mini hit" type="button" id="fl-take" title=s.take_all_title on:click=take>{s.take_all}</button>
-                {move || (offer() && upgrade.get() != Upgrade::Saved).then(|| view! {
-                    <button class="mini hit" type="button" id="fl-save" aria-busy=move || (upgrade.get() == Upgrade::Saving).then_some("true") on:click=save>
-                        {move || if upgrade.get() == Upgrade::Saving { s.saving } else { s.save_profile }}
+                {move || offer().then(|| view! {
+                    <button class="mini hit" type="button" id="fl-save" aria-busy=move || saving.get().then_some("true") on:click=save>
+                        {move || if saving.get() { s.saving } else { s.save_profile }}
                     </button>
                 })}
                 {asking.then(|| view! {

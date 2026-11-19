@@ -50,6 +50,7 @@ use folia_data::DataError;
 use crate::i18n::{self, Locale};
 use folia_design::nav;
 use folia_design::ui::Icon;
+use folia_design::waitnote::Mark;
 use folia_timetable::clash::Weeks;
 use super::share_dialog::{ShareOpen, ShareTab};
 use super::{picture, week, PlanCtx};
@@ -298,25 +299,6 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     // Whether there is a new address to copy, apart from which one: the stale note's button stays
     // while the code changes under it.
     let copyable = Memo::new(move |_| path.with(Option::is_some));
-    // The code „Neue Adresse kopieren" copied, which the line after it names while it is the one.
-    // The line answers that click: the next step to another semester, view or module lets it go,
-    // and so does a change of the plan, which a way back does not bring it back from. Two effects:
-    // the code is derived from the address, so one closure must not read both (R16).
-    let renewed = RwSignal::new(None::<String>);
-    let renewed_shown = Memo::new(move |_| !stale.get() && renewed.with(|renewed| renewed.is_some() && *renewed == code.get()));
-    Effect::new(move |ran: Option<()>| {
-        ctx.url.track();
-        if ran.is_some() && renewed.with_untracked(Option::is_some) {
-            renewed.set(None);
-        }
-    });
-    Effect::new(move |_| {
-        let now = code.get();
-        if renewed.with_untracked(|renewed| renewed.is_some() && *renewed != now) {
-            renewed.set(None);
-        }
-    });
-
     // Handing the address out keeps its code, before the browser follows the link (no query). A
     // middle click (a new tab) and the context menu („Link kopieren", a long press on a phone)
     // hand it out as well.
@@ -326,10 +308,12 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
             plan.update(|doc| doc.remember(key, &code));
         }
     };
+    // „Neue Adresse kopieren": the stale note makes way, the page's note says what was copied
+    // (`note.rs`; until 2026-11-19 a line in the stale note's place), and „Abonnieren" takes the focus
+    // the button had.
     let renew = move |_| {
-        renewed.set(code.get_untracked());
         remember();
-        // The note makes way for a line without a control; „Abonnieren" takes the focus it had.
+        ctx.say("link", Mark::Done, s.new_copied);
         request_animation_frame(|| nav::focus_by_id(ABO_ID));
     };
     let show_all = move |_| {
@@ -514,7 +498,6 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                     }
                 })
             }}
-            {move || renewed_shown.get().then(|| view! { <p class="action note-action"><Icon name="check"/><span>{s.new_copied}</span></p> })}
         </div>
     }
 }

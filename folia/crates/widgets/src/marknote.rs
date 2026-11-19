@@ -17,7 +17,11 @@
 //! - Others in the same frame (`Notices`): a collection deleted („‚Für Lena‘ gelöscht · 3 bleiben
 //!   gemerkt", „Auch 2 entfernen" where modules were in it alone), the Merkliste emptied, a link
 //!   or the list copied; of the rows selected on the Merkliste, „3 Module entfernt" and „3
-//!   eingeplant · in WiSe 26/27", each with „Rückgängig" for all of them.
+//!   eingeplant · in WiSe 26/27", each with „Rückgängig" for all of them; and in a line what else
+//!   was just done (`Notice::Said`, a `DoneNote`): a list taken over from a link, a link that opens
+//!   nothing, a profile saved with Betula Sync (owner, 2026-11-19: „Such mal noch nach weiteren
+//!   stellen, wo unnötiger weise was on screen gezeigt wird, obwohl es auch eine wait note getan
+//!   hätte").
 //!
 //! One note stands at a time: this one takes the place of the note of „Einplanen", and that one
 //! takes this one's (`Planning::hush`).
@@ -26,7 +30,7 @@ use leptos::ev::KeyboardEvent;
 use leptos::prelude::*;
 
 use folia_design::ui::Icon;
-use folia_design::waitnote::WaitNote;
+use folia_design::waitnote::{DoneNote, Mark, WaitNote};
 use folia_routes::url;
 use folia_stores::bookmarks::{Bookmarks, Cleared, Marked, Toggled, MAX_MARKS};
 use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections, Deleted};
@@ -52,6 +56,20 @@ pub enum Notice {
     /// A study set up on the start page (its setup, `folia_home`): what was set up, and what
     /// „Rückgängig" puts back (boxed).
     SetUp(Box<SetUp>),
+    /// Something else just done, in a line: its icon, its mark and what it says.
+    Said { icon: &'static str, mark: Mark, said: String },
+}
+
+impl Notice {
+    /// Done, with its icon: „3 Module übernommen".
+    pub fn done(icon: &'static str, said: impl Into<String>) -> Self {
+        Notice::Said { icon, mark: Mark::Done, said: said.into() }
+    }
+
+    /// What did not work, or not as asked: „Dieser Link öffnet nichts …".
+    pub fn warn(said: impl Into<String>) -> Self {
+        Notice::Said { icon: "triangle-alert", mark: Mark::Warn, said: said.into() }
+    }
 }
 
 /// A study set up (owner, 2026-11-09: „verwende die wait notification um das anzuzeigen", in place
@@ -333,6 +351,7 @@ fn NoteView(what: Shown, bookmarks: Bookmarks, gone: Callback<()>) -> impl IntoV
             }
             .into_any()
         }
+        Shown::Notice(_, Notice::Said { icon, mark, said }) => view! { <DoneNote on_gone=gone icon mark said/> }.into_any(),
         Shown::Notice(_, Notice::Copied { link, count }) => view! {
             <WaitNote on_gone=gone class="mark-note">
                 <div class="mark-toast">

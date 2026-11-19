@@ -49,7 +49,7 @@ fn choice_link(ctx: PlanCtx) -> Callback<String, String> {
 }
 
 /// The card hid or ticked a Termin and closed. While the plan is looked at the page's note says so
-/// with „Rückgängig" (`own::OwnNote`, the note of what was done to a Termin, one's own or QIS's;
+/// with „Rückgängig" (`note::PlanNote`, the note of what was done to a Termin, one's own or QIS's;
 /// `PlanCtx::undo` keeps what the card did, to take back). While it is edited the slot itself answers — full,
 /// faint — and nothing is said.
 fn done(ctx: PlanCtx) -> Callback<TerminUndo> {

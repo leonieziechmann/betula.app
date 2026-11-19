@@ -1210,6 +1210,34 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   what it says as one element, and lets go of it on `on_gone` — of this note alone, a newer one that
   took its place staying (a key that makes the next note). The note of „Einplanen" is the first that
   uses it.
+  - **What was just done is said in it, not on the page** (since Folia 1.116.0; owner, 2026-11-19:
+    „mir ist aufgefallen, dass oftmals dinge die eigentlich in app notifications sind nicht das wait
+    note verwenden sondern irgendwas auf dem screen anzeigen. Zum beispeil bei den profilen, wenn man
+    dort eins löscht sollte einfach eine wait note kommen und kein banner oben"): a confirmation of
+    what the student did, what did not work of it, and its „Rückgängig" are a note that waits, at the
+    window's foot, wherever the page stands, and nothing of the page moves for it. `DoneNote`
+    (`folia_design::waitnote`, app.css `.done-note`) is its frame for a line: a mark (`Mark::Done`
+    an icon on the accent, `Out` on the note's own ground for what was taken away, `Warn` on amber),
+    what it says whole — wrapped where it is long, never cut, its mark kept on a phone as well —,
+    what it offers besides, and „Rückgängig" after a line, after which it goes down and away. Its
+    users: the profile page (a profile made, taken over from a file, deleted or emptied, a file
+    refused, Sync that could not be ended; until then a panel over the head to which the page
+    scrolled up), the app's notes (`marknote::Notice::Said`: a list taken over from a link, a link
+    that opens nothing, a link of modules that cannot be read, the profile saved over a list
+    followed; until then panels over the Merkliste with „OK"), and the Stundenplan's note
+    (`studyplan/note.rs`, `PlanNote`: every change with „Rückgängig" — a module taken into a calendar
+    or out of it, a calendar made or deleted, a saved plan loaded or deleted, a share taken in —, a
+    new address copied, a link that opens nothing, the profile saved; until then lines in the
+    sidebar, in „+ Modul", under the saved plans and in the place of a share's offer). On a phone a
+    sheet of the Stundenplan's head lies over the page, modal: what is done in it is said at its foot
+    by the note of that sheet (`[data-sheet] .wait-note`), the page's waits behind it, and a sheet
+    opened or closed takes a note that does not last with it.
+  - **What stays on the page**: a question to answer before anything happens (a link's offer, „Aus
+    Datei laden"'s „Übernehmen", „Ersetzen"), what is so as long as it is so (a share taken back with
+    its „Behalten" and „Löschen", a subscription out of date, a conflict of Betula Sync where the
+    thing is), what a field says of what is typed in it (a name taken, what a link holds), the steps
+    of a way that goes on (connecting a device, the scanner), and what a dialog says of its own
+    doing: nothing of the page stands over a modal dialog.
 
 - **A tab held gives what it holds besides its page** (owner, 2026-10-06: „wenn man die buttons in
   der nav bar lange gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das
@@ -3615,8 +3643,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     head (the form „Neuer Kalender" opens under it) and each calendar's „…", in places that are
     there while looking —, „Export", „Teilen …", the storage hint, and while editing „Gespeicherte
     Pläne", last (a click loads one, the bin deletes it with „Rückgängig"; a plan loaded, by a click
-    or by „Ersetzen", says „„Alt“ geladen" with „Rückgängig" under them, `p.sp-loaded-note`, which
-    puts back the semester and the Standort as they were). The menu and the form
+    or by „Ersetzen", says „„Alt“ geladen" with „Rückgängig", which puts back the semester and the
+    Standort as they were — both in the page's note since 1.116.0, notes that last; until then lines
+    under the saved plans, `p.sp-loaded-note`). The menu and the form
     are layers: Esc closes them before the mode, and leaving the mode closes them; while a dialog
     stands in front of them (a Termin's card, „Neuer Termin", „Tasten"), Esc closes that dialog first
     and never reaches what is under it (`folia_design::modal::dialog_in_front`), so one Esc closes
@@ -3658,7 +3687,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     which closes to the page; „Umbenennen"; „Löschen" with the note and „Rückgängig"), „Gemeinsam
     frei" where another calendar stands in the week, and „+ Kalender" with the form „Neuer Kalender"
     under it (a name alone, the link optional; a link that cannot be read makes the calendar empty
-    all the same and its note says so, „Link nicht lesbar – leerer Kalender angelegt: Max"). Its
+    all the same and its note says so, „Link nicht lesbar – leerer Kalender angelegt: Max"; since
+    1.116.0 at the sheet's foot with „Rückgängig", as every note of the sheet). Its
     line under the title says what a calendar is for („Dein Studium und weitere Kalender daneben –
     von Freunden, für ein Nebenfach oder aus einem Link."); its „…", „Voll · Spur · Aus", the menu's
     ways and the form's fields are a finger's 44 px. Esc closes the menu or the form first, then the
@@ -4050,7 +4080,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     two ways (the Merkliste first while it offers anything), each module with its number (the
     catalog has modules of one name) and how it sits in that calendar's week (`pages::fit_lines`:
     „passt", „Überschneidet sich mit: …", „keine Termine im WiSe 2026/27"), „Aufnehmen", and after
-    it a note with „Rückgängig". The Merkliste is as „Aus der Merkliste" had it
+    it the page's note with „Rückgängig" (on a phone at the foot of the sheet; until 1.116.0 a line
+    over the two ways, which moved the list under the pointer). The Merkliste is as „Aus der
+    Merkliste" had it
     (folia/design/merken/konzept.html, „Von überall": the collections as chips, a search, what the
     semester offers, „3 gemerkte Module aufnehmen", folded what it does not offer, with why); the
     catalog is a search (from two letters, the first 12 it finds). A module that does not fit is
@@ -4241,12 +4273,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     dashed where it will stand (`.slot.draft`), in the place of the Termin it changes, named as it
     will be („VL EvS"). Of a Termin of a calendar of one's own its foot has the bin, „Löschen", with
     the note and „Rückgängig". „Anlegen" and „Speichern" close it at once and change the plan after
-    the next frame (R21); a note over the page says so with „Rückgängig" (`OwnNote`, a `WaitNote` as
-    „Einplanen"'s). The note of a Termin deleted — by its slot's bin, its card's or its form's
-    „Löschen" — stays until it is put away or replaced (`lasting`, `OWN_GONE`): no click elsewhere, no
-    card or form opening takes it; the keyboard, where the deletion took what it was on, comes to its
-    „Rückgängig" (`#own-note-undo`), and after „Rückgängig" to the slot put back (else the week's
-    first). The form opens with the keyboard in „Was" (not on a phone, where the screen's keyboard
+    the next frame (R21); the page's note says so with „Rückgängig" (`note::PlanNote`, a `DoneNote`;
+    until 1.116.0 `OwnNote`, a note of its own for these). The note of a Termin deleted — by its
+    slot's bin, its card's or its form's „Löschen" — stays until it is put away or replaced
+    (`lasting`, `OWN_GONE`): no click elsewhere, no card or form opening takes it; the keyboard, where
+    the deletion took what it was on, comes to its „Rückgängig" (`#plan-note-undo`), and after
+    „Rückgängig" to the slot put back (else the week's first). The form opens with the keyboard in „Was" (not on a phone, where the screen's keyboard
     would come up over the sheet); a start typed moves the end along by the length the Termin had
     (`Draft::start_at`: 09:15 for 16:00–17:30 makes 09:15–10:45, no later than 23:55). What it meets
     of the week is said amber (`.own-fit.warn`): allowed, and so no red.
@@ -6878,13 +6910,16 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   löschen zu bestätigen. Das andere verschiebt das layout“): what is asked, what follows, the answer
   with the focus (where there are two ways, two answers, each with a line that sets it apart, the
   first with the focus), „Abbrechen“; Esc, a click beside it and Back close it, the focus back on the
-  button, and nothing on the page moves. A
-  profile deleted or emptied comes back with „Rückgängig“ at the head until the page is left. What
-  the page did is said there, out of sight from the Gefahrenzone at its end: since Folia 1.105.1 the
-  page goes up to its very top once the note is said (the frame's scroll area, `#page-scroll`, on a
-  wide screen, the window on a phone; smooth unless less motion is asked for), and the note lights
-  up once it is there (owner, 2026-11-18: „Es braucht unbedingt Bestätigung dass man ein profil
-  gelöscht hat, sonst denkt man dass es nicht geklappt hat und löscht dann noch ein anderes"). The
+  button, and nothing on the page moves. What
+  the page did — a profile made, taken over from a file, deleted or emptied, a file refused, Sync
+  that could not be ended — says a note that waits for interaction at the window's foot since Folia
+  1.116.0 (`DoneNote`, below; owner, 2026-11-19: „wenn man dort eins löscht sollte einfach eine
+  wait note kommen und kein banner oben“), in sight wherever the page stands (owner, 2026-11-18:
+  „Es braucht unbedingt Bestätigung dass man ein profil gelöscht hat, sonst denkt man dass es nicht
+  geklappt hat und löscht dann noch ein anderes“); the page stays where it is. A profile deleted or
+  emptied comes back with its „Rückgängig“, and that note is `lasting`: it stays until it is put
+  away, a newer note takes its place or the page is left. From 1.105.1 to 1.115.0 a panel over the
+  head said it, to which the page scrolled up and which lit up once. The
   language lives in the profile's menu since 2026-10-14 (owner: „allgemein kann man die
   Spracheinstellungen komplett in das Profil moven“), light and dark beside it since 2026-11-08;
   the rail and the start page's brand line have no switch of the language, and without JavaScript

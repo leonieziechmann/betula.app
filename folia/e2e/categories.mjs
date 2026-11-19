@@ -282,10 +282,10 @@ if (block("hidden")) {
     const foot = await page.evaluate(() => onPage(".sp-list-foot")?.textContent.replace(/\s+/g, " ").trim());
     check(foot === "4 ausgeblendet · Alle einblenden", `the foot: „${foot}"`);
     await click(page, "#sp-show-all", "„Alle einblenden“");
-    await until(page, "„Alle einblenden“", ([key]) => !/^[rh]\t/m.test(localStorage.getItem(key) ?? "") && /4 wieder eingeblendet/.test(onPage(".own-note .plan-toast-said")?.textContent ?? ""), [PLAN]);
+    await until(page, "„Alle einblenden“", ([key]) => !/^[rh]\t/m.test(localStorage.getItem(key) ?? "") && /4 wieder eingeblendet/.test(onPage(".plan-note .mark-toast-said")?.textContent ?? ""), [PLAN]);
     check((await stored(page)).includes("c\t2026W\t148370-ef2fb\n"), "„Alle einblenden“ took the tick");
     check(!(await page.evaluate(() => onPage(".sp-list-foot"))), "the foot after „Alle einblenden“");
-    await click(page, ".own-note .plan-toast-undo", "„Rückgängig“");
+    await click(page, ".plan-note .plan-toast-undo", "„Rückgängig“");
     // The same lines (the store writes them in its own order).
     await until(page, "„Rückgängig“ brings all of it back", ([key, plan]) => JSON.stringify((localStorage.getItem(key) ?? "").split("\n").filter(Boolean).sort()) === JSON.stringify(plan.split("\n").filter(Boolean).sort()), [PLAN, plan]);
     await marker(page, "what is hidden");
@@ -436,8 +436,8 @@ if (block("calendar")) {
   const bin = await page.evaluate(() => onPage(".sp-cal-mods .sp-remove")?.querySelector("use")?.getAttribute("href")?.split("#")[1]);
   check(bin === "trash-2", `the calendar's module carries ${bin}, not the bin`);
   await click(page, ".sp-cal-mods .sp-remove", "the bin of EiP in „Lena“");
-  await until(page, "EiP taken out of „Lena“", ([key]) => !(localStorage.getItem(key) ?? "").includes("n\t1\t2026W\t12105") && /aus „Lena“ genommen/.test(onPage(".sp-cal-mods .sp-marked-note")?.textContent ?? ""), [PLAN]);
-  await click(page, ".sp-cal-mods .sp-marked-note .mini", "„Rückgängig“");
+  await until(page, "EiP taken out of „Lena“", ([key]) => !(localStorage.getItem(key) ?? "").includes("n\t1\t2026W\t12105") && /aus „Lena“ genommen/.test(onPage(".wait-note")?.textContent ?? ""), [PLAN]);
+  await click(page, "#plan-note-undo", "„Rückgängig“");
   await until(page, "EiP back in „Lena“", ([key]) => (localStorage.getItem(key) ?? "").includes("n\t1\t2026W\t12105"), [PLAN]);
   // A Termin of one's own in it.
   await click(page, ".sp-cal-mods .sp-own-add", "„+ Termin“ of „Lena“");

@@ -356,7 +356,7 @@ async function shared() {
   await receiver.page.waitForSelector("#sp-share-take", { timeout: 8000 }).catch(() => problems.push("shared: the receiver is not offered the plan"));
   const offer = await receiver.page.textContent(".sp-fold > .offer").catch(() => "");
   check(offer.includes("Geteilter Stundenplan") && offer.includes("4 Module"), `shared: the offer says ${offer}`);
-  await receiver.step("„Übernehmen“ takes a shared plan over", () => receiver.page.click("#sp-share-take"), () => !location.search.includes("share=") && (document.querySelector(".sp-fold > .offer")?.textContent ?? "").includes("Aus dem Link übernommen: 4 Module"));
+  await receiver.step("„Übernehmen“ takes a shared plan over", () => receiver.page.click("#sp-share-take"), () => !location.search.includes("share=") && !document.querySelector(".sp-fold > .offer") && (document.querySelector(".wait-note")?.textContent ?? "").includes("Aus dem Link übernommen: 4 Module"));
   const taken = (await stored(receiver.page, PLAN)) ?? "";
   const modules = taken.split("\n").filter((line) => line.startsWith("m\t2026W\t")).map((line) => line.split("\t")[2]);
   check(JSON.stringify(modules) === JSON.stringify(["12104", "12107", "12102", "11112"]), `shared: taken over ${JSON.stringify(modules)}`);
@@ -364,11 +364,19 @@ async function shared() {
   // Its program is the receiver's Stundenplan's for the session, not the plan's (2026-10-15).
   const sharedProgram = await receiver.page.evaluate(() => sessionStorage.getItem("betula.studyplan.program"));
   check(sharedProgram === "079-82-2008" && !taken.includes("079-82-2008"), `shared: the program taken over is ${sharedProgram}, the plan ${JSON.stringify(taken)}`);
+  // „Rückgängig" of the page's note takes it back while the note stands: a note that waits goes as
+  // the page is used on (2026-11-19; until then it stood in the offer's place until the next change).
+  await receiver.step("„Rückgängig“ takes the shared plan back", () => receiver.page.click("#plan-note-undo"), () => !document.querySelector(".sp-fold > .offer") && !document.querySelector(".wait-note:not(.leaving)"));
+  check((await stored(receiver.page, PLAN)) === null, "shared: „Rückgängig“ left a plan behind");
+  // Taken over once more, for what the receiver hands on.
+  await receiver.page.goto(base + link, { waitUntil: "domcontentloaded" });
+  await takeover(receiver.page);
+  await receiver.page.evaluate(() => { window.__marker = 1; });
+  await receiver.page.waitForSelector("#sp-share-take", { timeout: 8000 }).catch(() => problems.push("shared: the receiver is not offered the plan once more"));
+  await receiver.step("taken over once more", () => receiver.page.click("#sp-share-take"), () => !location.search.includes("share=") && (localStorage.getItem("betula.studyplan.v1") ?? "").includes("\t12104\t"));
   const handedOn = await sidebarLink(receiver.page);
   const named = async (path) => /4 Module: [^"<]*/.exec((await (await fetch(base + path)).text()).split("</head>")[0])?.[0] ?? null;
   check(Boolean(handedOn) && (await named(handedOn)) === (await named(link)) && (await named(link)) !== null, `shared: the receiver hands on ${handedOn}, not a link of the same modules as ${link}`);
-  await receiver.step("„Rückgängig“ takes the shared plan back", () => receiver.page.click("#sp-share-undo"), () => !document.querySelector(".sp-fold > .offer"));
-  check((await stored(receiver.page, PLAN)) === null, "shared: „Rückgängig“ left a plan behind");
   await receiver.context.close();
 }
 
