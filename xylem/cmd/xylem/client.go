@@ -25,7 +25,12 @@ import (
 //	docker exec <container> /bin/xylem announce …
 
 // clientTimeout bounds a command's request: the container's health check gives 5 s.
-const clientTimeout = 5 * time.Second
+// feedTimeout is `xylem feed`'s: the instance reads the site's feed while the command waits,
+// and gives that read 20 s itself (server.Limits.FeedTimeout).
+const (
+	clientTimeout = 5 * time.Second
+	feedTimeout   = 25 * time.Second
+)
 
 // instance is where the commands find the instance of this machine: --instance, else from
 // XYLEM_ADDR (the address serve listens on; every address means loopback), else the default.
@@ -47,7 +52,11 @@ func localURL(addr string) string {
 
 // call asks the local instance; it never goes through a proxy.
 func call(ctx context.Context, method, url string, body any) (int, []byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, clientTimeout)
+	timeout := clientTimeout
+	if strings.HasSuffix(url, "/feed") {
+		timeout = feedTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var reader io.Reader
 	if body != nil {
