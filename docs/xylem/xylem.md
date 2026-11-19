@@ -21,8 +21,8 @@ What it says on the wire, and what Folia's part has to do, is the contract in
 |---|---|
 | code | `xylem/`, a Go module of its own (`cmd/xylem`, `internal/{server,store,webpush,metrics,oplog,dotenv,version}`), the standard library and SQLite (`modernc.org/sqlite`) alone |
 | version | `xylem/internal/version/version.go` (0.2.0); `xylem version`, `xylem status` and `xylem_build_info` show it with the build (the start of the executable's SHA-256) |
-| builds | `nix build .#xylem` (the binary, its tests run in the build) |
-| not yet | an image, a stack and its place on the server („Not yet" below); Folia's part (the permission, the settings, the service worker's `push`) |
+| builds | `nix build .#xylem` (the binary, its tests run in the build), `nix build .#xylem-image` (the image `betula-xylem`: the binary, its firewall, `nft` and the CA certificates; no shell) |
+| on the server | one stack per site, `xylem` and `xylem-canary` (`deploy/stacks/xylem.yml`, `deploy/ship-xylem.sh`): „On the server" below, and section 17 of `deploy/README.md` |
 
 ## Development
 
@@ -60,6 +60,7 @@ XYLEM_SITE=https://betula.app XYLEM_ORIGINS=http://127.0.0.1:8080 XYLEM_DATA=xyl
 
 | | |
 |---|---|
+| `start` | the image's entrypoint („On the server"): as root, the firewall; then, as Xylem's user without any privilege, `serve` with the arguments it was given |
 | `serve` | the service (the default command): the HTTP API and the sender, until SIGTERM; then no new connections, the requests in flight end (5 s), the sender ends the batch it is in (a request to a push service ends within 15 s), and the stats file says `xylem_up 0` |
 | `announce` | tell everybody who listens to a topic something, now or at a time (below) |
 | `announcements` | the newest announcements with how far each has come (`--limit`, `--json`) |
@@ -287,8 +288,17 @@ notifications never comes back to say it is there).
 half of the VAPID key, and a push service takes a message for it only with a token of that key.
 A database that is lost takes the key along: every browser has to subscribe again, which Folia's
 part does by itself at its next start (protocol.md section 5), so nothing is asked of anybody,
-but a phone that is not opened hears nothing until it is. Whether `xylem.db` gets a backup is
-part of the deploy („Not yet").
+but a phone that is not opened hears nothing until it is.
+
+**Backup.** `xylem.db` lies on the server's disk and is part of the host's own daily backup
+(owner, 2026-11-19: „ich habe auto backup bei meinem hosting anbieter enabled … 24h datenverlust
+ist verkraftbar"); Xylem makes none of its own. The database is written with `synchronous FULL`,
+so a copy of the disk at any moment opens like one after a power cut. Brought back from a day
+ago, it holds the key and every subscription but the last day's: those browsers put theirs
+again with their next visit (the same step of Folia's part), and the announcements made since
+come back with the feed's next read, each under its key. An announcement that was told in that
+day and is still due in the copy would be told a second time: after a restore, look at
+`xylem announcements` before Xylem's next minute, and `xylem cancel` what was told already.
 
 ## Numbers and logs
 
@@ -326,6 +336,72 @@ or push: `service.started`, `service.stopped`, `service.fatal`, `service.root`, 
 per entry and reason), `feed.flood` (ERROR, once an hour). Nothing of a subscription is logged, ever: an endpoint is a
 browser's address, and who knows it may delete the subscription.
 
+## On the server
+
+Xylem is run as Phloem is, as if it were an outside service: a stack of its own per site
+(`xylem` for https://betula.app, `xylem-canary` for https://canary.betula.app; one file,
+`deploy/stacks/xylem.yml`, and what differs in `deploy/stacks/xylem/<stack>.env`), nothing but
+Traefik on the network its requests come in by, its data on a file system of its own, its
+numbers as a file, a firewall inside its container, and a guard that looks at it from outside.
+The one difference: Xylem has to reach the internet, so it has a way out, and the firewall is
+what holds that way to what Xylem needs (owner, 2026-11-19, of a network of its own that lets
+out DNS and port 443 to public addresses alone: „Ja passt so"). Section 17 of
+`deploy/README.md` has the steps; this is what they set up.
+
+| | |
+|---|---|
+| `<stack>_in` | overlay, internal, not attachable, made by `vps/30-docker.sh`: Traefik and Xylem. Traefik's router `<stack>-push` takes `https://<host>/push/v1/` above Folia's and hands it to port 8300 (`push-ratelimit`: 5 requests a second per address, bursts of 20) |
+| `<stack>_out` | overlay, not internal, made by the stack, Xylem's alone: its way out |
+| `/data` | `/var/lib/betula/xylem/<stack>/data`: an ext4 of fixed size (`XYLEM_DATA_SIZE`) in a sparse file on a loop device, Xylem's (65532, 0700); `vps/47-xylem-host.sh` |
+| `/stats` | `/run/betula/xylem/<stack>/stats`: a tmpfs of 1 MiB; Alloy reads `xylem.prom` there through `/rootfs` |
+| the feed | `XYLEM_FEED=on`: `https://<host>/api/announcements`, read at the site's public address like anybody (from a container the host's own address answers through Traefik's published port) |
+
+**`xylem start`** is the image's entrypoint. As root with `NET_ADMIN`, `SETUID` and `SETGID`
+and nothing else, it loads `/etc/xylem/firewall.nft` (`xylem/deploy/firewall.nft`) into the
+container's network namespace, checks that the table is there with its way out behind the drop
+of every address that is none on the internet and that a datagram to such an address is dropped,
+sets `no_new_privs`, becomes 65532 without groups, reads from `/proc` that no capability is
+left and root does not come back, and then becomes `xylem serve` (the same process, no shell).
+Anything that fails ends it before Xylem serves: without its firewall Xylem does not run. Every
+other command run as root (`docker exec`, the health check) becomes Xylem's user first.
+
+**The firewall** (table `inet xylem`):
+
+- in: loopback (the commands, the health check), replies, and new TCP connections to 8300;
+- out: replies; loopback; a name asked of Docker's resolver (`127.0.0.11`, which asks the
+  host's resolvers from the host's side); new TCP connections to port 443 of an address on the
+  internet;
+- nothing to an address that is none on the internet (RFC 6890: every other container, the
+  host's own networks, the metadata service at `169.254.169.254`), no other port, no datagram,
+  no IPv6, nothing routed through.
+
+Docker has no allowlist of hosts for a container's way out, and the push services have many
+addresses that change, so neither has this: a Xylem taken over could speak HTTPS to any address
+on the internet. It could not reach anything inside the house, nor be reached but on 8300.
+Xylem's own dialer holds the same rule in front of it (a push service's name that leads to a
+private address reaches nothing, „The push services"), and sends over IPv4 alone, so that
+nothing Xylem itself does is ever dropped. Every drop that means someone tried something is
+counted; `betula-xylem-guard` (Phloem's guard script with `BETULA_GUARD_KIND=xylem`, every
+minute as root on the host) reads the counters and the rights of the container's processes from
+outside, and the rules of group `betula-xylem` alert: not running, no firewall or a process
+with rights, a counted drop, a feed that does not read for an hour, notifications given up on.
+
+**`xylem probe`** tries all of that from inside (`vps/49-xylem.sh` runs it after every deploy,
+with Traefik's and the host's addresses as more targets): one JSON line per attempt with what
+was found and what should be, exit 1 where they differ. Closed: a resolver other than Docker's,
+a port other than 443, the metadata service, a private address, IPv6. Open: a name through
+Docker's resolver, a public address on 443. And the service's process has no privilege.
+
+The commands on the server go through `docker exec`, over loopback, where Xylem answers them and
+nobody else:
+
+```
+x() { docker exec "$(docker ps -q -f label=com.docker.swarm.service.name=xylem_push | head -n 1)" /bin/xylem "$@"; }
+x status
+x announcements
+x announce --key exam-registration-2027s --topic exams --at "2027-05-03 08:00" --title "Die Prüfungsanmeldung beginnt" --body "…"
+```
+
 ## Checks
 
 `go test ./...` in `xylem/`, without a network:
@@ -345,7 +421,19 @@ browser's address, and who knows it may delete the subscription.
   what is told by day, an announcement that follows the feed while it waits and not after, what
   is withdrawn and named again, a person's word above the feed's, entries that are not readable,
   the four within a day, a feed that cannot be read, another feed.
-- `cmd/xylem`: `serve` with every command against it, a feed among them.
+- `cmd/xylem`: `serve` with every command against it, a feed among them; what `start` reads
+  of `/proc` and of the table before it serves; the firewall's addresses that are none on the
+  internet are the dialer's; `firewall.nft` loads in nft's dry run (as root, where nft is).
+
+On the server's side, `deploy/test/netmatrix.sh` builds the networks of the plan in a local
+swarm and holds Xylem to its place with `vps/91-verify-stacks.sh xylem`: its two networks and
+who is on them, its table, what it reaches (Docker's resolver, the internet on 443) and what it
+does not (every other service, Traefik over the network they share, the host), what Traefik
+gets of it, and two mutations the checks must catch (no firewall; a firewall that lets it into
+the house). With `NETMATRIX_XYLEM_IMAGE` it is the real service, with the firewall `xylem
+start` loaded itself. Passed on 2026-11-19 both ways, the real one from an image put together
+by hand with the layout of `xylem-image` (`nix build .#xylem-image` itself was not run in that
+session: no way to nixpkgs there).
 
 Folia's own checks cover what the feed names (docs/folia/frontend.md). Both together, on
 2026-11-18: Folia's server on canary's catalog and Xylem with its feed made, by themselves,
@@ -371,18 +459,11 @@ checked with Folia's part, on a phone.
 
 ## Not yet
 
-- **Its place on the server.** An image, a stack (`deploy/stacks/xylem.yml`) with one instance
-  per site as Phloem has, each with `XYLEM_FEED` at its site's `/api/announcements` (open on
-  canary too, where the rest is behind the gate), Traefik's router for `https://<host>/push/v1/` above Folia's, the
-  stats file for Alloy, a dashboard and alerts (`xylem_up`, `push.unauthorized`, announcements
-  expired, the pushes that fail), `deploy/ship-xylem.sh`. Unlike Phloem, Xylem needs a way out:
-  HTTPS to the push services, and DNS for their names. That is a network of its own that leads
-  out (as Radix's `egress`), and to decide with it: a firewall inside the container as Phloem's
-  (out: DNS and TCP 443 to public addresses, nothing else; Xylem's dialer holds the same rule
-  already), and whether `xylem.db` gets a backup.
 - **Folia's part**: asking for the permission, the topics as settings, the service worker's
   `push` and `notificationclick`, the privacy notice (protocol.md section 5). Until then nothing
   subscribes.
+- **A dashboard.** The numbers are in Prometheus (job `xylem`) and the alerts are there
+  (group `betula-xylem`); a dashboard of its own beside „Sync" is not.
 - **More that Betula could announce by itself.** The feed names what the catalog's dates say.
   What they do not say stays a person's to announce (`xylem announce`): when registration for
   the exams opens, re-registration, anything about Betula itself.

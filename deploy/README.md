@@ -11,16 +11,19 @@ deploy/
   ship-models.sh          workstation: the models of models.lock into the server's model store (section 13)
   ship-cortex.sh          workstation: build the Cortex image of a commit, load it on the server, 48-cortex.sh (section 14)
   ship-phloem.sh          workstation: build Phloem's image, load it on the server, 49-phloem.sh (section 16)
+  ship-xylem.sh           workstation: build Xylem's image, load it on the server, 49-xylem.sh (section 17)
   models.lock             the two models of the semantic search, pinned by sha256 (section 13)
   vps/                    host scripts, run on the server, in the order of their numbers
     10-base.sh            upgrade, user deploy, ufw, fail2ban, unattended-upgrades, journald, sysctl, swap
     20-ssh-lockdown.sh    key-only ssh for deploy, root login off (with automatic rollback until --confirm)
-    30-docker.sh          Docker Engine 29, swarm, the overlay networks of files/networks.conf, published-port filter, Phloem's guard, the scraper's targets
+    30-docker.sh          Docker Engine 29, swarm, the overlay networks of files/networks.conf, published-port filter, the guards of Phloem and Xylem, the scraper's targets
     40-stacks.sh          swarm secrets, stacks edge -> placeholder -> monitoring, waits for convergence
     45-seed.sh            once per instance, before its first deploy: a Radix database (tar on stdin) into its volume
     47-phloem-host.sh     root, once per Phloem instance: its data file system and its stats tmpfs (section 16)
+    47-xylem-host.sh      root, once per Xylem instance: the same for Xylem (section 17)
     48-cortex.sh          Cortex (stacks/cortex.yml) at a release tag, one instance at a time (section 14)
     49-phloem.sh          a Phloem instance (stacks/phloem.yml + stacks/phloem/<stack>.env) at a release tag, then what it must not reach (section 16)
+    49-xylem.sh           a Xylem instance (stacks/xylem.yml + stacks/xylem/<stack>.env) at a release tag, then what it must not reach and what it must (section 17)
     50-app.sh             one instance of the application (stacks/betula.yml + stacks/<instance>.env) at a release tag
     55-switch.sh          blue-green: hand a host name to the other of its two instances (the rollback is the same)
     60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
@@ -34,13 +37,14 @@ deploy/
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, cortex.yml,
                           betula(.gemini|.offline|.models|.cortex|.cortex-offline|.egress).yml, edge.legacy.yml,
                           betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh,
-                          phloem.yml with phloem/<stack>.env (section 16)
+                          phloem.yml with phloem/<stack>.env (section 16), xylem.yml with xylem/<stack>.env
+                          (section 17)
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/ cortex/ (hosts.json)
 ```
 
 All host scripts are idempotent and non-interactive; every one can simply be run again. Root scripts
-are run with `sudo bash ...`; `40-stacks.sh`, `48-cortex.sh`, `49-phloem.sh`, `50-app.sh` and `91-verify-stacks.sh`
-run as `deploy` **without** sudo (sudo would drop the environment variables that select staging
+are run with `sudo bash ...`; `40-stacks.sh`, `48-cortex.sh`, `49-phloem.sh`, `49-xylem.sh`, `50-app.sh` and
+`91-verify-stacks.sh` run as `deploy` **without** sudo (sudo would drop the environment variables that select staging
 certificates, the Grafana host or an instance's values).
 
 ## 0. Workstation
@@ -1043,6 +1047,8 @@ networks is not internal, and an internal network leads nowhere but to its membe
 | Traefik → placeholder | 8080 | `edge_placeholder` | the page before the application |
 | Traefik → Grafana | 3000 | `edge_grafana` | `https://grafana.betula.app` (`monitoring.public.yml`) |
 | Traefik → Phloem | 8200 | `phloem_in`, `phloem-canary_in` | `/sync/v1/` (docs/phloem/protocol.md) |
+| Traefik → Xylem | 8300 | `xylem_in`, `xylem-canary_in` | `/push/v1/` (docs/xylem/protocol.md) |
+| Xylem → the push services; Xylem → its site's feed | 443 | `xylem_out`, `xylem-canary_out` | notifications (Google's, Mozilla's, Apple's, Microsoft's push services); `GET https://<host>/api/announcements`, at the site's public address like anybody |
 | Folia → Traefik's entrypoint `parts` | 8083 (not published, plain HTTP) | `edge_<instance>` | `GET /sync/v1/part` of its host, which Traefik sends to the site's Phloem: the sealed part of a calendar subscription that stays current (`folia/crates/server/src/parts.rs`) |
 | Folia → its own Radix | 8090 | `<instance>_snapshot` | the snapshot |
 | Radix → Cortex | 8100 | `cortex_<instance>` (one per instance) | everything Radix fetches |
@@ -1056,15 +1062,19 @@ networks is not internal, and an internal network leads nowhere but to its membe
 | Alloy → Loki, Prometheus; Prometheus → Alloy | 3100, 9090, 12345 | `monitoring_collect` | logs, host metrics, Phloem's numbers |
 | Grafana → internet | any | `monitoring_notify` | notifications; its address on `docker_gwbridge` (section 2's tunnel) |
 | Alloy → Phloem's numbers | none | a file | `/run/betula/phloem/<stack>/stats`, read through `/rootfs` |
+| Alloy → Xylem's numbers | none | a file | `/run/betula/xylem/<stack>/stats`, read through `/rootfs` |
 | the host → Phloem's firewall | none | `nsenter` | `betula-phloem-guard`, every minute |
+| the host → Xylem's firewall | none | `nsenter` | `betula-xylem-guard` (the same script), every minute |
 | the host → the scraper | none | a file | `/var/lib/betula/scraper/radix.json`, the Radix that run (`betula-scraper-targets`, every minute; section 2) |
 
-A way out of the host: Traefik, Cortex, Grafana, a Radix with `<instance>_egress`, and Phloem's
-`<stack>_out` where it exists (for TURN, step 2; its firewall lets nothing out). Nothing else: not
-Folia, the placeholder, the socket proxy, Loki, Prometheus, the scraper or Alloy. Not in the matrix
-means no network in common: no instance reaches another one, Folia reaches neither Cortex nor the
-monitoring, Grafana (public) never shares a network with Alloy (root-equivalent on the host), and
-nothing but Traefik shares one with Phloem.
+A way out of the host: Traefik, Cortex, Grafana, a Radix with `<instance>_egress`, Phloem's
+`<stack>_out` where it exists (for TURN, step 2; its firewall lets nothing out), and Xylem's
+`<stack>_out` (its firewall lets out a name asked of Docker's resolver and port 443 of an address
+on the internet, section 17). Nothing else: not Folia, the placeholder, the socket proxy, Loki,
+Prometheus, the scraper or Alloy. Not in the matrix means no network in common: no instance
+reaches another one, Folia reaches neither Cortex nor the monitoring, Grafana (public) never
+shares a network with Alloy (root-equivalent on the host), and nothing but Traefik shares one
+with Phloem or with Xylem.
 
 A network has no direction: whoever shares one can open connections both ways. Where only one way
 is wanted, the other side gets nothing out of it:
@@ -1085,6 +1095,15 @@ is wanted, the other side gets nothing out of it:
   `betula-phloem-guard` (`vps/files/betula-phloem-guard.sh`) checks it from outside every minute,
   with its rights, and the rule group `betula-phloem` and the dashboard "Sync" show what it sees.
   How Phloem itself is deployed: `docs/phloem/phloem.md`.
+- **Xylem reaches the internet and nothing inside the house.** It is kept as Phloem is (numbers as
+  a file, a guard from outside), but it has to speak to the push services of the browsers, whose
+  addresses are many and change, and Docker has no allowlist of hosts for a container's way out.
+  Its firewall (`xylem/deploy/firewall.nft`, loaded by `xylem start` before it drops its rights)
+  lets out a name asked of Docker's resolver and new TCP connections to port 443 of an address
+  that is one on the internet; every address that is none (the other containers, the host's own
+  networks, the metadata service) is dropped and counted, like every other port, every datagram
+  and IPv6. The plan says so with `webonly`, and the probes hold it to that. A Xylem taken over
+  could speak HTTPS to any host on the internet, and to nothing here.
 - **Folia asks Phloem for one thing only, and only through Traefik**: the sealed part of a calendar
   subscription that stays current, at the entrypoint `parts` (`:8083`, not published, no TLS), whose
   one router per Phloem (`stacks/phloem.yml`, `<stack>-parts`) takes `GET /sync/v1/part` of the
@@ -1120,6 +1139,15 @@ for `nsenter`; its section `prometheus` also FAILs for a Radix target whose inst
   (`NETPROBE_INTERNET`, default `1.1.1.1:443`), open exactly where the plan gives a way out; a GET of
   Traefik's metrics where the container shares a network with Traefik (200 over `edge_metrics`, 403
   elsewhere); and from Traefik's own address on each of its networks.
+- `xylem`: per instance of Xylem, its networks (`<stack>_in` internal and not attachable with
+  exactly Traefik and Xylem; `<stack>_out` not internal and its alone), nothing published, the table
+  `inet xylem` in its container; from it, nothing inside the house reachable (Traefik, also over the
+  network they share, Prometheus, Grafana, Loki, the scraper, Cortex, every Folia, Radix and Phloem,
+  the host at its bridge and its ssh, the internet on port 80), Docker's resolver and the internet
+  on 443 reachable, and with a feed the host's own public address on 443 (a WARN where it is not:
+  the feed cannot be read then); Traefik reaching it and getting 404 for `/status`, Traefik's
+  metrics refusing `<stack>_in`, and `xylem_up`, its file's age and the guard's verdict in
+  Prometheus. A Xylem that is not deployed is a WARN.
 - `phloem`: per instance of Phloem, its networks (`<stack>_in` internal and not attachable with
   exactly Traefik and Phloem; `<stack>_out`, if there, its alone), nothing published, the table `inet
   phloem` in its container, nothing reachable from it (Traefik, Prometheus, Grafana, Loki, the
@@ -1128,10 +1156,12 @@ for `nsenter`; its section `prometheus` also FAILs for a Radix target whose inst
   guard's verdict in Prometheus. A Phloem that is not deployed is a WARN.
 
 `deploy/test/netmatrix.sh` builds all of it in a local one-node swarm, with stand-ins for what the
-networks do not depend on (real Traefik, socket proxy, Prometheus, scraper and Alloy), runs those
-two sections, the routes through Traefik and two mutations they must catch, removes the instance
-canary to see its Radix leave the scraper's targets, and removes it all again (as root, on a
-throwaway machine; never on the server). `deploy/test/gwbridge.sh` does the same for
+networks do not depend on (real Traefik, socket proxy, Prometheus, scraper and Alloy; Xylem itself
+where `NETMATRIX_XYLEM_IMAGE` names its image), runs those three sections, the routes through
+Traefik and four mutations they must catch (a web server on a network too many, Phloem without
+its firewall, Xylem without its firewall, Xylem with one that lets it into the house), removes the
+instance canary to see its Radix leave the scraper's targets, and removes it all again (as root,
+on a throwaway machine; never on the server). `deploy/test/gwbridge.sh` does the same for
 `docker_gwbridge` ("IPv6 to Traefik" below), and `90-verify-host.sh docker` checks the bridge.
 
 ### A new instance
@@ -1356,3 +1386,71 @@ before. Each relay port is a `docker-proxy` of the host (Docker's userland proxy
   apps follow); `phloem_rejections_total{reason="slow_down"}` shows it.
 - **The privacy notice** describes it („Betula Sync", „Stundenplan und Merkliste teilen",
   „Kalender-Abo", `folia/crates/home/src/i18n/legal.rs`): change it with what Phloem keeps.
+
+## 17. Notifications: Xylem
+
+Xylem is the service of Betula's notifications (`docs/xylem/xylem.md`, its protocol
+`docs/xylem/protocol.md`): a browser that asked for notifications leaves its push subscription
+there, and Xylem tells everybody who listens to a topic what is announced (the exam period
+begins, the lectures pause, the next semester's dates are there), through the browser's own push
+service. One stack per site, `xylem` for https://betula.app and `xylem-canary` for
+https://canary.betula.app, kept as Phloem is (section 16): nothing but Traefik on its network
+`<stack>_in`, its data on a file system of its own, a firewall inside its container, a guard from
+outside. Unlike Phloem it has a way out, `<stack>_out`, which its firewall holds to a name asked
+of Docker's resolver and port 443 of an address on the internet (section 15). It is not part of
+the canary pipeline: a push to master does not touch it, and Folia offers notifications only
+where its instance says `FOLIA_PUSH=on` and a Xylem serves the host (50-app.sh deploys it off
+otherwise, and says so).
+
+Once, in this order, for canary:
+
+1. From the workstation: `deploy/sync.sh`.
+2. `sudo bash /opt/betula/vps/30-docker.sh`: the networks `xylem_in` and `xylem-canary_in`, and
+   the guard (`betula-xylem-guard.timer`: Phloem's guard script, told to look at Xylem).
+3. `bash /opt/betula/vps/40-stacks.sh edge monitoring`: Traefik on both networks (every site is
+   away for the few seconds of Traefik's restart) with the middleware `push-ratelimit`, and Alloy
+   reading Xylem's numbers (job `xylem`; the alerts of group `betula-xylem`).
+4. `sudo bash /opt/betula/vps/47-xylem-host.sh xylem-canary`: its data on an ext4 of its own
+   (`XYLEM_DATA_SIZE` in `stacks/xylem/xylem-canary.env`) and its numbers on a tmpfs of 1 MiB,
+   both mounted at every boot before Docker.
+5. From the workstation: `SSH_TARGET=betula deploy/ship-xylem.sh xylem-canary`: builds the image
+   (`nix build .#xylem-image`; `--build-only` first, if it never built: nothing leaves the
+   machine then), loads it, deploys it with `vps/49-xylem.sh`, and then tries what is forbidden
+   and what Xylem needs (from inside, `xylem probe`: no resolver but Docker's, no port but 443,
+   no private address, no metadata service, no IPv6, not Traefik, not the host; a name resolves
+   and a public address answers on 443; from outside: `/push/v1/key` reaches Xylem, `/healthz`
+   and `/status` do not; one read of the feed). A FAIL ends with exit 1 and names the rollback.
+6. `bash /opt/betula/vps/50-app.sh canary` (or the next release the canary agent deploys): Folia
+   with `FOLIA_PUSH=on` from `canary.env`. The menu of the profiles shows „Benachrichtigungen".
+
+For https://betula.app the same with `xylem` (steps 4 and 5), then `FOLIA_PUSH=on` in
+`betula.env` and `betula-green.env`, `deploy/sync.sh` and `50-app.sh` of each colour.
+
+- **Day to day**, on the server (each command becomes Xylem's user and asks over loopback):
+  `x() { docker exec "$(docker ps -q -f label=com.docker.swarm.service.name=xylem_push | head -n 1)" /bin/xylem "$@"; }`,
+  then `x status` (subscriptions by topic and push service, the feed's last read), `x
+  announcements`, `x feed` (read the feed now), `x cancel <id>`, and for what no data says:
+  `x announce --key <key> --topic exams --at "2027-05-03 08:00" --title "…" --body "…"`
+  (`docs/xylem/xylem.md`, „An announcement").
+- **The feed** (`XYLEM_FEED=on` in the instance's file): Xylem reads
+  `https://<host>/api/announcements` every ten minutes from its container, through its own way
+  out, at the site's public address (the host's own, which answers a container through Traefik's
+  published port). That address is open on canary too, where the rest is behind the gate. Where
+  the read fails, Xylem goes on with what it holds and what a person announces, and the alert
+  „Xylem: the feed does not read" says so after an hour and a half; `XYLEM_FEED=off`,
+  `deploy/sync.sh` and `49-xylem.sh <stack>` turn it off.
+- **Rollback** of the pages: `FOLIA_PUSH=off` in the instance's file, `deploy/sync.sh`,
+  `50-app.sh <instance>`: nobody can subscribe or change topics, and who subscribed is still
+  told. Of Xylem: `bash /opt/betula/vps/49-xylem.sh <stack> <previous tag>`. To tell nobody
+  anything: `docker service scale <stack>_push=0`; what is due waits in `xylem.db`, and what ran
+  out of its time meanwhile is not told late.
+- **Its data**: `xylem.db` holds the subscriptions (an endpoint at a push service, two keys, a
+  language, topics; nothing that says whose browser it is) and the VAPID key every one of them
+  was made with. It is part of the host's daily backup (the provider's, of the whole disk; owner,
+  2026-11-19: „24h datenverlust ist verkraftbar"). Brought back from a day ago, it has its key and
+  all but the last day's subscriptions, which come back with their browsers' next visit; look at
+  `x announcements` then and cancel what was told already (`docs/xylem/xylem.md`, „Backup"). Lost
+  altogether, it starts with a new key, and every browser subscribes anew at its next visit by
+  itself.
+- **The privacy notice** describes it („Benachrichtigungen",
+  `folia/crates/home/src/i18n/legal.rs`): change it with what Xylem keeps.

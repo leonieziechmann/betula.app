@@ -371,8 +371,8 @@ instance_names() {
 }
 
 # load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE,
-# INSTANCE_CRAWL (on, off or cortex-offline) and INSTANCE_SYNC (on or off: stacks/betula.yml says
-# what each means). The file is read, never sourced: a value is data, whatever it looks like.
+# INSTANCE_CRAWL (on, off or cortex-offline), INSTANCE_SYNC and INSTANCE_PUSH (on or off:
+# stacks/betula.yml says what each means). The file is read, never sourced: a value is data, whatever it looks like.
 load_instance() {
   local name=$1 file line key value
   file="${STACKS_DIR}/${name}.env"
@@ -384,6 +384,7 @@ load_instance() {
   INSTANCE_GATE="on"
   INSTANCE_CRAWL="on"
   INSTANCE_SYNC="off"
+  INSTANCE_PUSH="off"
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -n "${line}" && "${line}" != \#* ]] || continue
     [[ "${line}" == *=* ]] || die "${file}: '${line}' is not NAME=value"
@@ -395,7 +396,8 @@ load_instance() {
       FOLIA_ACCESS_GATE) INSTANCE_GATE="${value}" ;;
       RADIX_CRAWL) INSTANCE_CRAWL="${value}" ;;
       FOLIA_SYNC) INSTANCE_SYNC="${value}" ;;
-      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL, FOLIA_SYNC)" ;;
+      FOLIA_PUSH) INSTANCE_PUSH="${value}" ;;
+      *) die "${file}: unknown setting ${key} (known: STACK_NAME, APP_HOST, FOLIA_ACCESS_GATE, RADIX_CRAWL, FOLIA_SYNC, FOLIA_PUSH)" ;;
     esac
   done <"${file}"
   [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
@@ -409,6 +411,23 @@ load_instance() {
     *) die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on, off or cortex-offline" ;;
   esac
   [[ "${INSTANCE_SYNC}" == "on" || "${INSTANCE_SYNC}" == "off" ]] || die "${file}: FOLIA_SYNC is '${INSTANCE_SYNC}', not on or off"
+  [[ "${INSTANCE_PUSH}" == "on" || "${INSTANCE_PUSH}" == "off" ]] || die "${file}: FOLIA_PUSH is '${INSTANCE_PUSH}', not on or off"
+}
+
+# xylem_stack_for_host HOST - the stack of the Xylem instance that serves https://HOST/push/v1/
+# (stacks/xylem/<stack>.env names its APP_HOST), nothing where none does.
+xylem_stack_for_host() {
+  local host=$1 file line
+  for file in "${STACKS_DIR}"/xylem/*.env; do
+    [[ -f "${file}" ]] || continue
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+      if [[ "${line}" == "APP_HOST=${host}" ]]; then
+        file="${file##*/}"
+        printf '%s' "${file%.env}"
+        return 0
+      fi
+    done <"${file}"
+  done
 }
 
 # phloem_for_host HOST - the stack of the Phloem instance that serves https://HOST/sync/v1/

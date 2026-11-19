@@ -13,7 +13,13 @@ becomes a stand-in (netmatrix/standin.sh on alpine) that answers on its ports. B
 needs a journal), every service gets endpoint_mode dnsrr (no virtual address: on some hosts, this
 sandbox among them, IPVS does not work, and the probes use task addresses anyway), and Traefik's
 ports move to 18080 and 18443.
+
+Xylem (stacks/xylem.yml): with NETMATRIX_XYLEM_IMAGE set, the real service of that image, its
+entrypoint and capabilities kept (`xylem start` loads its own firewall), its data in WORKDIR;
+without, a stand-in as its own user that writes xylem.prom and answers 404 for what Xylem gives
+loopback alone, whose firewall the harness loads from outside.
 """
+import os
 import sys
 
 import yaml
@@ -29,9 +35,15 @@ REAL = {"edge_traefik", "edge_socket-proxy", "monitoring_prometheus", "monitorin
 PORT_MAP = {80: 18080, 443: 18443}
 
 
+def is_xylem(full):
+    return full.startswith("xylem") and full.endswith("_push")
+
+
 def ports_of(full):
     if full in STANDIN_PORTS:
         return STANDIN_PORTS[full]
+    if is_xylem(full):
+        return "8300"
     if full.endswith("_radix"):
         return "8090"
     if full.endswith("_folia"):
@@ -46,6 +58,8 @@ def remap_source(source, work):
         return work + "/journal"
     if source == "/var/lib/betula/scraper":
         return work + "/scraper"
+    if source.startswith("/var/lib/betula/xylem/"):
+        return work + "/xylem/" + source[len("/var/lib/betula/xylem/"):]
     return source
 
 
@@ -81,7 +95,10 @@ def main():
         add_label(deploy)
         svc.pop("logging", None)
         svc.pop("secrets", None)
-        if full in REAL:
+        xylem_image = os.environ.get("NETMATRIX_XYLEM_IMAGE", "")
+        if is_xylem(full) and xylem_image:
+            svc["image"] = xylem_image
+        if full in REAL or (is_xylem(full) and xylem_image):
             for mount in svc.get("volumes") or []:
                 if isinstance(mount, dict) and mount.get("type") == "bind":
                     mount["source"] = remap_source(mount["source"], work)
@@ -100,6 +117,12 @@ def main():
         svc["command"] = ["sh", "/standin/standin.sh"]
         svc["environment"] = {"NAME": full, "LISTEN": ports_of(full)}
         svc["volumes"] = [{"type": "bind", "source": work + "/standin", "target": "/standin", "read_only": True}]
+        if is_xylem(full):
+            # Its own user from the start (what `xylem start` drops to), its stats file where
+            # Alloy reads it, and no answer for what Xylem gives loopback alone.
+            svc["user"] = "65532:65532"
+            svc["environment"].update({"STATS_DIR": "/stats", "STATS_NAME": "xylem", "NOT_FOUND": "/status /feed /announcements"})
+            svc["volumes"].append({"type": "bind", "source": f"/run/betula/xylem/{stack}/stats", "target": "/stats"})
         svc["healthcheck"] = {"disable": True}
         svc["stop_grace_period"] = "2s"
         deploy.pop("resources", None)
