@@ -243,8 +243,10 @@ an address: what happens to spaces and sockets is counted in the stats file inst
 
 Two instances, each a stack of its own with its own network, data and numbers: `phloem` for
 https://betula.app and `phloem-canary` for https://canary.betula.app. What differs is in
-`deploy/stacks/phloem/<stack>.env`. Phloem is not part of the canary pipeline: a push to master
-does not restart it.
+`deploy/stacks/phloem/<stack>.env`. `phloem-canary` follows master (since 2026-11-19): every push
+to master that changes Phloem is built by `.github/workflows/phloem.yml`, and the canary agent
+brings `phloem-canary` to it with `vps/49-phloem.sh`, as below (`deploy/README.md` section 12). A
+push to master never restarts `phloem`, which holds the profiles of betula.app: it goes by hand.
 
 Once per server, before the first deploy of an instance:
 
@@ -273,7 +275,9 @@ log) and /healthz (not Phloem's), the stats file, `phloem status`; at last
 `91-verify-stacks.sh phloem`. A FAIL ends with exit 1.
 
 - Rollback: `bash /opt/betula/vps/49-phloem.sh <stack> <previous tag>` (still loaded:
-  `docker image ls betula-phloem`).
+  `docker image ls betula-phloem`). Not to a release before a migration the database has had
+  (`phloem.db` refuses a binary that knows fewer: `store.migrate`). For `phloem-canary` the
+  rollback stays until master builds Phloem again.
 - A change to the stack file or the instance's file: `deploy/sync.sh`, then
   `bash /opt/betula/vps/49-phloem.sh <stack>` (the running tag).
 - More room: a larger `PHLOEM_DATA_SIZE`, `deploy/sync.sh`, then `sudo bash
