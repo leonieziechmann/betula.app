@@ -11,7 +11,8 @@
 // erstellen" saves his profile with Betula Sync and makes a one-time link. Lena (private) opens it
 // and follows it as a calendar, with Max's modules and his Termin „Arbeit"; a third browser opening
 // the same link reads that it was opened already and gets nothing of the plan. Max plans another
-// module: Lena's calendar has it after her page comes into view again. Lena saves her profile
+// module: Lena's open page has it within half a minute without a reload, nor coming into view again
+// (a private profile asks every 30 s while the page is seen). Lena saves her profile
 // („Profil speichern"); Max plans one more, and Lena's open page has it without a reload (Phloem's
 // `part`). Max stops sharing: Lena's calendar stays, „nicht mehr geteilt", and „Behalten" keeps it.
 // A calendar app's address that stays current answers its calendar until Max stops sharing it, and
@@ -70,8 +71,6 @@ const until = async (name, page, fn, arg, timeout = 10000) => {
   }
 };
 const lines = (text, tag) => text.split("\n").filter((l) => l.startsWith(`${tag}\t`));
-/// The page comes into view again, as after a switch of tabs.
-const comeBack = (page) => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange", { bubbles: true })));
 
 // ---- Max: a plan with two modules and a Termin of his own, private ----
 const max = await device("Max");
@@ -128,13 +127,13 @@ await app(other.page);
 await until("Other: „schon geöffnet“", other.page, () => (onPage(".offer[role=alert]")?.textContent || "").includes("schon geöffnet"), null, 20000);
 check(!(await other.page.evaluate(() => plan())).includes("12104"), "Other: got something of the plan");
 
-// ---- Max plans another module: Lena's page has it when it comes into view ----
+// ---- Max plans another module: Lena's open page has it within 30 s, by itself (private) ----
 await max.page.click(".sh-dialog[open] footer .mini.primary").catch(() => {});
 await max.page.evaluate(([s, m]) => localStorage.setItem("betula.studyplan.v1", plan() + `m\t${s}\t${m}\t1790000100\t\n`), [SEMESTER, MORE[0]]);
 await go(max.page, "/studyplan");
-await max.page.waitForTimeout(4000);
-await comeBack(lena.page);
-await until("Lena: the module Max planned", lena.page, ([c, m]) => plan().includes(`n\t${c}\t2026W\t${m}`), [calendar, MORE[0]], 15000);
+// Owner, 2026-11-19: „bis zu 1min fände ich okish. Aber es darf kein reloading nötig sein“. Until
+// Folia 1.110.3 a private profile fetched only on opening and when the page came into view again.
+await until("Lena: the module Max planned, without a reload or coming into view", lena.page, ([c, m]) => plan().includes(`n\t${c}\t2026W\t${m}`), [calendar, MORE[0]], 40000);
 
 // ---- Lena saves her profile; Max plans once more, and her open page has it by itself ----
 await lena.page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Profil speichern")?.click());

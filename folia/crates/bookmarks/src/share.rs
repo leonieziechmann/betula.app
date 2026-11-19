@@ -669,7 +669,8 @@ fn open_fragment(what: Opening, fragment: String) {
 /// same words for the same things. Each answer takes the part after `#` out of the address.
 ///
 /// It also keeps the lists followed current where nothing else does: when the page is built and
-/// when it comes into view again (`Sync::refresh_follows`).
+/// when it comes into view again (`Sync::refresh_follows`); in between, a private profile asks
+/// every 30 s while the page is seen (`sync::browser::start_tab`).
 #[component]
 pub(crate) fn ListOffer() -> impl IntoView {
     let t = i18n::t();
