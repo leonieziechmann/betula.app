@@ -6902,8 +6902,11 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   kombo. Also "alt + 1" oder so"): „Alt + 1" on Windows, „Strg + Alt + 1" („Ctrl + Alt + 1" in
   English) on Linux, „⌃ + ⌥ + 1" on a Mac — the tab's digit (`NavKey`) after the words of the
   system and the language, which enhance.js gives `--nav-keys`; inverted, as a tooltip, beside the
-  rail's tab and above a phone's bar (a tablet with a keyboard), there while `:root[data-nav-keys]`.
-  Whoever presses Alt for anything else sees them as well, and so finds them. Another key or the
+  rail's tab and above a phone's bar (a tablet with a keyboard), there while `:root[data-nav-keys]`;
+  the rail stands over all of the page meanwhile, over a page held in front while it loads (its
+  skeleton) too, and never lower than otherwise, so that the crown's leaves stay under its logo
+  (z-index 31 since Folia 1.110.1; 20 until then, which put the leaves over the logo and a skeleton
+  over the labels). Whoever presses Alt for anything else sees them as well, and so finds them. Another key or the
   mouse with them, and they go until the keys are let go. An Alt held for a quarter of a second or
   longer was held for them: let go, it opens no menu of the browser; tapped, it is the browser's
   as ever. Nothing while a modal dialog is open (`enhance.js`, „the navigation's keys").
