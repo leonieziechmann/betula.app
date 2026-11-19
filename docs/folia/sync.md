@@ -171,7 +171,7 @@ persons or into a calendar app, as a copy of now or one that stays current.
 | what stays current | a part at Phloem: one semester of the calendar, `folia_calendar::live::LivePart` as a pack code, sealed with a key of its own (associated data `"part" ‖ id`); for a person nothing of what is hidden, for a calendar app the week as the student sees it; the Termine of one's own and the notes where the share takes them along. `/studyplan#live=<id ‖ key>`, `/calendar/s/<id ‖ key>.ics` |
 | one person | a parcel that waits 7 days at most and opens once (`/studyplan#once=<id ‖ key>`): the part and its key, or a copy of now; opened again, expired or taken back, it says so and shows nothing |
 | the shares in force | lines `s` of the Stundenplan (`folia_plans::shares`), records `P\|s\|<id>`: on every device of the profile, which renews their parts when the plan changes (only what differs from what it put, `share::Put`), moves a share on to the next semester as it begins, and deletes the parts of shares gone from the records |
-| following | a calendar of one's own with a line `f` (`P\|f\|<calendar>`, it goes and comes back with its calendar): the leader watches its part (`watch`) and gives the calendar each new version (`PlanDoc::take_part`; a private profile fetches on opening and when the page comes into view); a part that is gone leaves the calendar „nicht mehr geteilt", with „Behalten" and „Löschen" |
+| following | a calendar of one's own with a line `f` (`P\|f\|<calendar>`, it goes and comes back with its calendar): the leader watches its part (`watch`) and gives the calendar each new version (`PlanDoc::take_part`; a private profile fetches on opening, when the page comes into view, and every 30 s while it is seen, `sync::browser::start_tab`: Phloem's `part` reaches the sockets of a space alone, and until Folia 1.110.3 a page that stayed open and in view heard nothing until it was loaded again — owner, 2026-11-19: „bis zu 1min fände ich okish. Aber es darf kein reloading nötig sein“; unchanged, a part answers 304, and a tab asks 120 times an hour per part of Phloem's 3600 per address); a part that is gone leaves the calendar „nicht mehr geteilt", with „Behalten" and „Löschen" |
 | a calendar app's subscription | Folia fetches the part through Traefik's entrypoint `parts` (`--sync-parts`), opens it in memory with the key from the address and keeps nothing (`folia/crates/server/src/parts.rs`); no access log writes such an address (deploy/README.md section 15) |
 
 A private profile offers Betula Sync wherever it makes a choice better („Profil speichern", one
@@ -245,7 +245,8 @@ again, as after „Sync beenden" on another device.
   a code; a synced profile deleted with „Löschen und Sync beenden", the other device private
   again with its copy.
 - `folia/e2e/share.mjs`: sharing and following with four browsers against a running Phloem
-  (Folia with `FOLIA_SYNC_PARTS` naming it).
+  (Folia with `FOLIA_SYNC_PARTS` naming it); a private profile's open page gets a change within
+  30 s without a reload, a synced one's over its socket.
 - `folia/e2e/rebuild.mjs` (locally, with `PHLOEM_LOSE` and `PHLOEM_START`): Phloem's database
   thrown away while two devices each mark a module offline; both make the space anew in their
   slots and hold all five modules, a device that comes afterwards gets them, a shared list opens
