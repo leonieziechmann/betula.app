@@ -390,7 +390,10 @@ so that nothing Radix fetched is lost and nothing is fetched twice. `<old>` craw
    started, as in `50-app.sh`: the image has no shell):
    `ssh betula 'docker create --name radix-copy -v <old>_radix-data:/data:ro betula-radix:<its tag> >/dev/null && docker cp radix-copy:/data/radix.db -; docker rm -f radix-copy >/dev/null' > radix.db.tar`,
    then `tar -xf radix.db.tar` (a `radix.db-wal` next to it would have to come along; a clean
-   stop leaves none).
+   stop leaves none). Its history the same way, `docker cp radix-copy:/data/history.db -` into
+   `history.tar` and `tar -xf history.tar` beside `radix.db` (docs/radix/history.md; a Radix before
+   0.15.0 kept none): `ship.sh --seed` takes a `history.db` beside `SEED_DB` along, and the colour
+   that takes over records on.
 3. `RADIX_CRAWL=off` in `<new>.env` for now, and `SEED_DB=<the copy> SSH_TARGET=betula bash
    deploy/ship.sh <new> --seed`: `50-app.sh` builds and exports a snapshot from it with the new
    release, without a network, and deploys the standby. Wait for Folia's `cache.warmed`. A
@@ -423,6 +426,24 @@ Study plans travel with a seeded database. On the server they come from `radix d
 and `radix scan-curriculum` (`docs/radix/operations.md`), run with `docker exec` in the Radix container
 (the Gemini key is the optional secret above). `download-statutes` goes through Cortex wherever
 the container has `RADIX_CORTEX_URL`, in every colour.
+
+### Personal data: a request
+
+Who asks what Betula holds about them, or that it be taken out (docs/radix/privacy.md), is answered
+in the Radix container of the colour that crawls (its image has no shell, the binary runs as it is):
+
+```bash
+docker exec <radix container> /bin/radix privacy find --db /data/radix.db --history /data/history.db --surname S --given G [--raw]
+docker exec <radix container> /bin/radix privacy add --db /data/radix.db --surname S --given G --note "<reference>"
+```
+
+The next cycle (at most 30 minutes) builds the catalog without them, exports it and removes the older
+snapshots, and takes them out of every version of the history; `validate` fails while anything is
+left. The register travels with `radix.db`, so a hand-over or a canary's copy keeps it. betula.app
+runs Radix 0.10.0 (2026-11-19), which has no register: there it takes a release of Radix 0.15.0 or
+later. A person added on canary is gone with its next build: each takes a fresh copy of the public
+site's radix.db. The raw archive and Cortex's store keep the university's pages as they are (docs/radix/privacy.md
+section 4).
 
 ## 5. Secrets
 
@@ -496,7 +517,7 @@ section 9); `docker service logs edge_traefik` reads them from there.
 | Certificates | Traefik renews 30 days before expiry; an alert fires below 14 days |
 | Image cleanup | Sunday 03:30: dangling images and old build cache only, never networks or volumes |
 | ssh bans | fail2ban: 5 failures in 10 min = 1 h, doubling up to a week; sshd penalises per source on top |
-| **Not** automatic | Docker Engine upgrades, image tag updates, backups (none exist yet: volumes `edge_acme`, `betula_radix-data`, `monitoring_grafana-data`, `cortex_a-data`, `cortex_b-data`; Cortex's follower is no backup, a deletion replicates to it) |
+| **Not** automatic | Docker Engine upgrades, image tag updates, backups (none exist yet: volumes `edge_acme`, `betula_radix-data`, `monitoring_grafana-data`, `cortex_a-data`, `cortex_b-data`; Cortex's follower is no backup, a deletion replicates to it). The radix-data volume of the colour that crawls holds `history.db` once it runs Radix 0.15.0 or later: the one file of Radix that no crawl brings back (docs/radix/history.md); `docker exec <its radix container> /bin/radix history export --history /data/history.db --out /data/history-copy.db` makes a consistent copy while it records |
 
 Nothing on this server can report that the server itself is down: point an external uptime check
 at `https://betula.app/`.

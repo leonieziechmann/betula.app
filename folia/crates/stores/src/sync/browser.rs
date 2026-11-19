@@ -1529,6 +1529,9 @@ fn parts_key(profile: u16) -> String {
 /// The version of each part followed that this browser holds, by the part's id.
 const FOLLOWED_KEY: &str = "betula.follow.revs";
 
+/// How often a page in view asks for what a private profile follows (`start_tab`).
+const FOLLOW_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+
 fn follow_revs() -> std::collections::BTreeMap<String, u64> {
     nav::local_get(FOLLOWED_KEY).unwrap_or_default().lines().filter_map(|line| line.split_once('\t')).filter_map(|(id, rev)| Some((id.to_string(), rev.parse().ok()?))).collect()
 }
@@ -2400,6 +2403,20 @@ pub fn start_tab(sync: Sync, profiles: Profiles) {
             }
         },
         std::time::Duration::from_secs(10 * 60),
+    );
+    // What a private profile follows (calendars, lists of the Merkliste) is asked for again while
+    // the page is seen: Phloem's `part` reaches the sockets of a space alone, and a page that
+    // stays open and in view heard nothing until it was loaded again (owner, 2026-11-19: „bis zu
+    // 1min fände ich okish. Aber es darf kein reloading nötig sein"). A synced profile hears it
+    // over its socket. Unchanged, a part answers 304, and a tab that follows a part asks 120
+    // times an hour of Phloem's 3600 per address.
+    let _ = set_interval_with_handle(
+        move || {
+            if shown() && !syncs(profiles.active_untracked()) {
+                sync.refresh_follows();
+            }
+        },
+        FOLLOW_EVERY,
     );
     // The active profile changes: the leader follows it.
     Effect::new(move |_| {

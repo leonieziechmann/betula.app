@@ -7,7 +7,8 @@
 #
 #   tar -cf - radix.db | gzip | ssh betula bash /opt/betula/vps/45-seed.sh canary <tag> <bytes of radix.db>
 #
-# The tar holds radix.db (and radix.db-wal, if SQLite left one). <tag> names a loaded Radix image:
+# The tar holds radix.db (and radix.db-wal, if SQLite left one), and history.db where the instance
+# that handed over the crawl kept one (docs/radix/history.md). <tag> names a loaded Radix image:
 # a container of it that is never started lends its /data to "docker cp", because the image has
 # no shell and no tar. Radix writes a snapshot from the database in its first cycle by itself.
 #
@@ -75,6 +76,12 @@ members=(radix.db)
 if [[ -f "${STAGE}/radix.db-wal" ]]; then
   members+=(radix.db-wal)
 fi
+# The history of the published catalog, when it came along (docs/radix/history.md).
+for f in history.db history.db-wal; do
+  if [[ -f "${STAGE}/${f}" ]]; then
+    members+=("${f}")
+  fi
+done
 tar -cf - -C "${STAGE}" --owner=0 --group=0 --mode=0644 "${members[@]}" | docker cp - "${HELPER}:/data/"
 listing="$(docker cp "${HELPER}:/data/radix.db" - | tar --numeric-owner -tvf -)"
 have="$(awk '$NF == "radix.db" { print $3 }' <<<"${listing}")"

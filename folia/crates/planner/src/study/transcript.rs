@@ -452,6 +452,9 @@ async fn read(ctx: StudyCtx, run: u32, file: web_sys::File) -> Option<Result<Rea
         mine,
         degree: transcript.degree.clone(),
         program: transcript.program.clone(),
+        profile: transcript.profile.clone(),
+        // The semester the study began in, for the PO it is of.
+        since: transcript.since.map(|since| since.term().code()),
         rows: transcript.entries.iter().map(|entry| TranscriptRow { title: entry.title.clone(), other: entry.other.clone(), credits: entry.credits }).collect(),
     };
     let found = source.ask_once(asked).await;

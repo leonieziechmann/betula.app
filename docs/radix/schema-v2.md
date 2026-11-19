@@ -64,6 +64,7 @@ is derived and replaced by each build.
 | `module_summary`, `passage_embedding` | caches of the semantic search, kept across builds and never published: what Gemini wrote about a module's text (German and English summary, search terms; keyed by `semantic.Text.Hash`), and the vector of a passage under a model (keyed by `semantic.PassageHash`) | the semantic stage (section 6, „Semantic search“) |
 | `module_vector` | each module's vector for the semantic search: values of 4 bits, packed, × `scale` | build, from `passage_embedding` |
 | `program_module`, `module_facet` | materialized results of `v_program_module_src` and `v_module_facets_src` (section 3) | build |
+| `privacy_person`, `privacy_meta` | the privacy register: the people who asked that their personal data be taken out, and what the build and the export last did for it; every build takes them out last, before the content digest (`docs/radix/privacy.md`, schema 25). Never published: the export drops both | `radix privacy add` |
 | `meta` | `built_at`, `current_semester`, `radix_version` (the Radix that built it, `radix/internal/version`), `radix_build` (a hash of the binary that built it: a new release builds again at start), oldest/newest fetch and page count per source; `content_digest`, `data_changed_at`; `semantic_model`, the passage model of the module vectors (Radix's id of it, comma-separated if more than one; absent without vectors) | build |
 
 ### Degree labels and new programs (decision Q4)

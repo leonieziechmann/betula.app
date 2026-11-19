@@ -6,7 +6,9 @@
 //! with `ToUnicode` maps; the pages and fonts packed into an object stream, the streams compressed
 //! and encrypted with RC4 of 128 bits for the empty user password; a page's coordinates flipped as
 //! the BTU's are. `cargo run -p folia-transcript --features fixture --example fixture` writes it,
-//! which is how folia/e2e/transcript.mjs gets it: no PDF of it is in the repository.
+//! which is how folia/e2e/transcript.mjs gets it: no PDF of it is in the repository. Any rows can
+//! be set on pages as the BTU sets them (`paginate`): folia-pages writes every module of the
+//! catalog so and reads them back.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -137,6 +139,55 @@ fn wrap(text: &str) -> Vec<String> {
     lines.into_iter().map(|line| line.trim_end().to_string()).collect()
 }
 
+/// A row's lines as they are set, with their fonts (0–3): the title's over the other language's
+/// (a module without one has its title alone).
+fn row_lines(row: &Row) -> Vec<(String, usize)> {
+    match row {
+        Row::Heading(german, english) => vec![(german.to_string(), 1), (english.to_string(), 3)],
+        Row::Module { title, other, .. } => {
+            // A title taught in English is written in italic, its German in regular.
+            let english_first = title.starts_with("Graph") || title.starts_with("Proseminar Computers");
+            let (first, second) = if english_first { (2, 0) } else { (0, 2) };
+            let mut lines: Vec<(String, usize)> = wrap(title).into_iter().map(|line| (line, first)).collect();
+            lines.extend(wrap(other).into_iter().filter(|line| !line.is_empty()).map(|line| (line, second)));
+            lines
+        }
+    }
+}
+
+/// How tall a row is set.
+fn row_height(row: &Row) -> f64 {
+    LINE * row_lines(row).len() as f64 + 2.0 * PAD + 4.5
+}
+
+/// Where a page's rows begin: under the letterhead, the sentence and the heads on the first, under
+/// the heads on the others.
+fn rows_top(page: usize) -> f64 {
+    (if page == 0 { 410.0 } else { 120.0 }) + 20.5
+}
+
+/// The lowest a row reaches: above the footer.
+const ROWS_END: f64 = 755.0;
+
+/// `rows` on pages as the BTU sets them: on each as many as fit above the footer, a row never
+/// across two.
+pub fn paginate(rows: Vec<Row>) -> Vec<Vec<Row>> {
+    let mut pages: Vec<Vec<Row>> = vec![Vec::new()];
+    let mut y = rows_top(0);
+    for row in rows {
+        let height = row_height(&row);
+        if y + height > ROWS_END && pages.last().is_some_and(|page| !page.is_empty()) {
+            y = rows_top(pages.len());
+            pages.push(Vec::new());
+        }
+        y += height;
+        if let Some(page) = pages.last_mut() {
+            page.push(row);
+        }
+    }
+    pages
+}
+
 /// What a page draws: text by font, and the rules.
 struct Draw {
     content: String,
@@ -218,18 +269,12 @@ fn draw(pages: &[Vec<Row>], options: Options) -> (Vec<String>, [BTreeSet<char>; 
             row_rules(&mut draw, y);
         }
         for row in rows {
-            let (lines, values): (Vec<(String, usize)>, Option<&[&str; 7]>) = match row {
-                Row::Heading(german, english) => (vec![(german.to_string(), 1), (english.to_string(), 3)], None),
-                Row::Module { title, other, values } => {
-                    // A title taught in English is written in italic, its German in regular.
-                    let english_first = title.starts_with("Graph") || title.starts_with("Proseminar Computers");
-                    let (first, second) = if english_first { (2, 0) } else { (0, 2) };
-                    let mut lines: Vec<(String, usize)> = wrap(title).into_iter().map(|line| (line, first)).collect();
-                    lines.extend(wrap(other).into_iter().map(|line| (line, second)));
-                    (lines, Some(values))
-                }
+            let lines = row_lines(row);
+            let values = match row {
+                Row::Heading(..) => None,
+                Row::Module { values, .. } => Some(values),
             };
-            let height = LINE * lines.len() as f64 + 2.0 * PAD + 4.5;
+            let height = row_height(row);
             for (at, (line, font)) in lines.iter().enumerate() {
                 draw.text(*font, LEFT, y + PAD + 8.0 + LINE * at as f64, line);
             }

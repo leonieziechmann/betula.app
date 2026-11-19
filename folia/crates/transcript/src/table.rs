@@ -389,11 +389,13 @@ fn lines_of(runs: &[&Run]) -> Vec<Line> {
 }
 
 /// Lines of one text joined: a word broken at a hyphen at the end of a line goes on without a
-/// space, everything else with one.
+/// space („Software-" „Engineering"), everything else with one, and so does a hyphen that stands
+/// for a word's end („Kosten-" „und Leistungsrechnung").
 fn join(lines: &[&Line]) -> String {
     let mut text = String::new();
     for line in lines {
-        if !text.is_empty() && !(text.ends_with('-') && !text.ends_with(" -")) {
+        let broken = text.ends_with('-') && !text.ends_with(" -") && !continues(&line.text);
+        if !text.is_empty() && !broken {
             text.push(' ');
         }
         text.push_str(&line.text);
@@ -403,6 +405,13 @@ fn join(lines: &[&Line]) -> String {
         }
     }
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// A line that begins with what follows a hyphen standing for a word's end: „und", „oder", „bzw.",
+/// „sowie" („Mess- und Regelungstechnik", „Denk-, Arbeits- oder Handlungsweisen").
+fn continues(line: &str) -> bool {
+    let first = line.split_whitespace().next().unwrap_or_default().trim_end_matches([',', '.']);
+    matches!(first, "und" | "oder" | "bzw" | "sowie" | "bis" | "&" | "and" | "or")
 }
 
 /// A number as the table writes it, with a decimal comma (or a point).
@@ -594,6 +603,17 @@ mod tests {
         for private in ["Mustermann", "Musterstadt", "Musterweg", "2003", "August", "3,0", "2,3", "25.03.2025", "Total Account"] {
             assert!(!lines.contains(private), "{private} in {lines}");
         }
+    }
+
+    /// A title's lines joined: a hyphen at a line's end before „und" keeps its space, a word broken
+    /// at its hyphen goes on.
+    #[test]
+    fn lines_joined() {
+        let line = |text: &str| Line { text: text.to_string(), italic: false, bold: false };
+        let (a, b, c, d) = (line("Allgemeine Betriebswirtschaftslehre IV: Kosten-"), line("und Leistungsrechnung"), line("Software-"), line("Engineering 1"));
+        assert_eq!(join(&[&a, &b]), "Allgemeine Betriebswirtschaftslehre IV: Kosten- und Leistungsrechnung");
+        assert_eq!(join(&[&c, &d]), "Software-Engineering 1");
+        assert_eq!(join(&[&line("Projekt -"), &line("Teil 1")]), "Projekt - Teil 1");
     }
 
     #[test]
