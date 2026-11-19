@@ -279,19 +279,66 @@ pub struct FuesNote {
 
 impl FuesNote {
     /// The note of a module from its rows of `catalog_fues_notes`; `None` where they say nothing.
-    pub fn of<'a>(rows: impl IntoIterator<Item = &'a FuesNoteRow>) -> Option<Self> {
+    /// With the student's `choice` (`ProgramScope::choice`) it is that student's: a season that
+    /// excludes the module for the choice is a season it is not admitted in, and what the list
+    /// excludes for other choices is not said (it is not theirs).
+    pub fn of<'a>(rows: impl IntoIterator<Item = &'a FuesNoteRow>, choice: Option<&str>) -> Option<Self> {
         let mut note = Self::default();
         for row in rows {
-            if !row.admitted {
+            if !row.admitted || choice.is_some_and(|choice| row.excludes(choice)) {
                 note.not_in.push(row.season.clone());
             }
-            for scope in row.excluded_for.iter().flat_map(|scopes| scopes.split("; ")) {
-                if !scope.is_empty() && !note.excluded_for.iter().any(|known| known == scope) {
+            if choice.is_some() {
+                continue;
+            }
+            for scope in row.choices() {
+                if !note.excluded_for.iter().any(|known| known == scope) {
                     note.excluded_for.push(scope.to_string());
                 }
             }
         }
         (!note.excluded_for.is_empty() || !note.not_in.is_empty()).then_some(note)
+    }
+
+    /// Whether the FÜS list leaves the module of `rows` (its rows of one program) out for
+    /// `choice`: a season's catalog excludes it for the choice, and no season's admits it for it.
+    /// A season without a row admits the module for everyone, or its catalog does not hold it;
+    /// the rows cannot tell which, and the module then counts as left out (on canary's data of
+    /// 2026-11-19, 17 of the 214 pairs of a module and a choice another season's catalog admits).
+    /// `folia_query::sql` asks the same of `v_program_fues_note`.
+    pub fn leaves_out<'a>(rows: impl IntoIterator<Item = &'a FuesNoteRow> + Clone, choice: &str) -> bool {
+        rows.clone().into_iter().any(|row| row.excludes(choice)) && !rows.into_iter().any(|row| row.admits(choice))
+    }
+}
+
+/// A choice of a program that its negative list in the BTU's FÜS catalogs tells apart, as the
+/// catalog names it („Anwendungsfach Physik"), and how many modules of the program's FÜS list it
+/// leaves out (`FuesNote::leaves_out`): what the FÜS list lets a student choose
+/// (`ProgramScope::choice`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FuesChoice {
+    pub name: String,
+    pub leaves_out: u32,
+}
+
+impl FuesChoice {
+    /// The choices of a program's FÜS list from its rows of `v_program_fues_note`
+    /// (`program_fues_notes`), in the order of their names (`folia_search::order_key` is the
+    /// caller's to apply: the names shown may be shorter).
+    pub fn of(rows: &[FuesNoteRow]) -> Vec<Self> {
+        let mut names: Vec<&str> = rows.iter().flat_map(FuesNoteRow::choices).collect();
+        names.sort_unstable();
+        names.dedup();
+        let mut modules: Vec<&str> = rows.iter().map(|row| row.module_id.as_str()).collect();
+        modules.sort_unstable();
+        modules.dedup();
+        names
+            .into_iter()
+            .map(|name| {
+                let left_out = modules.iter().filter(|id| FuesNote::leaves_out(rows.iter().filter(|row| row.module_id == **id), name)).count();
+                Self { name: name.to_string(), leaves_out: u32::try_from(left_out).unwrap_or(u32::MAX) }
+            })
+            .collect()
     }
 }
 
@@ -305,6 +352,24 @@ pub struct FuesNoteRow {
     pub semester: String,
     pub admitted: bool,
     pub excluded_for: Option<String>,
+}
+
+impl FuesNoteRow {
+    /// The choices its season's negative list excludes the module for.
+    pub fn choices(&self) -> impl Iterator<Item = &str> {
+        self.excluded_for.iter().flat_map(|scopes| scopes.split("; ")).map(str::trim).filter(|scope| !scope.is_empty())
+    }
+
+    /// Whether its season's negative list excludes the module for `choice`.
+    pub fn excludes(&self, choice: &str) -> bool {
+        self.choices().any(|scope| scope == choice.trim())
+    }
+
+    /// Whether its season's catalog admits the module for `choice`: for every student of the
+    /// program, and not excluded for the choice.
+    pub fn admits(&self, choice: &str) -> bool {
+        self.admitted && !self.excludes(choice)
+    }
 }
 
 impl FromRow for FuesNoteRow {
@@ -652,10 +717,53 @@ mod fues_note_tests {
     #[test]
     fn a_note_gathers_the_choices_and_the_seasons_that_exclude() {
         let rows = [row("winter", true, Some("Anwendungsfach Maschinenbau / Elektrotechnik; Anwendungsfach Physik")), row("summer", false, Some("Anwendungsfach Physik"))];
-        let note = FuesNote::of(rows.iter()).unwrap();
+        let note = FuesNote::of(rows.iter(), None).unwrap();
         assert_eq!(note.excluded_for, ["Anwendungsfach Maschinenbau / Elektrotechnik", "Anwendungsfach Physik"]);
         assert!(note.not_in.len() == 1 && note.not_in[0].is(crate::labels::TurnusSeason::Summer));
-        assert_eq!(FuesNote::of([row("winter", true, None)].iter()), None);
-        assert_eq!(FuesNote::of(std::iter::empty()), None);
+        assert_eq!(FuesNote::of([row("winter", true, None)].iter(), None), None);
+        assert_eq!(FuesNote::of(std::iter::empty(), None), None);
+    }
+
+    /// With a choice the note is the student's: a season that excludes the module for it is one
+    /// it is not admitted in, and other choices are not named.
+    #[test]
+    fn a_note_with_a_choice_says_what_holds_for_it() {
+        let winter = row("winter", true, Some("Anwendungsfach Physik; Anwendungsfach Wirtschaftswissenschaften"));
+        let summer = row("summer", true, Some("Anwendungsfach Wirtschaftswissenschaften"));
+        let rows = [winter.clone(), summer.clone()];
+        let physik = FuesNote::of(rows.iter(), Some("Anwendungsfach Physik")).unwrap();
+        assert!(physik.excluded_for.is_empty());
+        assert!(physik.not_in.len() == 1 && physik.not_in[0].is(crate::labels::TurnusSeason::Winter));
+        // Another choice that neither excludes: nothing to say.
+        assert_eq!(FuesNote::of(rows.iter(), Some("Anwendungsfach Bauingenieurwesen")), None);
+        // Physik is admitted in the summer: the module stays. Wirtschaftswissenschaften nowhere.
+        assert!(!FuesNote::leaves_out(rows.iter(), "Anwendungsfach Physik"));
+        assert!(FuesNote::leaves_out(rows.iter(), "Anwendungsfach Wirtschaftswissenschaften"));
+        assert!(!FuesNote::leaves_out(rows.iter(), "Anwendungsfach Bauingenieurwesen"));
+        // A season excluded for everyone does not admit it for a choice either.
+        let closed = [row("winter", false, None), row("summer", true, Some("Anwendungsfach Physik"))];
+        assert!(FuesNote::leaves_out(closed.iter(), "Anwendungsfach Physik"));
+        assert!(!FuesNote::leaves_out(closed.iter(), "Anwendungsfach Bauingenieurwesen"));
+    }
+
+    #[test]
+    fn the_choices_of_a_list_count_what_they_leave_out() {
+        let of = |module: &str, season: &str, admitted: bool, excluded_for: Option<&str>| FuesNoteRow { module_id: module.into(), ..row(season, admitted, excluded_for) };
+        let rows = [
+            of("13102", "winter", true, Some("Anwendungsfach Physik")),
+            of("12488", "winter", true, Some("Anwendungsfach Maschinenbau / Elektrotechnik")),
+            of("11812", "winter", true, Some("Anwendungsfach Maschinenbau / Elektrotechnik")),
+            of("11812", "summer", true, Some("Anwendungsfach Maschinenbau / Elektrotechnik; Anwendungsfach Physik")),
+            of("12045", "winter", false, None),
+        ];
+        assert_eq!(
+            FuesChoice::of(&rows),
+            [
+                FuesChoice { name: "Anwendungsfach Maschinenbau / Elektrotechnik".into(), leaves_out: 2 },
+                // 11812 is admitted for Physik in the winter.
+                FuesChoice { name: "Anwendungsfach Physik".into(), leaves_out: 1 },
+            ]
+        );
+        assert!(FuesChoice::of(&rows[4..]).is_empty());
     }
 }

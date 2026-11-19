@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm};
-use folia_model::rows::{CatalogRow, Department, Program};
+use folia_model::rows::{CatalogRow, Department, FuesChoice, Program};
 use folia_pages::ask::{CatalogAsk, CatalogChoicesAsk, CatalogCountAsk, CatalogPositionAsk, CatalogRowsAsk, CatalogSummaryAsk, FitAsk, MetaAsk, ModuleAsk, SimilarAsk};
 use folia_pages as pages;
 use folia_pages::{CatalogChoices, CatalogData, CatalogSummary, FitResult};
@@ -635,8 +635,10 @@ fn SimilarModules(
 }
 
 /// The active filters as removable tags: (group, value, the list without it), in the language of
-/// `t`. `areas` and `departments` name what the URL has as a number.
-fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department], collection_name: &dyn Fn(u32) -> Option<String>, t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
+/// `t`. `areas` and `departments` name what the URL has as a number, `choices` what the panel
+/// calls the choice of the FÜS list (`ChoiceNames`). What a program's list keeps for its other
+/// list has no tag (`ProgramScope::in_force`).
+fn tags(current: &CatalogUrl, areas: &[CatalogArea], choices: &[FuesChoice], departments: &[Department], collection_name: &dyn Fn(u32) -> Option<String>, t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
     let (q, c, locale) = (&current.query, &t.catalog, t.locale);
     let mut out: Vec<(String, String, CatalogUrl)> = Vec::new();
     let mut push = |group: &str, value: String, change: &dyn Fn(&mut CatalogQuery)| {
@@ -648,7 +650,15 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department],
     if !q.text.trim().is_empty() {
         push(c.tag_search, q.text.trim().to_string(), &|q| q.text.clear());
     }
-    if let Some(scope) = &q.program {
+    if let Some(scope) = q.program.as_ref().map(ProgramScope::in_force) {
+        if let Some(choice) = &scope.choice {
+            let names = ChoiceNames::of(choices, t);
+            push(&names.label, names.shown(choice), &|q| {
+                if let Some(s) = q.program.as_mut() {
+                    s.choice = None;
+                }
+            });
+        }
         match scope.plan_semester {
             Some(PlanSemesterFilter::Semester(n)) => push(c.tag_semester, (t.format.semester_one)(i64::from(n)), &|q| {
                 if let Some(s) = q.program.as_mut() {
@@ -830,12 +840,12 @@ fn List(
     let going = Pending::expect();
     let going_url = Memo::new(move |_| going.filter(|going| going.change() == Some(Change::List)).and_then(|going| going.search_on(url::CATALOG)).map(|search| CatalogUrl::parse(&search)));
     let active = {
-        let (current, areas, departments) = (current.clone(), data.areas.clone(), data.departments.clone());
+        let (current, areas, choices, departments) = (current.clone(), data.areas.clone(), data.fues_choices.clone(), data.departments.clone());
         // A collection named in a tag by its name, which the address does not carry (R20).
         let collections = Collections::expect();
         Memo::new(move |_| {
             let name = |id: u32| collections.and_then(|collections| collections.with(|shelf| shelf.collection(id).map(|collection| collection.name.clone())));
-            tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments, &name, t)
+            tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &choices, &departments, &name, t)
         })
     };
     let active_count = move || active.with(Vec::len);
@@ -1029,8 +1039,8 @@ fn plan_note(plan: Option<&SemesterPlan>, program: Option<&Program>, current: &C
             target.query.program = None;
             target.query.fues = Some(true);
         } else if let Some(scope) = target.query.program.as_mut() {
+            // The semester and the areas stay for the way back (`ProgramScope::in_force`).
             scope.relation = ProgramRelation::Fues;
-            scope.areas.clear();
         }
         keep_open(target, open, t)
     };
@@ -1626,6 +1636,41 @@ const APP: bool = cfg!(feature = "csr");
 /// The slider covers 0 to 30 credits; its right end means „no upper limit".
 const CREDITS_MAX: f64 = 30.0;
 
+/// What the panel and the tags call the choices a program's FÜS list lets a student make
+/// (`FuesChoice`): where all of them begin with the same word and have more after it, that word is
+/// what they are („Anwendungsfach") and the rest their names („Physik"); else they are named as
+/// the catalog writes them („Studium in der Breite", „Studienrichtung Landnutzung"), under the
+/// panel's own name for them. In the order of their letters (`folia_search::order_key`).
+struct ChoiceNames {
+    label: String,
+    /// The name as the catalog writes it (what the address carries), as the panel shows it, and
+    /// how many modules of the list it leaves out.
+    items: Vec<(String, String, u32)>,
+}
+
+impl ChoiceNames {
+    fn of(choices: &[FuesChoice], t: &'static i18n::Texts) -> Self {
+        let split = |name: &str| name.split_once(' ').map(|(word, rest)| (word.to_string(), rest.trim().to_string())).filter(|(_, rest)| !rest.is_empty());
+        let word = choices.first().and_then(|first| split(&first.name)).map(|(word, _)| word);
+        let common = word.filter(|word| choices.iter().all(|choice| split(&choice.name).is_some_and(|(other, _)| other == *word)));
+        let mut items: Vec<(String, String, u32)> = choices
+            .iter()
+            .map(|choice| {
+                let shown = common.as_ref().and_then(|_| split(&choice.name)).map_or_else(|| choice.name.clone(), |(_, rest)| rest);
+                (choice.name.clone(), shown, choice.leaves_out)
+            })
+            .collect();
+        items.sort_by_cached_key(|(_, shown, _)| (folia_search::order_key(shown), shown.clone()));
+        Self { label: common.unwrap_or_else(|| t.catalog.choice.to_string()), items }
+    }
+
+    /// How the panel shows the choice `name`; one the program's list does not tell apart as the
+    /// address has it.
+    fn shown(&self, name: &str) -> String {
+        self.items.iter().find(|(known, _, _)| known == name).map_or_else(|| name.to_string(), |(_, shown, _)| shown.clone())
+    }
+}
+
 /// What the filter panel shows besides the filter itself. Kept apart from the rows of the
 /// list, so that the panel stays (focus, scroll position, open pickers) while the list changes.
 #[derive(Clone, Default, PartialEq)]
@@ -1635,6 +1680,7 @@ struct Facts {
     fues_total: Option<u64>,
     plan_semesters: Vec<i64>,
     areas: Vec<CatalogArea>,
+    fues_choices: Vec<FuesChoice>,
     total: u64,
 }
 
@@ -1646,6 +1692,7 @@ impl Facts {
             fues_total: data.fues_total,
             plan_semesters: data.plan_semesters.clone(),
             areas: data.areas.clone(),
+            fues_choices: data.fues_choices.clone(),
             total: data.page.total,
         }
     }
@@ -1658,6 +1705,7 @@ impl Facts {
             fues_total: summary.fues_total,
             plan_semesters: summary.plan_semesters.clone(),
             areas: summary.areas.clone(),
+            fues_choices: summary.fues_choices.clone(),
             total: summary.total,
         }
     }
@@ -1989,7 +2037,9 @@ fn Filters(
     let program = Memo::new(move |_| facts.with(|f| f.program.clone()));
     let semesters = Memo::new(move |_| facts.with(|f| f.plan_semesters.clone()));
     let areas = Memo::new(move |_| facts.with(|f| f.areas.clone()));
-    // The areas belong to the curriculum; the FÜS list of a program has none.
+    let fues_choices = Memo::new(move |_| facts.with(|f| f.fues_choices.clone()));
+    // The plan's semesters, the kinds and the areas belong to the curriculum; the FÜS list of a
+    // program has none of them, but a choice of the FÜS catalog (`ProgramScope::in_force`).
     let curricular = Memo::new(move |_| query.with(|q| q.program.as_ref().is_none_or(|scope| scope.relation == ProgramRelation::Curricular)));
     let chosen_lecturers = Memo::new(move |_| {
         let mut names = query.with(|q| [q.lecturers_include.clone(), q.lecturers_exclude.clone()].concat());
@@ -2023,7 +2073,16 @@ fn Filters(
         let selected = Memo::new(move |_| query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone())));
         let pick = Callback::new(move |slug: Option<String>| {
             go.run(changed(query, |q| match slug {
-                Some(slug) => q.program.get_or_insert_with(ProgramScope::default).program_slug = slug,
+                Some(slug) => {
+                    let scope = q.program.get_or_insert_with(ProgramScope::default);
+                    // The areas of a tree and the choices of a FÜS list are one program's own:
+                    // another program has none of them (a semester and a kind it has).
+                    if scope.program_slug != slug {
+                        scope.areas.clear();
+                        scope.choice = None;
+                    }
+                    scope.program_slug = slug;
+                }
                 None => q.program = None,
             }))
         });
@@ -2041,13 +2100,10 @@ fn Filters(
                 ..Choice::new(
                     label,
                     move |q: &CatalogQuery| q.program.as_ref().is_some_and(|scope| scope.relation == relation),
+                    // What belongs to the other list stays for the way back (`ProgramScope::in_force`).
                     move |q: &mut CatalogQuery| {
                         if let Some(scope) = q.program.as_mut() {
                             scope.relation = relation;
-                            // An area is part of the curriculum's tree: the FÜS list has none.
-                            if relation == ProgramRelation::Fues {
-                                scope.areas.clear();
-                            }
                         }
                     },
                 )
@@ -2153,19 +2209,59 @@ fn Filters(
                     }
                 })
             };
-            view! {
-                <div class="fgroup">
-                    <div class="fsub" data-section="" role="group" aria-labelledby="fl-kind">
-                        <div class="flabel label" id="fl-kind">{t.catalog.module_kind}</div>
-                        <div class="chips" data-command-of=t.catalog.module_kind>
-                            {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
-                                .iter().map(|k| chip(k.label(t.locale), None, kind(KindFilter::Stated(*k)))).collect_view()}
-                            {chip(t.catalog.not_stated, None, kind(KindFilter::Unstated))}
+            // ---- the FÜS list's: the choice its negative list tells apart („Anwendungsfach Physik"),
+            // which leaves out what the list does not admit for it; only where it tells any apart ----
+            let choice_part = move || {
+                let names = ChoiceNames::of(&fues_choices.get(), t);
+                (!names.items.is_empty()).then(|| {
+                    let items: Vec<ComboItem> = names
+                        .items
+                        .iter()
+                        .map(|(name, shown, leaves_out)| {
+                            let detail = (t.catalog.choice_leaves_out)(&format::count(u64::from(*leaves_out), t.locale));
+                            ComboItem::new(name.clone(), shown.clone(), detail, 0).also_found_by(name)
+                        })
+                        .collect();
+                    let selected = Signal::derive(move || query.with(|q| q.program.as_ref().and_then(|scope| scope.choice.clone())));
+                    let pick = Callback::new(move |name: Option<String>| {
+                        go.run(changed(query, |q| {
+                            if let Some(scope) = q.program.as_mut() {
+                                scope.choice = name;
+                            }
+                        }))
+                    });
+                    view! {
+                        <div class="fgroup">
+                            <div class="fsub" data-section="" role="group" aria-labelledby="fl-choice">
+                                <div class="flabel label" id="fl-choice">{names.label}</div>
+                                <Combobox id="pick-choice" label=t.catalog.choice placeholder=t.catalog.choice_none search_placeholder=t.catalog.search_choice icon="route" min_width=440.0 items=Signal::derive(move || items.clone()) selected on_select=pick/>
+                                <p class="hint">{t.catalog.choice_hint}</p>
+                            </div>
                         </div>
+                    }
+                })
+            };
+            // Each list its own filters (owner, 2026-11-19: „wenn man oben füs auswählt für die
+            // suche, dann brauchen wir nicht fachsemester anzeigen, oder modulart etc."); what the
+            // other list has stays in the address for the way back and filters nothing here.
+            move || if curricular.get() {
+                view! {
+                    <div class="fgroup">
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-kind">
+                            <div class="flabel label" id="fl-kind">{t.catalog.module_kind}</div>
+                            <div class="chips" data-command-of=t.catalog.module_kind>
+                                {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
+                                    .iter().map(|k| chip(k.label(t.locale), None, kind(KindFilter::Stated(*k)))).collect_view()}
+                                {chip(t.catalog.not_stated, None, kind(KindFilter::Unstated))}
+                            </div>
+                        </div>
+                        {area_part}
+                        {semester_part}
                     </div>
-                    {area_part}
-                    {semester_part}
-                </div>
+                }
+                .into_any()
+            } else {
+                choice_part.into_any()
             }
         })
     };
@@ -2836,11 +2932,11 @@ mod tests {
         assert_eq!(addressed(&query), switched_on(filter));
         // The tag names the semester and takes the switch away with the rest of the list kept.
         let current = CatalogUrl { query: switched_on(FitsFilter::all("2026W")), fill: Some(3), ..CatalogUrl::default() };
-        let found = tags(&current, &[], &[], &|_| None, &i18n::DE).into_iter().find(|(group, _, _)| group == "Passt in");
+        let found = tags(&current, &[], &[], &[], &|_| None, &i18n::DE).into_iter().find(|(group, _, _)| group == "Passt in");
         let (_, value, without) = found.unwrap();
         assert_eq!((value.as_str(), without.path()), ("WiSe 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
         // In English the tag says the same in its words; the list it leads to is the same list.
-        let found = tags(&current, &[], &[], &|_| None, &i18n::EN).into_iter().find(|(group, _, _)| group == "Fits in");
+        let found = tags(&current, &[], &[], &[], &|_| None, &i18n::EN).into_iter().find(|(group, _, _)| group == "Fits in");
         let (_, value, without) = found.unwrap();
         assert_eq!((value.as_str(), without.path()), ("Winter 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
     }
@@ -2850,7 +2946,7 @@ mod tests {
         let named = |id: u32| (id == 3).then(|| "Für Lena".to_string());
         let tag = |marked: bool, marked_in: CollectionView, t: &'static i18n::Texts| {
             let current = CatalogUrl { query: CatalogQuery { marked: Some(marked), marked_in, ..CatalogQuery::default() }, ..CatalogUrl::default() };
-            let (_, value, without) = tags(&current, &[], &[], &named, t).into_iter().find(|(group, ..)| group == "Merkliste" || group == "Saved").unwrap();
+            let (_, value, without) = tags(&current, &[], &[], &[], &named, t).into_iter().find(|(group, ..)| group == "Merkliste" || group == "Saved").unwrap();
             (value, without.path())
         };
         // Taking the tag away takes the collection with it.
@@ -2860,6 +2956,58 @@ mod tests {
         // A collection this browser does not have is named by its number.
         assert_eq!(tag(true, CollectionView::Of(7), &i18n::DE).0, "in ‚Sammlung 7‘");
         assert_eq!(tag(false, CollectionView::Of(3), &i18n::EN).0, "not in ‘Für Lena’");
+    }
+
+    fn choices(names: &[&str]) -> Vec<FuesChoice> {
+        names.iter().enumerate().map(|(n, name)| FuesChoice { name: name.to_string(), leaves_out: u32::try_from(n).unwrap() + 1 }).collect()
+    }
+
+    /// The choices of a FÜS list are named by the word they all begin with, where there is one.
+    #[test]
+    fn the_choices_of_a_fues_list_are_named_by_their_common_word() {
+        let informatik = ChoiceNames::of(&choices(&["Anwendungsfach Wirtschaftswissenschaften", "Anwendungsfach Physik", "Anwendungsfach Maschinenbau / Elektrotechnik"]), &i18n::DE);
+        assert_eq!(informatik.label, "Anwendungsfach");
+        assert_eq!(
+            informatik.items,
+            [
+                ("Anwendungsfach Maschinenbau / Elektrotechnik".to_string(), "Maschinenbau / Elektrotechnik".to_string(), 3),
+                ("Anwendungsfach Physik".to_string(), "Physik".to_string(), 2),
+                ("Anwendungsfach Wirtschaftswissenschaften".to_string(), "Wirtschaftswissenschaften".to_string(), 1),
+            ]
+        );
+        assert_eq!(informatik.shown("Anwendungsfach Physik"), "Physik");
+        // A choice the list does not tell apart, as the address has it.
+        assert_eq!(informatik.shown("Anwendungsfach Kochen"), "Anwendungsfach Kochen");
+        // No common word: as the catalog writes them, under the panel's name, in the order of
+        // their letters.
+        let umwelt = ChoiceNames::of(&choices(&["Studium in der Breite", "Studienrichtung Ökologie", "Studienrichtung Landnutzung"]), &i18n::EN);
+        assert_eq!(umwelt.label, "Your choice in the programme");
+        assert_eq!(umwelt.items.iter().map(|(_, shown, _)| shown.as_str()).collect::<Vec<_>>(), ["Studienrichtung Landnutzung", "Studienrichtung Ökologie", "Studium in der Breite"]);
+        // A word alone is a name, not a word the others begin with.
+        assert_eq!(ChoiceNames::of(&choices(&["Anwendungsfach", "Anwendungsfach Physik"]), &i18n::DE).label, "Deine Wahl im Studiengang");
+        assert!(ChoiceNames::of(&[], &i18n::DE).items.is_empty());
+    }
+
+    /// The tags above a program's list are its own filters: the FÜS list's choice by the name the
+    /// panel gives it, none of the curriculum's that it keeps for the way back.
+    #[test]
+    fn the_tags_of_a_list_are_its_own_filters() {
+        let listed = choices(&["Anwendungsfach Physik", "Anwendungsfach Bauingenieurwesen"]);
+        let at = |search: &str| {
+            let current = CatalogUrl::parse(search);
+            tags(&current, &[], &listed, &[], &|_| None, &i18n::DE).into_iter().map(|(group, value, without)| (group, value, without.path())).collect::<Vec<_>>()
+        };
+        let both = "program=bachelor-informatik-2008&semester=3&kind=elective&choice=Anwendungsfach+Physik";
+        assert_eq!(
+            at(&format!("{both}&list=fues")),
+            [(
+                "Anwendungsfach".to_string(),
+                "Physik".to_string(),
+                "/catalog?program=bachelor-informatik-2008&list=fues&semester=3&kind=elective".to_string()
+            )]
+        );
+        let curriculum = at(both);
+        assert_eq!(curriculum.iter().map(|(group, value, _)| (group.as_str(), value.as_str())).collect::<Vec<_>>(), [("Semester", "3."), ("Art", "Wahlpflicht")]);
     }
 
     #[test]

@@ -381,7 +381,8 @@ fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMa
             })
         })
         .collect();
-    out.sort_by_cached_key(|module| (module.has.is_none(), !module.marked, module.title.to_lowercase()));
+    // Titles by their letters, as the catalog orders them („(Cyber-)Mobbing" under C).
+    out.sort_by_cached_key(|module| (module.has.is_none(), !module.marked, folia_search::order_key(&module.title), module.title.clone()));
     out
 }
 
