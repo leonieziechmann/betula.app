@@ -2,8 +2,9 @@
 //! „Tasten" und ? mit den Tasten des Ortes, … der Schalter für die einzelnen Tasten"): a dialog
 //! with what the keys do everywhere and, on a page that has more, at its places (the catalog: the
 //! list, the filters, the module beside it; the Merkliste: its list, its collections and filters;
-//! „Mein Studium": its semester, its Gesamtplan, its views; a Termin in its own view, wherever it
-//! stands), the group of where the keyboard was first and
+//! „Mein Studium": its semester, its Gesamtplan, its views; the Stundenplan: its week and its
+//! modules, its calendars and export; a Termin in its own view, wherever it stands), the group of
+//! where the keyboard was first and
 //! marked „Hier"; under them the switch for Betula's single keys
 //! (`folia_design::keys::LettersSwitch`).
 //!
@@ -51,6 +52,8 @@ enum Group {
     Study,
     StudySide,
     Grid,
+    Plan,
+    PlanSide,
 }
 
 impl Group {
@@ -66,6 +69,8 @@ impl Group {
             Group::Study => t.keys.study,
             Group::StudySide => t.keys.study_side,
             Group::Grid => t.keys.grid,
+            Group::Plan => t.keys.plan,
+            Group::PlanSide => t.keys.plan_side,
         }
     }
 
@@ -81,6 +86,8 @@ impl Group {
             Group::Study => t.keys.study_rows,
             Group::StudySide => t.keys.study_side_rows,
             Group::Grid => t.keys.grid_rows,
+            Group::Plan => t.keys.plan_rows,
+            Group::PlanSide => t.keys.plan_side_rows,
         }
     }
 
@@ -92,6 +99,8 @@ impl Group {
             ("side", Page::Study) => Some(Group::StudySide),
             ("list", Page::Study) => Some(Group::Study),
             ("grid", Page::Study) => Some(Group::Grid),
+            ("side", Page::Area(Area::Studyplan)) => Some(Group::PlanSide),
+            ("week" | "list", Page::Area(Area::Studyplan)) => Some(Group::Plan),
             ("side", _) => Some(Group::Filters),
             ("list", _) => Some(Group::List),
             ("module", _) => Some(Group::Module),
@@ -126,6 +135,7 @@ fn groups(page: Page, termin: bool) -> Vec<Group> {
         Page::Area(Area::Catalog) => vec![Group::Everywhere, Group::List, Group::Filters, Group::Module],
         Page::Area(Area::Bookmarks) => vec![Group::Everywhere, Group::Marked, Group::Sidebar, Group::Module],
         Page::Study => vec![Group::Everywhere, Group::Study, Group::Grid, Group::StudySide, Group::Module],
+        Page::Area(Area::Studyplan) => vec![Group::Everywhere, Group::Plan, Group::PlanSide],
         Page::Area(_) => vec![Group::Everywhere],
     };
     if termin {
@@ -250,7 +260,8 @@ mod tests {
         assert!(termin_at("/studyplan", "?termin=148370-eb017&on=2026-11-02&full=1"));
         assert!(termin_at("/", "?termin=148370-eb017"));
         assert!(!termin_at("/studyplan", "?open=12104") && !termin_at("/profile", "") && !termin_at("/", "?termin="));
-        assert_eq!(groups(Page::Area(Area::Studyplan), true), [Group::Everywhere, Group::Termin]);
+        assert_eq!(groups(Page::Area(Area::Studyplan), true), [Group::Everywhere, Group::Plan, Group::PlanSide, Group::Termin]);
+        assert_eq!(groups(Page::Area(Area::Home), true), [Group::Everywhere, Group::Termin]);
         assert_eq!(groups(Page::Area(Area::Catalog), false), [Group::Everywhere, Group::List, Group::Filters, Group::Module]);
         assert_eq!(Group::of("termin", Page::Area(Area::Home)), Some(Group::Termin));
     }
@@ -268,5 +279,16 @@ mod tests {
         assert_eq!(Group::of("grid", Page::Study), Some(Group::Grid));
         assert_eq!(Group::of("side", Page::Study), Some(Group::StudySide));
         assert_eq!(Group::of("side", Page::Area(Area::Catalog)), Some(Group::Filters));
+    }
+
+    /// The Stundenplan has its keys: its week and its modules, its sidebar.
+    #[test]
+    fn the_stundenplan_brings_its_keys() {
+        assert_eq!(Page::of("/studyplan"), Page::Area(Area::Studyplan));
+        assert_eq!(groups(Page::Area(Area::Studyplan), false), [Group::Everywhere, Group::Plan, Group::PlanSide]);
+        assert_eq!(Group::of("week", Page::Area(Area::Studyplan)), Some(Group::Plan));
+        assert_eq!(Group::of("list", Page::Area(Area::Studyplan)), Some(Group::Plan));
+        assert_eq!(Group::of("side", Page::Area(Area::Studyplan)), Some(Group::PlanSide));
+        assert_eq!(Group::of("termin", Page::Area(Area::Studyplan)), Some(Group::Termin));
     }
 }

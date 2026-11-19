@@ -102,6 +102,20 @@ pub struct Config {
     #[arg(long, env = "FOLIA_SYNC_PARTS", default_value = "")]
     pub sync_parts: String,
 
+    /// Notifications (docs/xylem/protocol.md): every page says in its head that the site offers
+    /// them (`<meta name="betula-push">`), and a browser whose student asks for them leaves its
+    /// push subscription at Xylem (`on`/`off`). Off until Xylem runs for the site. Folia itself
+    /// never speaks to Xylem: it names what it announces by itself as a feed
+    /// (`/api/announcements`), which Xylem reads.
+    #[arg(long, env = "FOLIA_PUSH", default_value_t = false, num_args = 0..=1, default_missing_value = "true", action = clap::ArgAction::Set, value_parser = clap::builder::BoolishValueParser::new())]
+    pub push: bool,
+
+    /// Where the browser reaches Xylem when notifications are on: empty for `/push/v1/` on the
+    /// page's own host, as Traefik routes it; another address while working on the site (Xylem on
+    /// a port of its own, which then has to accept the site as an origin: `XYLEM_ORIGINS`).
+    #[arg(long, env = "FOLIA_PUSH_URL", default_value = "")]
+    pub push_url: String,
+
     /// While working on the site: serve the stylesheet, the scripts and the SVGs from this
     /// directory (`folia/assets`) as they are on disk, instead of the minified copies built into the
     /// server, and keep nothing as immutable. An edit is there with the next reload; the service

@@ -14,6 +14,7 @@ import (
 
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
+	"github.com/leonieziechmann/betula/radix/internal/privacy"
 	"github.com/leonieziechmann/betula/radix/internal/version"
 )
 
@@ -117,6 +118,13 @@ type Report struct {
 	FUESModulesUnknown     map[string]int
 	FUESCatalogsUnreadable []string
 
+	// The privacy register (docs/radix/privacy.md): PrivacyPeople counts its persons,
+	// PrivacyRows the rows of module_person and event_person the build took out for them,
+	// PrivacyValues the texts it took a name out of.
+	PrivacyPeople int
+	PrivacyRows   int
+	PrivacyValues int
+
 	// Unused lists archived pages that are not part of the current dataset: module pages
 	// of modules that left the lists, tree pages the root no longer reaches. source → keys.
 	Unused map[string][]string
@@ -178,7 +186,8 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"modules_with_choices", report.ModulesWithChoices, "choices_program", report.ChoicesByProgram, "choices_group", report.ChoicesInGroups, "choices_topic", report.ChoicesOfTopics, "choice_extras", report.ChoiceExtras,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
-		"module_vectors", report.ModuleVectors, "general_documents", report.GeneralDocuments, "study_pages", report.StudyPages, "fues_catalogs", report.FUESCatalogs, "fues_negatives", report.FUESNegatives, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
+		"module_vectors", report.ModuleVectors, "general_documents", report.GeneralDocuments, "study_pages", report.StudyPages, "fues_catalogs", report.FUESCatalogs, "fues_negatives", report.FUESNegatives,
+		"privacy_people", report.PrivacyPeople, "privacy_rows", report.PrivacyRows, "privacy_values", report.PrivacyValues, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
 	return report, nil
 }
 
@@ -265,7 +274,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		}
 	}
 
-	b := &builder{tx: tx, src: src, report: report, previousAbbrevs: previousAbbrevs}
+	b := &builder{ctx: ctx, tx: tx, src: src, report: report, previousAbbrevs: previousAbbrevs}
 	steps := []struct {
 		name string
 		run  func() error
@@ -289,6 +298,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"module vectors", b.writeModuleVectors},
 		{"general documents", b.writeGeneralDocuments},
 		{"study pages", b.writeStudyPages},
+		{"privacy", b.redactPersons}, // last of the content: what any step wrote of a person of the register goes
 		{"meta", b.writeMeta},
 	}
 	for _, step := range steps {
@@ -325,6 +335,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 }
 
 type builder struct {
+	ctx    context.Context
 	tx     *sql.Tx
 	src    *sources
 	report *Report
@@ -339,6 +350,36 @@ type builder struct {
 	// The passage models of the module vectors (writeModuleVectors), comma-separated when the
 	// vectors are of more than one: the snapshot's meta semantic_model.
 	semanticModel string
+}
+
+// redactPersons takes the persons of the privacy register out of everything the build wrote, and
+// out of the caches beside it (the summaries of the semantic search): their rows of module_person
+// and event_person, and their names and addresses in every text (internal/privacy, Apply). Last
+// of the content, so that the content digest, and with it the snapshot, is the one without them;
+// validate fails if anything is left. It notes the register's digest it applied (privacy_meta
+// build_digest), so that the export can remove the snapshots built before it.
+func (b *builder) redactPersons() error {
+	people, err := privacy.Load(b.ctx, b.tx)
+	if err != nil {
+		return err
+	}
+	b.report.PrivacyPeople = len(people)
+	if err := privacy.SetMeta(b.ctx, b.tx, "build_digest", privacy.Digest(people)); err != nil {
+		return err
+	}
+	if len(people) == 0 {
+		return nil
+	}
+	tables, err := privacy.CatalogTables(b.ctx, b.tx)
+	if err != nil {
+		return err
+	}
+	res, err := privacy.Apply(b.ctx, b.tx, tables, people)
+	if err != nil {
+		return err
+	}
+	b.report.PrivacyRows, b.report.PrivacyValues = res.Rows, res.Values
+	return nil
 }
 
 // materialize evaluates the expensive *_src views once per build: program_module, module_facet

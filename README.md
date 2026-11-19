@@ -34,12 +34,14 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 | [docs/cortex/cortex.md](docs/cortex/cortex.md) | Cortex: storage, the API, politeness and safety per host, the hot spare, clients, configuration, metrics, log events |
 | [docs/radix/schema-v2.md](docs/radix/schema-v2.md) | pipeline, tables, the read views (the contract for consumers), what is still open |
 | [docs/radix/data-sources.md](docs/radix/data-sources.md) | where every fact comes from, which source wins, and the evidence |
+| [docs/radix/history.md](docs/radix/history.md) | the history of the published catalog: every state, only what changed, any time rebuilt in seconds, the full export |
+| [docs/radix/privacy.md](docs/radix/privacy.md) | personal data: the register of who asked to be taken out, what the build, validate, the export and the history take out, what is not reached yet |
 | [docs/radix/backend-data-overhaul.md](docs/radix/backend-data-overhaul.md) | the brief this design follows |
 | [docs/folia/frontend.md](docs/folia/frontend.md) | Folia: the web server and the browser app, flags, endpoints, checks |
 | [docs/folia/folia-refactor.md](docs/folia/folia-refactor.md) | Folia's restructuring: site and app, shell, workers, crates |
 | [docs/folia/sync.md](docs/folia/sync.md) | Betula Sync in Folia: the records and their merge, the browser's part, the actions, the checks |
 | [docs/phloem/phloem.md](docs/phloem/phloem.md) | Phloem: development, commands, settings, limits, the firewall, numbers and logs, deploy |
-| [docs/xylem/xylem.md](docs/xylem/xylem.md) | Xylem: development, commands, announcements, settings, the push services, the sender, limits, storage, numbers and logs, checks |
+| [docs/xylem/xylem.md](docs/xylem/xylem.md) | Xylem: development, commands, announcements, settings, the push services, the sender, limits, storage, numbers and logs, its place on the server (its firewall, `xylem start`), checks |
 | [docs/xylem/protocol.md](docs/xylem/protocol.md) | the notifications' protocol: what Xylem holds, the browser's requests, the push message, what Folia's part does, the feed of what Betula announces by itself |
 | [docs/phloem/protocol.md](docs/phloem/protocol.md) | Betula Sync's protocol: names, what may reach what, HTTP, the WebSocket, what the browser seals |
 
@@ -50,7 +52,7 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 | `radix/` | Radix, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `internal/` |
 | `cortex/` | Cortex, one Go module (`github.com/leonieziechmann/betula/cortex`): `cmd/cortex`, `internal/`, and `client/`, the client Radix imports (`radix/go.mod` replaces the module with `../cortex`) |
 | `phloem/` | Phloem, one Go module (`github.com/leonieziechmann/betula/phloem`): `cmd/phloem`, `internal/`, `deploy/firewall.nft` |
-| `xylem/` | Xylem, one Go module (`github.com/leonieziechmann/betula/xylem`): `cmd/xylem`, `internal/`, `live/` (its check against a real push service) |
+| `xylem/` | Xylem, one Go module (`github.com/leonieziechmann/betula/xylem`): `cmd/xylem`, `internal/`, `deploy/` (its firewall), `live/` (its check against a real push service) |
 | `folia/` | Folia, one Cargo workspace: `crates/<crate>` (package `folia-<crate>`), `assets/` (stylesheet, scripts, icons the server embeds), `e2e/` (browser checks), `design/` (sources of drawings and icons), `scripts/` (builds, the dev server) |
 | `docs/` | `radix/`, `folia/`, `cortex/`, `phloem/`, `xylem/`, and `history/` for the briefs and plans that are done |
 | `deploy/` | the stacks, the server set-up, `ship.sh` |
@@ -70,7 +72,9 @@ radix help                           # all commands
 `radix run` serves `GET /snapshot/catalog.db` (ETag, `If-None-Match` → 304), `/healthz` and
 `/status` on `127.0.0.1:8090`. The stages also run one by one: `crawl-qis-modules`, `crawl-modules`,
 `crawl-tree`, `crawl-events`, `crawl-general-documents`, `crawl-study-organisation`, `crawl-fues-catalogs`, `prune`, `build`,
-`validate`, `export`, `serve-snapshot`.
+`validate`, `export`, `serve-snapshot`. With `--history` (`RADIX_HISTORY_DB`) every published snapshot
+is recorded in the history (`radix history`); `radix privacy` keeps the register of the people whose
+personal data stays out.
 
 The module fields come from the module description in QIS, not from `b-tu.de/modul`: that page
 is a copy BTU's CMS renders, and it lags — in September 2026 it still named the events of the
@@ -105,6 +109,7 @@ nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cort
 | `radix/internal/gemini`, `radix/internal/curriculumscan`, `radix/internal/statutes`, `radix/internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `radix/internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
 | `radix/internal/oplog`, `radix/internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
+| `radix/internal/privacy`, `radix/internal/history` | the privacy register and the redaction every build, validate and the history apply; the history of the published catalog (`history.db`) |
 | `folia/crates/{catalog,app,client,pack,semantic,transcript,server}` | Folia, the web tier in Rust (`docs/folia/frontend.md`): the data contract with every SQL query, the Leptos app, the codes that carry a value in a link (a compact bit format for serde in base 66, with two check characters), the reader of the BTU's Notenübersicht that runs in the browser (its PDF read in a Web Worker of its own, which nothing leaves), and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
 | `folia/e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
 

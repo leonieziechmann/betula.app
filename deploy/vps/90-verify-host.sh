@@ -670,6 +670,13 @@ check_docker() {
   else
     fail "betula-phloem-guard.timer is not active (sudo bash ${BETULA_VPS_DIR}/30-docker.sh)"
   fi
+  as_shipped "Xylem's guard (service)" /etc/systemd/system/betula-xylem-guard.service betula-xylem-guard.service
+  as_shipped "Xylem's guard (timer)" /etc/systemd/system/betula-xylem-guard.timer betula-xylem-guard.timer
+  if systemctl is-active --quiet betula-xylem-guard.timer 2>/dev/null; then
+    pass "betula-xylem-guard.timer is on (Xylem's firewall and rights, every minute)"
+  else
+    fail "betula-xylem-guard.timer is not active (sudo bash ${BETULA_VPS_DIR}/30-docker.sh)"
+  fi
   as_shipped "the scraper's targets" /usr/local/sbin/betula-scraper-targets betula-scraper-targets.sh
   as_shipped "the scraper's targets (service)" /etc/systemd/system/betula-scraper-targets.service betula-scraper-targets.service
   as_shipped "the scraper's targets (timer)" /etc/systemd/system/betula-scraper-targets.timer betula-scraper-targets.timer

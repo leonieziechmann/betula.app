@@ -29,7 +29,8 @@ One cycle, every `--interval` (30 min):
 | `build` | every cycle | raw archive → canonical tables, one transaction, about 20 s. **Only the current dataset is built:** modules on the current lists, tree pages the current QIS root leads to, events QIS still has (one whose page states nothing and that the event search does not show was removed by BTU, `docs/radix/data-sources.md` §11) |
 | `archive` | every cycle | removes archived pages nothing leads to any more, `--archive-grace` (7 d) after their fetch: among them the page and the search entry of an event BTU removed, once no module description names it and so nothing fetches them |
 | `validate` | when the published snapshot does not hold what the build made | invariants and count baselines; a failure blocks the export. The build's `content_digest` (meta) is compared with the one in the current snapshot's own meta: they differ when the content changed, and also when an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped the export), although this build finds the content unchanged (`export.behind`) |
-| `export` | when validation ran and passed | new `snapshot/catalog-<hash>.db`, `current.json` replaced atomically |
+| `export` | when validation ran and passed | new `snapshot/catalog-<hash>.db`, `current.json` replaced atomically; when the privacy register changed since the snapshots were made, every older one is removed (`docs/radix/privacy.md`) |
+| `history` | every cycle that did not fail, after the export or in its place, with `--history` | the history of the published catalog (`docs/radix/history.md`): the privacy register applied to every version when it changed, then the published snapshot recorded when the history's newest state is not it, the rows that changed and nothing else. Skipped without a history; a failure degrades the cycle |
 | `semantic` | every cycle that did not fail, last (after the export), with `--embed-model` | the semantic search's vectors (`docs/radix/schema-v2.md`, „Semantic search“), within `--semantic-budget` (20 min): Gemini's summaries of module texts that have none, then the vectors of passages that have none, computed by the crate `folia/crates/semantic/` as WebAssembly in worker processes (`radix embed-worker`). The next build publishes them. The first run of a model takes about 6 processor-hours (on one CPU about 19 budgets, one a cycle: most of a day); then seconds. Skipped without a model; a failure of the vectors degrades the cycle, one of Gemini does not |
 
 The weekly and monthly rhythms are spread: every page has a day of its own in its period,
@@ -48,7 +49,9 @@ page is archived on its own, and the build and the plan import are single transa
 **A new release builds at start.** Every build stores which binary made it (meta `radix_build`, a
 hash of the executable). When `run` starts and another binary built the catalog, it first runs a
 cycle without the crawl stages (`service.rebuild`, then `cycle.started` with `crawl=false`): build,
-validate, and export if the snapshot does not hold the content yet. A release that reads the archived pages differently
+validate, and export if the snapshot does not hold the content yet, or has an older schema (a migration
+that adds no content, as schema 25, leaves the content digest as it was, and the release's Folia reads
+the new schema only). A release that reads the archived pages differently
 (a parser, a normalization rule, a migration) so reaches the snapshot within minutes of the deploy
 instead of after the first crawl, and if its build or validation fails, that is in the log right
 away while the previous snapshot stays current. `serve-snapshot --db <radix.db>`, the offline mode,
@@ -94,6 +97,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--event-retention` | `RADIX_EVENT_RETENTION` | `720h` (0 keeps everything) |
 | `--archive-grace` | `RADIX_ARCHIVE_GRACE` | `168h` (0 keeps unused pages) |
 | `--stale-after` | `RADIX_STALE_AFTER` | `26h` |
+| `--history` | `RADIX_HISTORY_DB` | none: no history. The file of the history of the published catalog (`docs/radix/history.md`); in a deploy `/data/history.db`, beside `radix.db` (`deploy/stacks/betula.yml`) |
 | `--embed-model` | `RADIX_EMBED_MODEL` | none: no vectors for the semantic search. The server's model, `e5-de-en-server.bin` (35 MB, `folia/crates/semantic/README.md` says how it is made); in a deploy `vps/50-app.sh` sets it to the passage model of `deploy/models.lock` in the model store (`deploy/README.md` section 13). A file named by a sha256 that is not its content's is refused |
 | `--embed-workers`, `--semantic-budget` | `RADIX_EMBED_WORKERS`, `RADIX_SEMANTIC_BUDGET` | one less than the processors the container may use (`GOMAXPROCS`, at least 1): worker processes of about 170 MB each (260 MB while loading); `20m` |
 | `--summary-model`, `--gemini-rpm`, `--gemini-rpd` | `GEMINI_SUMMARY_MODEL`, `RADIX_GEMINI_RPM`, `RADIX_GEMINI_RPD` | `gemini-3.5-flash-lite`, `10`, `900` (a guess at the free tier's limits, which Google does not publish: set the project's figures from AI Studio; the day begins at midnight Pacific time, as Google's does) |
@@ -255,11 +259,12 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
 | INFO | `build.interrupted`, `stage.interrupted` (`stage`), `export.interrupted`, `cycle.finished` with `result=interrupted` | the process is stopping (a deploy removes the old colour, SIGTERM) and cut a cycle short: its context was cancelled. Nobody has to act; the build is rolled back, the previous snapshot stays current. Only the cancellation of the service's own context counts: a "context canceled" while it runs, or any other error while it stops, is still `stage.failed` / `build.failed` / `export.failed` |
-| INFO | `export.behind` | the published snapshot does not hold what the build made, although the content did not change since the last build: an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped it). This cycle validates and exports it (`published_digest`, `content_digest`) |
+| INFO | `export.behind` | the published snapshot does not hold what the build made, although the content did not change since the last build: an earlier cycle built it but did not publish it (its validation or export failed, a deploy stopped it), or it has an older schema than the catalog (a migration that adds no content). This cycle validates and exports it (`published_digest` or `published_schema` and `schema`, `content_digest`) |
 | INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache`, `refresh` or `offline`; `max_age`) |
 | INFO | `seed.started`, `seed.progress`, `seed.finished` | `radix seed-cortex`: what Cortex made of the archive's pages (`created`, `checked`, `unchanged`, `older`, `failed`, `by_source`); WARN `seed.failed` names a page Cortex did not take |
 | DEBUG | `crawl.offline_miss` | offline through Cortex: Cortex has not stored the page (`key`, `url`); skipped, the next cycle asks again |
 | INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned`, `retention.archive_pruned` | progress, with counts and durations |
+| INFO | `history.recorded`, `history.redacted`, `export.privacy_pruned` | the history recorded the published snapshot (`state`, `valid_from`, `rows_opened`, `rows_closed`, `schema`); applied a changed privacy register to every version (`people`, `rows`, `values`); the export removed the snapshots made before the register changed (`removed`, `failed`). `build.finished` counts `privacy_people`, `privacy_rows`, `privacy_values`; no log names a person of the register |
 
 CLI commands use the same log and these exit codes: `0` success, `1` failure (pages failed,
 validation failed, …), `2` invalid flags, `130` interrupted.
@@ -396,7 +401,7 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 
 `crawl-modules`, `crawl-qis-modules`, `crawl-tree`, `crawl-events`, `crawl-general-documents`,
 `crawl-study-organisation`, `crawl-fues-catalogs`, `prune`, `build`, `validate`, `export`, `serve-snapshot`, `seed-cortex`, `download-statutes`, `scan-curriculum`,
-`relink-plans` run one by one against the same database. They can run next to a service: readers never block, and a
+`relink-plans`, `privacy` and `history` run one by one against the same database. They can run next to a service: readers never block, and a
 writer waits up to 60 s for the other writer (a build holds the write lock for about 20 s). Their
 `-max-age` is a plain age: a crawl command fetches every page older than it, without the days of
 their own over which the service spreads its rhythms. The `crawl-*` commands and
@@ -415,6 +420,12 @@ one a Radix writes to, from any release since migration 1. `--sources` picks sou
 (2) how many pages go at a time, `--dry-run` counts and sends nothing. Run again, it changes only
 what the archive has newer; it stops after 10 pages in a row that Cortex refused, exit code 1 when
 any page failed. On the server: `deploy/README.md` section 14, „Seeding Cortex".
+
+`privacy add | list | remove | find` keeps the register of the people whose personal data is taken
+out of everything Radix builds and keeps, and finds where a person is named (`docs/radix/privacy.md`);
+`history status | record | at | log | export | redact` works with the history of the published
+catalog: the catalog as it was at any time in seconds, the versions of a row, the full export
+(`docs/radix/history.md`).
 
 `relink-plans` matches the stored plans against the catalog again and rewrites only the link from
 a plan row to a module, from the name and code the scan stored. That is what a change to the

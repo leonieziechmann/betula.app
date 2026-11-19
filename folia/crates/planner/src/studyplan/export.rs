@@ -434,13 +434,17 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
     };
 
     view! {
-        <div class="fgroup actions">
+        // A section of the keyboard's mode (`FrameKeys`), whose ways typing finds (`data-find`), and
+        // each a command of „Befehle".
+        <div class="fgroup actions" data-section="" data-find="" role="group" aria-label=s.calendar>
             <p class="flabel label">{s.calendar}</p>
             // Without a file the link has no address: it downloads nothing, rather than
             // the page.
             <a
                 class="action"
                 node_ref=anchor
+                data-command=s.download
+                data-command-group=t.studyplan.title
                 href=move || href.get()
                 download=move || name.get()
                 aria-disabled=move || none.with(Option::is_some).then_some("true")
@@ -458,6 +462,8 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 aria-disabled=move || (!drawable.get()).then_some("true")
                 aria-busy=move || drawing.get().then_some("true")
                 title=move || (!drawable.get()).then_some(s.none)
+                data-command=s.picture
+                data-command-group=t.studyplan.title
                 on:click=draw
             >
                 <Icon name="image"/>
@@ -469,6 +475,8 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
                 class="action"
                 type="button"
                 id=ABO_ID
+                data-command=s.subscribe
+                data-command-group=t.studyplan.title
                 aria-disabled=move || (!offered.get()).then_some("true")
                 on:click=move |_| {
                     if offered.get_untracked() {

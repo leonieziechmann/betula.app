@@ -485,8 +485,9 @@ prometheus.exporter.unix "phloem_canary" {
 }
 
 // What the host writes for the monitoring: betula-phloem-guard (vps/files/betula-phloem-guard.sh,
-// every minute as root) on Phloem's firewall and rights. A directory of root's that no container
-// mounts: what watches Phloem is not Phloem's to write.
+// every minute as root) on Phloem's firewall and rights, and the same script as betula-xylem-guard
+// on Xylem's. A directory of root's that no container mounts: what watches them is not theirs to
+// write.
 prometheus.exporter.unix "host_files" {
   set_collectors = ["textfile"]
 
@@ -557,6 +558,75 @@ prometheus.relabel "phloem" {
     action = "labeldrop"
     regex  = "exported_(job|instance|stack)"
   }
+}
+
+// ---------------------------------------------------------------- Xylem
+
+// Xylem, the notifications' service (docs/xylem/xylem.md, „On the server"), is kept as Phloem is:
+// no network with the monitoring, its numbers every 15 s in a file, /run/betula/xylem/<stack>/
+// stats/xylem.prom on the host (a tmpfs of its own), read here through /rootfs. One exporter per
+// instance, with its labels job, stack and instance set here. What betula-xylem-guard sees of its
+// firewall and rights (/run/betula/metrics/xylem-guard.prom) comes with the host's files above,
+// under job phloem-guard like every file of that directory.
+prometheus.exporter.unix "xylem" {
+  set_collectors = ["textfile"]
+
+  textfile {
+    directory = "/rootfs/run/betula/xylem/xylem/stats"
+  }
+}
+
+prometheus.exporter.unix "xylem_canary" {
+  set_collectors = ["textfile"]
+
+  textfile {
+    directory = "/rootfs/run/betula/xylem/xylem-canary/stats"
+  }
+}
+
+discovery.relabel "xylem" {
+  targets = prometheus.exporter.unix.xylem.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "xylem"
+  }
+
+  rule {
+    target_label = "stack"
+    replacement  = "xylem"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "xylem"
+  }
+}
+
+discovery.relabel "xylem_canary" {
+  targets = prometheus.exporter.unix.xylem_canary.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "xylem"
+  }
+
+  rule {
+    target_label = "stack"
+    replacement  = "xylem-canary"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "xylem-canary"
+  }
+}
+
+prometheus.scrape "xylem" {
+  targets         = array.concat(discovery.relabel.xylem.output, discovery.relabel.xylem_canary.output)
+  scrape_interval = "30s"
+  // The same relabeling as Phloem's: the target's labels win over the file's.
+  forward_to = [prometheus.relabel.phloem.receiver]
 }
 
 // ---------------------------------------------------------------- container metrics
