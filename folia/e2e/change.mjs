@@ -58,6 +58,11 @@ const pick = async (page, button, value) => {
 
 const open = async (options, plan, path = "/studyplan") => {
   const context = await browser.newContext(options);
+  // The check's own clock, a Monday morning of the lecture period, running on from there: the date
+  // moved „nur am …" to Thursday 10:00 lies ahead whenever the check runs. With the machine's clock it
+  // was past on a Thursday after 11:30 and until the week's end, and the card then showed the date
+  // after it, without „Von dir geändert" (seen on Thursday, 2026-11-19).
+  await context.clock.install({ time: new Date("2026-11-16T08:00:00") });
   await context.addInitScript(ON_PAGE);
   await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   await context.addInitScript(([k1, k2, v1, v2]) => {
