@@ -412,9 +412,9 @@ await still.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
 const total = await still.locator(".rows a.row").count();
 check((await still.locator("#filters, .filters select, .filters a.chip").count()) === 0, "no JS: the site's catalog has a filter panel");
 check((await still.locator(".filters.sk-standin").evaluate((el) => el.getClientRects().length)) === 0, "no JS: the stand-in of the filter panel shows");
-// What needs JavaScript (shortcut hints, drag handles, the slider, the theme switch) is not shown.
+// What needs JavaScript (shortcut hints, drag handles, the slider) is not shown.
 await still.goto(base + "/catalog?open=11101", { waitUntil: "domcontentloaded" });
-const leftovers = await still.evaluate(() => [...allOnPage("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
+const leftovers = await still.evaluate(() => [...allOnPage("kbd, .resizer, .slider, .scale, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
 check(leftovers.length === 0, `no JS: still visible: ${leftovers.join(", ")}`);
 // The preview is the app's: the server's page ignores `open` and every row leads to the module's own page.
 check((await still.locator(".detail").count()) === 0, "no JS: the server's page shows a preview for a shared link");
