@@ -46,6 +46,9 @@ pub enum PlanSemesterFilter {
     Unstated,
 }
 
+/// A program's list and its filters. The plan's semesters, the kinds and the areas of the tree are
+/// the curriculum's, the choice is the FÜS list's; each list keeps the other's for the way back and
+/// leaves them out (`in_force`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ProgramScope {
     /// `v_program.slug`: what URLs carry, so no lookup is needed to build the query.
@@ -70,6 +73,35 @@ pub struct ProgramScope {
     /// … and whether every elective module the plan places nowhere counts as well (a row of the
     /// plan that points at no area).
     pub semester_electives: bool,
+    /// What the student chose of what the program's negative list in the BTU's FÜS catalogs tells
+    /// apart, as the catalog names it („Anwendungsfach Physik", `v_program_fues_note.excluded_for`):
+    /// the FÜS list leaves out the modules it does not admit for that choice (owner, 2026-11-19:
+    /// „wenn man zum beispiel informatik ausgewählt hat muss man dann noch beim füs katalog sein
+    /// anwendungsfach angeben können"). A name of the data, like a lecturer's (`choice=…`).
+    pub choice: Option<String>,
+}
+
+impl ProgramScope {
+    /// The scope as its list applies it: what belongs to the other list left out (owner,
+    /// 2026-11-19: „wenn man oben füs auswählt für die suche, dann brauchen wir nicht fachsemester
+    /// anzeigen, oder modulart etc. So und die können dann beim filtern auch ignoriert werden").
+    /// The FÜS list has no semester of the plan, no kind (its modules are `fues`) and no area of
+    /// the tree; the curriculum has no choice of the FÜS catalog. The address keeps them, so that
+    /// switching back finds them again, but they filter nothing, have no tag and are not counted.
+    pub fn in_force(&self) -> Self {
+        match self.relation {
+            ProgramRelation::Curricular => Self { choice: None, ..self.clone() },
+            ProgramRelation::Fues => Self {
+                plan_semester: None,
+                kinds: Vec::new(),
+                kinds_exclude: Vec::new(),
+                areas: Vec::new(),
+                semester_areas: Vec::new(),
+                semester_electives: false,
+                ..self.clone()
+            },
+        }
+    }
 }
 
 /// Any of the ticked offers matches; nothing ticked means no turnus filter.
@@ -341,13 +373,16 @@ impl CatalogQuery {
     /// How many filters are active (for „Filter zurücksetzen (3)"). Sorting is not a filter.
     pub fn active_filters(&self) -> usize {
         let t = &self.turnus;
-        let program = self.program.as_ref();
+        // What the list keeps for the other list of the program does not count.
+        let program = self.program.as_ref().map(ProgramScope::in_force);
+        let program = program.as_ref();
         [
             !self.text.trim().is_empty(),
             program.is_some(),
             program.is_some_and(|p| p.plan_semester.is_some()),
             program.is_some_and(|p| !p.kinds.is_empty() || !p.kinds_exclude.is_empty()),
             program.is_some_and(|p| !p.areas.is_empty()),
+            program.is_some_and(|p| p.choice.is_some()),
             self.department_id.is_some(),
             t.winter || t.summer || t.irregular || t.not_winter || t.not_summer || t.not_irregular || t.year_parity.is_some(),
             !self.teaching_forms.is_empty() || !self.teaching_forms_exclude.is_empty(),
