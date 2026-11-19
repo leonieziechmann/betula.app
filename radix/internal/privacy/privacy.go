@@ -146,6 +146,11 @@ func Meta(ctx context.Context, db DB, key string) string {
 	return v
 }
 
+// RegisterID tells this register from any other (privacy_meta register_id, made by migration 25):
+// the history notes the one it follows and refuses another, so that a fresh or a wrong radix.db,
+// whose register is empty, never lets back into it what this one keeps out. "" without one.
+func RegisterID(ctx context.Context, db DB) string { return Meta(ctx, db, "register_id") }
+
 // SetMeta writes a value of privacy_meta.
 func SetMeta(ctx context.Context, db DB, key, value string) error {
 	_, err := db.ExecContext(ctx, "INSERT INTO privacy_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", key, value)

@@ -27,6 +27,9 @@ type Table struct {
 	Text   []string // the columns whose text is searched
 	Module string   // the column that names the module a row belongs to ("module_id"; "id" in module), or ""
 	Event  string   // the column that names the event a row belongs to ("event_id"; "id" in event), or ""
+	// Link: the table ties modules to their events (module_event). It is read, not searched: the
+	// events of a person's modules are theirs too.
+	Link bool
 }
 
 // The lists of names: a person's row in them is taken out as a whole.
@@ -143,7 +146,10 @@ type pass struct {
 	people  []Person
 	persons []*person
 	modules []map[string]bool // per person: the modules whose lists of names hold them
-	events  []map[string]bool
+	events  []map[string]bool // per person: the events whose lists hold them, and the events of those modules
+	// distinct: no namesake with another given name stands in the lists of names, so the surname
+	// alone in a column of names (the event search's „Mustermann", an instructor) is the person.
+	distinct []bool
 }
 
 func newPass(people []Person) *pass {
@@ -152,59 +158,135 @@ func newPass(people []Person) *pass {
 		p.persons = append(p.persons, compile(person))
 		p.modules = append(p.modules, map[string]bool{})
 		p.events = append(p.events, map[string]bool{})
+		p.distinct = append(p.distinct, true)
 	}
 	return p
 }
 
-// listed reports which persons a row of a list of names is (the whole row is theirs).
-func (p *pass) listed(t Table, r scanned) []int {
+func nameColumn(t Table, col string) bool {
+	return (nameLists[t.Source] && col == "name") || (t.Source == "event_date" && col == "instructor")
+}
+
+// nameOf is the name of a row of a list of names, folded; "" for another row.
+func nameOf(t Table, r scanned) string {
 	if !nameLists[t.Source] {
-		return nil
+		return ""
 	}
-	at := -1
 	for i, c := range t.Text {
-		if c == "name" {
-			at = i
+		if c == "name" && r.values[i].Valid {
+			return folded(r.values[i].String)
 		}
 	}
-	if at < 0 || !r.values[at].Valid {
+	return ""
+}
+
+// survey reads, before anything is searched, who is who: the rows of the lists of names that are
+// persons of the register (given name and surname) with their modules and events, the events of
+// those modules (module_event), and whether a namesake with another given name stands in the lists.
+func (p *pass) survey(ctx context.Context, db DB, tables []Table) error {
+	type pair struct{ surname, given string }
+	var pairs []pair
+	for _, t := range tables {
+		switch {
+		case nameLists[t.Source]:
+			rows, err := scan(ctx, db, t)
+			if err != nil {
+				return err
+			}
+			for _, r := range rows {
+				f := nameOf(t, r)
+				if f == "" {
+					continue
+				}
+				for i, person := range p.persons {
+					if person.strict.MatchString(f) {
+						if r.module != "" {
+							p.modules[i][r.module] = true
+						}
+						if r.event != "" {
+							p.events[i][r.event] = true
+						}
+					}
+				}
+				if surname, rest, ok := strings.Cut(f, ","); ok {
+					if given := strings.FieldsFunc(rest, func(r rune) bool { return r == ' ' || r == '-' }); len(given) > 0 {
+						pairs = append(pairs, pair{strings.Join(strings.Fields(surname), " "), given[0]})
+					}
+				}
+			}
+		}
+	}
+	for _, t := range tables {
+		if !t.Link || t.Module == "" || t.Event == "" {
+			continue
+		}
+		rows, err := db.QueryContext(ctx, "SELECT "+quote(t.Module)+", "+quote(t.Event)+" FROM "+quote(t.Name))
+		if err != nil {
+			return fmt.Errorf("privacy: read %s: %w", t.Name, err)
+		}
+		for rows.Next() {
+			var m, e sql.NullString
+			if err := rows.Scan(&m, &e); err != nil {
+				rows.Close()
+				return err
+			}
+			for i := range p.persons {
+				if p.modules[i][m.String] {
+					p.events[i][e.String] = true
+				}
+			}
+		}
+		err = rows.Close()
+		if err != nil {
+			return err
+		}
+	}
+	for i, person := range p.persons {
+		givens := map[string]bool{}
+		for _, g := range person.givens {
+			if w := strings.FieldsFunc(g, func(r rune) bool { return r == ' ' || r == '-' }); len(w) > 0 {
+				givens[w[0]] = true
+			}
+		}
+		for _, pr := range pairs {
+			for _, s := range person.surnames {
+				if pr.surname == s && !givens[pr.given] {
+					p.distinct[i] = false
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// listed reports which persons a row of a list of names is (the whole row is theirs): given name
+// and surname, or the surname alone where it means them (their own module or event, or no namesake).
+func (p *pass) listed(t Table, r scanned) []int {
+	f := nameOf(t, r)
+	if f == "" {
 		return nil
 	}
-	f := folded(r.values[at].String)
 	var who []int
 	for i, person := range p.persons {
-		if person.strict.MatchString(f) {
+		if person.strict.MatchString(f) || (person.surnameOnly.MatchString(f) && (p.distinct[i] || p.own(i, r))) {
 			who = append(who, i)
 		}
 	}
 	return who
 }
 
-// list finds the rows of a list of names that are persons of the register, before anything of
-// the table is searched, and notes their modules and events: the surname alone then means them
-// in every row of those, whatever the order of the rows.
-func (p *pass) list(t Table, rows []scanned) [][]int {
-	out := make([][]int, len(rows))
-	for n, r := range rows {
-		out[n] = p.listed(t, r)
-		for _, i := range out[n] {
-			if r.module != "" {
-				p.modules[i][r.module] = true
-			}
-			if r.event != "" {
-				p.events[i][r.event] = true
-			}
-		}
-	}
-	return out
+// own: the row belongs to a module or an event of the person.
+func (p *pass) own(i int, r scanned) bool {
+	return (r.module != "" && p.modules[i][r.module]) || (r.event != "" && p.events[i][r.event])
 }
 
-// bare reports the persons whose surname alone means them in this row: it belongs to a module or
-// an event whose lists of names hold them.
-func (p *pass) bare(r scanned) []bool {
+// bare reports the persons whose surname alone means them in a value of the row: in their own
+// modules and events, and in a column of names when no namesake stands in the lists.
+func (p *pass) bare(t Table, r scanned, col string) []bool {
 	out := make([]bool, len(p.persons))
+	names := nameColumn(t, col)
 	for i := range p.persons {
-		out[i] = (r.module != "" && p.modules[i][r.module]) || (r.event != "" && p.events[i][r.event])
+		out[i] = p.own(i, r) || (names && p.distinct[i])
 	}
 	return out
 }
@@ -217,7 +299,7 @@ func (p *pass) redact(s string, bare []bool, by []int) (string, bool) {
 		f, at := fold(s)
 		var spans []span
 		for i, person := range p.persons {
-			found := person.mentions(f, bare[i])
+			found := person.mentions(s, f, at, bare[i])
 			by[i] += len(found)
 			spans = append(spans, found...)
 		}
@@ -248,27 +330,37 @@ func onlyPlaceholders(s string) bool {
 	return strings.Trim(rest, " ,;/&+-–\t\n") == "" || strings.EqualFold(strings.TrimSpace(strings.Trim(rest, " ,;/&+-–")), "und")
 }
 
-// order puts the lists of names first: the modules and events they tie a person to decide where
-// the surname alone means them.
+// order puts the lists of names first, and leaves out the tables that are only read (Link).
 func order(tables []Table) []Table {
-	out := append([]Table{}, tables...)
+	var out []Table
+	for _, t := range tables {
+		if !t.Link {
+			out = append(out, t)
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool { return nameLists[out[i].Source] && !nameLists[out[j].Source] })
 	return out
 }
 
 // Apply takes the register's persons out of the tables: their rows of module_person and
-// event_person, and every mention of them in a text (given name or initial with the surname, a
-// title or salutation with the surname, their e-mail addresses, the register's further forms,
-// and the surname alone in the rows of their own modules and events), which reads Placeholder
-// instead; an instructor of event_date left with nothing but that is NULL. It is deterministic
-// and idempotent: the same register on the same data takes out the same, and nothing more the
-// second time.
+// event_person (given name and surname; the surname alone in their own modules and events, and
+// wherever no namesake with another given name stands in the lists), and every mention of them in
+// a text (given name or initial with the surname in either order, further given names, a title or
+// salutation with the surname, their e-mail addresses, the register's further forms, and the
+// surname alone in the rows of their own modules and events, and in an instructor where no
+// namesake stands in the lists), which reads Placeholder instead; an instructor left with nothing
+// but that is NULL. A value of an enumeration („winter", „block") is never taken for a surname. It
+// is deterministic and idempotent: the same register on the same data takes out the same, and
+// nothing more the second time.
 func Apply(ctx context.Context, db DB, tables []Table, people []Person) (Result, error) {
 	res := Result{People: len(people), Changed: map[string]int{}, ByPerson: map[int64]int{}, keys: map[string][][]any{}}
 	if len(people) == 0 {
 		return res, nil
 	}
 	p := newPass(people)
+	if err := p.survey(ctx, db, tables); err != nil {
+		return res, err
+	}
 	counts := make([]int, len(people))
 	for _, t := range order(tables) {
 		if err := ctx.Err(); err != nil {
@@ -279,22 +371,20 @@ func Apply(ctx context.Context, db DB, tables []Table, people []Person) (Result,
 			return res, err
 		}
 		var drop, update []scanned
-		listed := p.list(t, rows)
-		for n, r := range rows {
-			if who := listed[n]; len(who) > 0 {
+		for _, r := range rows {
+			if who := p.listed(t, r); len(who) > 0 {
 				for _, i := range who {
 					counts[i]++
 				}
 				drop = append(drop, r)
 				continue
 			}
-			bare := p.bare(r)
 			changed := false
 			for i, v := range r.values {
 				if !v.Valid {
 					continue
 				}
-				out, ok := p.redact(v.String, bare, counts)
+				out, ok := p.redact(v.String, p.bare(t, r, t.Text[i]), counts)
 				if !ok {
 					continue
 				}
@@ -354,13 +444,17 @@ func Apply(ctx context.Context, db DB, tables []Table, people []Person) (Result,
 // Find reports where the persons are mentioned in the tables, by the rules of Apply, and changes
 // nothing: for validate, which fails on any hit after the build took them out, and for a
 // request for information (Art. 15 DSGVO), which persons not in the register can make. The
-// surname alone counts only in the rows of modules and events whose lists of names still hold
-// the person: once Apply took those rows out, the surname alone is not looked for.
+// surname alone in their own modules and events counts only while the lists of names still tie
+// them to those: once Apply took the rows out, it is looked for where no namesake stands in the
+// lists, in the columns of names.
 func Find(ctx context.Context, db DB, tables []Table, people []Person, limit int) ([]Hit, int, error) {
 	if len(people) == 0 {
 		return nil, 0, nil
 	}
 	p := newPass(people)
+	if err := p.survey(ctx, db, tables); err != nil {
+		return nil, 0, err
+	}
 	var hits []Hit
 	total := 0
 	add := func(h Hit) {
@@ -377,22 +471,21 @@ func Find(ctx context.Context, db DB, tables []Table, people []Person, limit int
 		if err != nil {
 			return hits, total, err
 		}
-		listed := p.list(t, rows)
-		for n, r := range rows {
-			if who := listed[n]; len(who) > 0 {
+		for _, r := range rows {
+			if who := p.listed(t, r); len(who) > 0 {
 				for _, i := range who {
 					add(Hit{Person: people[i].ID, Table: t.Name, Key: keyString(t.Key, r.key), Column: "name", Snippet: valueOf(t, r, "name"), Row: true})
 				}
 				continue
 			}
-			bare := p.bare(r)
 			for c, v := range r.values {
 				if !v.Valid {
 					continue
 				}
 				f, at := fold(v.String)
+				bare := p.bare(t, r, t.Text[c])
 				for i, person := range p.persons {
-					for _, sp := range merge(person.mentions(f, bare[i])) {
+					for _, sp := range merge(person.mentions(v.String, f, at, bare[i])) {
 						add(Hit{Person: people[i].ID, Table: t.Name, Key: keyString(t.Key, r.key), Column: t.Text[c], Snippet: snippet(v.String, at[sp.start], at[sp.end])})
 					}
 				}
@@ -466,7 +559,8 @@ func CatalogTables(ctx context.Context, db DB) ([]Table, error) {
 		}
 		t.Text = TextColumns(cols)
 		t.Module, t.Event = Belongs(name, cols)
-		if len(t.Text) > 0 {
+		t.Link = IsLink(name)
+		if len(t.Text) > 0 || t.Link {
 			tables = append(tables, t)
 		}
 	}
@@ -512,6 +606,9 @@ func TextColumns(cols []Column) []string {
 	}
 	return text
 }
+
+// IsLink: the catalog table ties modules to their events.
+func IsLink(table string) bool { return table == "module_event" }
 
 // Belongs names the columns that tie a row of the catalog table to a module and to an event.
 func Belongs(table string, cols []Column) (module, event string) {

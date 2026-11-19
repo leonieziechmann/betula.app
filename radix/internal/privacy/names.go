@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // folds maps the letters with diacritics of the Latin scripts to their base letters, after
@@ -115,8 +116,21 @@ const (
 	after  = `)(?:[^\pL\pN-]|$)`
 )
 
-// emailPattern finds every address in folded text; whose it is, the local part says.
-var emailPattern = regexp.MustCompile(`[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+`)
+// emailPattern finds every address in folded text, also those written to keep harvesters off
+// („max.mustermann(at)b-tu.de", „[at]", „(dot)"); whose it is, the local part says.
+var (
+	emailPattern = regexp.MustCompile(`[a-z0-9._%+-]+ ?(?:@|\(at\)|\[at\]|\{at\}) ?[a-z0-9-]+(?:(?:\.|\(dot\)|\[dot\])[a-z0-9-]+)+`)
+	atPattern    = regexp.MustCompile(` ?(?:@|\(at\)|\[at\]|\{at\}) ?`)
+)
+
+// hasAt reports whether a folded text may hold an address.
+func hasAt(f string) bool {
+	return strings.Contains(f, "@") || strings.Contains(f, "(at)") || strings.Contains(f, "[at]") || strings.Contains(f, "{at}")
+}
+
+// codeValue is a value of an enumeration („winter", „block", „nord", „week_a"): never a name, even
+// where it is a person's surname. Names are written with a capital.
+var codeValue = regexp.MustCompile(`^[a-z0-9_]+$`)
 
 // person is the compiled forms of one person of the register.
 type person struct {
@@ -127,8 +141,17 @@ type person struct {
 	// given name, nothing less, so that a namesake keeps their row.
 	strict *regexp.Regexp
 	// bare is the surname alone, for the rows that belong to a module or an event of the person,
-	// where it means them („Dozent: Mustermann").
+	// where it means them („Dozent: Mustermann"), and for the columns of names where no namesake
+	// with another given name stands in the lists.
 	bare *regexp.Regexp
+	// surnameOnly is a row of a list of names that holds the surname alone, as the event search
+	// writes them („Mustermann").
+	surnameOnly *regexp.Regexp
+	// middle finds given name, further given names and surname („Max Peter Mustermann"); a match
+	// counts where the further names are written with a capital (group 2), not „Max und Mustermann".
+	middle *regexp.Regexp
+	// surnames and givens are the folded spellings, for telling a namesake.
+	surnames, givens []string
 	// locals are the local parts of the person's addresses (max.mustermann, m.mustermann, mustermann).
 	locals map[string]bool
 	// needles: a folded text that contains none of them cannot name the person.
@@ -169,11 +192,14 @@ func compile(p Person) *person {
 	G := alternation(givens)
 	I := "(?:" + strings.Join(inits, "|") + ")"
 	middle := `(?: [a-z]\.)*` // „Max P. Mustermann"
+	pre := `(?:` + salutation + ` +)?(?:` + titles + `)?`
 
 	forms := []string{
-		`(?:` + salutation + ` +)?(?:` + titles + `)?(?:` + G + `|` + I + `)` + middle + ` +` + S, // Prof. Dr. Max Mustermann, M. Mustermann
-		S + ` *, *(?:` + G + `|` + I + `)(?: *, *` + titles + `)?`,                                // Mustermann, Max , Prof. Dr.
-		`(?:` + salutation + ` +(?:` + titles + `)?|` + titles + `)` + S,                          // Prof. Mustermann, Herr Mustermann
+		pre + G + middle + ` +` + S,                                      // Prof. Dr. Max Mustermann, Max P. Mustermann
+		pre + I + `(?: ?[a-z]\.)* *` + S,                                 // M. Mustermann, M.Mustermann, M. P. Mustermann
+		S + ` *, *(?:` + G + `|` + I + `)(?: *, *` + titles + `)?`,       // Mustermann, Max , Prof. Dr.
+		S + ` +(?:` + G + `|` + I + `)`,                                  // Mustermann Max, Mustermann M.
+		`(?:` + salutation + ` +(?:` + titles + `)?|` + titles + `)` + S, // Prof. Mustermann, Herr Mustermann
 	}
 	// The longest word of each spelling of the surname: „Müller Lüdenscheidt" is written with a
 	// hyphen or without, „lüdenscheidt" stands in both.
@@ -220,11 +246,15 @@ func compile(p Person) *person {
 	}
 
 	return &person{
-		text:    regexp.MustCompile(before + strings.Join(forms, "|") + after),
-		strict:  regexp.MustCompile(before + G + middle + ` +` + S + `|` + S + ` *, *` + G + after),
-		bare:    regexp.MustCompile(before + S + after),
-		locals:  locals,
-		needles: needles,
+		text:        regexp.MustCompile(before + strings.Join(forms, "|") + after),
+		strict:      regexp.MustCompile(before + G + middle + ` +` + S + `|` + S + ` *, *` + G + after),
+		bare:        regexp.MustCompile(before + S + after),
+		surnameOnly: regexp.MustCompile(`^ *` + S + ` *(?:, *` + titles + `)? *$`),
+		middle:      regexp.MustCompile(before + pre + G + `((?: [a-z][a-z'-]*){1,2}) +` + S + after),
+		locals:      locals,
+		needles:     needles,
+		surnames:    surnames,
+		givens:      givens,
 	}
 }
 
@@ -246,9 +276,9 @@ func all(re *regexp.Regexp, f string) []span {
 	return out
 }
 
-// mentions returns where the person stands in the folded text f; bare also finds the surname
-// alone.
-func (p *person) mentions(f string, bare bool) []span {
+// mentions returns where the person stands in the text s, folded f with its offsets at; bare also
+// finds the surname alone, but never in a value of an enumeration.
+func (p *person) mentions(s, f string, at []int, bare bool) []span {
 	found := false
 	for _, n := range p.needles {
 		if strings.Contains(f, n) {
@@ -259,17 +289,47 @@ func (p *person) mentions(f string, bare bool) []span {
 	var out []span
 	if found {
 		out = append(out, all(p.text, f)...)
-		if bare {
+		out = append(out, p.middleNames(s, f, at)...)
+		if bare && !codeValue.MatchString(s) {
 			out = append(out, all(p.bare, f)...)
 		}
 	}
-	if strings.Contains(f, "@") {
+	if hasAt(f) {
 		for _, m := range emailPattern.FindAllStringIndex(f, -1) {
-			local := f[m[0] : strings.IndexByte(f[m[0]:m[1]], '@')+m[0]]
-			if p.locals[local] {
+			sep := atPattern.FindStringIndex(f[m[0]:m[1]])
+			if sep != nil && p.locals[f[m[0]:m[0]+sep[0]]] {
 				out = append(out, span{m[0], m[1]})
 			}
 		}
+	}
+	return out
+}
+
+// middleNames finds given name, further given names and surname where every further name begins
+// with a capital in the text itself.
+func (p *person) middleNames(s, f string, at []int) []span {
+	var out []span
+	for pos := 0; pos < len(f); {
+		m := p.middle.FindStringSubmatchIndex(f[pos:])
+		if m == nil {
+			break
+		}
+		ok := true
+		mid := f[pos+m[4] : pos+m[5]]
+		offset := pos + m[4]
+		for _, w := range strings.Fields(mid) {
+			i := strings.Index(f[offset:], w) + offset
+			offset = i + len(w)
+			r, _ := utf8.DecodeRuneInString(s[at[i]:])
+			if !unicode.IsUpper(r) {
+				ok = false
+				break
+			}
+		}
+		if ok {
+			out = append(out, span{pos + m[2], pos + m[3]})
+		}
+		pos += m[3]
 	}
 	return out
 }
@@ -295,10 +355,10 @@ func merge(spans []span) []span {
 // Mentions counts where the persons stand in a text, by the rules for free text (not the surname
 // alone): for the raw archive, whose pages are no rows of a module or an event.
 func Mentions(text string, people []Person) int {
-	f, _ := fold(text)
+	f, at := fold(text)
 	n := 0
 	for _, p := range people {
-		n += len(merge(compile(p).mentions(f, false)))
+		n += len(merge(compile(p).mentions(text, f, at, false)))
 	}
 	return n
 }

@@ -28,9 +28,17 @@ type RecordOptions struct {
 	// added), and out of every version of the history first when the register changed since it
 	// was last applied (Redact).
 	People []privacy.Person
+	// RegisterID identifies the register People come from (privacy.RegisterID). A history follows
+	// one register and refuses another.
+	RegisterID string
 	// NoRegister: the caller has no register (no radix.db at hand). A history that a register was
 	// applied to refuses to record then, since what the register keeps out would come back.
 	NoRegister bool
+	// Published is when the snapshot was exported (its current.json exported_at, or the time of
+	// its file): the state is valid from then, which data_changed_at is not when an earlier
+	// cycle built the content but could not publish it. Zero: data_changed_at. Unlike ValidFrom,
+	// a time not after the newest state is taken as the time of recording.
+	Published time.Time
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 }
@@ -63,9 +71,14 @@ func (h *History) Record(ctx context.Context, path string, opt RecordOptions) (*
 	switch {
 	case opt.NoRegister && applied != "":
 		return nil, fmt.Errorf("history: a privacy register was applied to %s; record with the register (radix.db), or what it keeps out comes back", h.path)
-	case !opt.NoRegister && applied != privacy.Digest(opt.People):
-		if _, err := h.Redact(ctx, opt.People); err != nil {
+	case !opt.NoRegister:
+		if err := checkRegister(ctx, h.db, opt.RegisterID); err != nil {
 			return nil, err
+		}
+		if applied != privacy.Digest(opt.People) {
+			if _, err := h.Redact(ctx, opt.People, opt.RegisterID); err != nil {
+				return nil, err
+			}
 		}
 	}
 	snap, err := openSnapshot(path)
@@ -119,6 +132,9 @@ func (h *History) Record(ctx context.Context, path string, opt RecordOptions) (*
 	}
 
 	validFrom := opt.ValidFrom
+	if validFrom.IsZero() {
+		validFrom = opt.Published
+	}
 	if validFrom.IsZero() {
 		for _, key := range []string{"data_changed_at", "built_at"} {
 			if t, err := time.Parse(time.RFC3339, metaValues[key]); err == nil {

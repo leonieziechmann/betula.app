@@ -433,6 +433,7 @@ func (s *Service) cycle(ctx context.Context, crawlFirst bool) (result CycleResul
 	published, _ := catalogdb.PublishedDigest(s.cfg.SnapshotDir)
 	if published == report.ContentDigest {
 		result.Stages = append(result.Stages, StageResult{Name: "export", Skipped: "content unchanged"})
+		s.db.PruneSnapshotsForRegister(ctx, s.cfg.SnapshotDir) // a register that changed nothing published
 		return result
 	}
 	if published != "" && !report.ContentChanged {

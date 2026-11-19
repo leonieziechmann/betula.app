@@ -8,9 +8,11 @@
 -- privacy_person  one person: surname and given name (both, so that a namesake keeps their data),
 --                 further forms of the name one a line (an e-mail address, „Prof. Mustermann"), a note
 --                 where the request came from (a reference, never contact data), when it was added.
--- privacy_meta    build_digest, the register's digest the last build applied, and snapshots_digest,
---                 the one the export last removed the older snapshots for (a snapshot built before a
---                 person was added still names them, and is removed after the first export without them).
+-- privacy_meta    register_id, which tells this register from any other (the history follows one
+--                 and refuses another: a fresh or a wrong radix.db, whose empty register would let back
+--                 what this one keeps out); build_digest, the register's digest the last build
+--                 applied; snapshots_digest, the one the older snapshots were last removed for (a
+--                 snapshot built before a person was added still names them).
 --
 -- Neither is published: the export drops both (catalogdb.snapshotDropTables). Both travel with
 -- radix.db wherever it is copied (a seed, the hand-over of the crawl, the canary's copy), so that
@@ -29,3 +31,5 @@ CREATE TABLE privacy_meta (
 	key   TEXT PRIMARY KEY,
 	value TEXT NOT NULL
 ) WITHOUT ROWID;
+
+INSERT INTO privacy_meta (key, value) VALUES ('register_id', lower(hex(randomblob(16))));

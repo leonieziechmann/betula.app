@@ -16,6 +16,16 @@ import (
 	"github.com/leonieziechmann/betula/radix/internal/privacy"
 )
 
+// openExistingDB opens radix.db, and never makes one: a fresh database has an empty register, and
+// a history recorded or redacted with it would let back what the real one keeps out.
+func openExistingDB(path string) *catalogdb.DB {
+	if _, err := os.Stat(path); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: no database at %s (--db, env RADIX_DB: the radix.db whose privacy register applies)\n", path)
+		os.Exit(1)
+	}
+	return openDB(path)
+}
+
 // multiFlag is a flag that may be given more than once.
 type multiFlag []string
 
@@ -31,7 +41,7 @@ func runPrivacy(ctx context.Context, args []string) {
                                  put a person into the register; the next build takes them out of the
                                  catalog, its export out of the snapshot, the history out of every version
   radix privacy list             the register
-  radix privacy remove --id N    take a person out of the register (their data comes back with the next build)
+  radix privacy remove --id N    take a person out of the register (what the build makes again comes back with it)
   radix privacy find --surname S --given G [--form F]... [--history FILE] [--raw] [--limit N]
                                  where a person is named: the catalog, the history, the raw archive
                                  (a request for information, Art. 15 DSGVO); changes nothing
@@ -59,7 +69,7 @@ so that a namesake keeps their data.`)
 	switch args[0] {
 	case "add":
 		_ = fs.Parse(args[1:])
-		db := openDB(*dbPath)
+		db := openExistingDB(*dbPath)
 		defer db.Close()
 		p := privacy.Person{Surname: *surname, Given: *given, Forms: forms, Note: *note}
 		newID, err := privacy.Add(ctx, db.SQL(), p, time.Now())
@@ -83,7 +93,7 @@ so that a namesake keeps their data.`)
 		}
 	case "list":
 		_ = fs.Parse(args[1:])
-		db := openDB(*dbPath)
+		db := openExistingDB(*dbPath)
 		defer db.Close()
 		people, err := privacy.Load(ctx, db.SQL())
 		if err != nil {
@@ -111,7 +121,7 @@ so that a namesake keeps their data.`)
 		if *id <= 0 {
 			usage()
 		}
-		db := openDB(*dbPath)
+		db := openExistingDB(*dbPath)
 		defer db.Close()
 		ok, err := privacy.Remove(ctx, db.SQL(), *id)
 		if err != nil {
@@ -122,7 +132,7 @@ so that a namesake keeps their data.`)
 			fmt.Fprintf(os.Stderr, "No person %d in the register.\n", *id)
 			os.Exit(1)
 		}
-		fmt.Printf("Removed %d. The next build has their data again, as the university publishes it; what the history lost does not come back.\n", *id)
+		fmt.Printf("Removed %d. The next build has their data again where it makes it from the archive; the study plans and the semantic search's summaries keep [entfernt], and what the history lost does not come back.\n", *id)
 	case "find":
 		_ = fs.Parse(args[1:])
 		p := privacy.Person{Surname: *surname, Given: *given, Forms: forms}
@@ -130,7 +140,7 @@ so that a namesake keeps their data.`)
 			fmt.Fprintln(os.Stderr, "Error:", err)
 			os.Exit(2)
 		}
-		db := openDB(*dbPath)
+		db := openExistingDB(*dbPath)
 		defer db.Close()
 		people := []privacy.Person{p}
 		tables, err := privacy.CatalogTables(ctx, db.SQL())
@@ -264,14 +274,14 @@ database whose privacy register applies. TIME is RFC 3339 (2026-11-19T12:00:00Z)
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
-	register := func() []privacy.Person {
-		db := openDB(*dbPath)
+	register := func() ([]privacy.Person, string) {
+		db := openExistingDB(*dbPath)
 		defer db.Close()
 		people, err := privacy.Load(ctx, db.SQL())
 		if err != nil {
 			fail(err)
 		}
-		return people
+		return people, privacy.RegisterID(ctx, db.SQL())
 	}
 	h, err := history.Open(*historyPath)
 	if err != nil {
@@ -306,16 +316,17 @@ database whose privacy register applies. TIME is RFC 3339 (2026-11-19T12:00:00Z)
 		if path == "" {
 			usage()
 		}
+		opt := history.RecordOptions{NoRegister: *noRegister}
 		if info, err := os.Stat(path); err == nil && info.IsDir() {
 			pointer, err := catalogdb.ReadSnapshotPointer(path)
 			if err != nil {
 				fail(err)
 			}
 			path = path + string(os.PathSeparator) + pointer.File
+			opt.Published, _ = time.Parse(time.RFC3339, pointer.ExportedAt)
 		}
-		opt := history.RecordOptions{NoRegister: *noRegister}
 		if !*noRegister {
-			opt.People = register()
+			opt.People, opt.RegisterID = register()
 		}
 		if *validFrom != "" {
 			if opt.ValidFrom, err = parseTime(*validFrom); err != nil {
@@ -394,8 +405,8 @@ database whose privacy register applies. TIME is RFC 3339 (2026-11-19T12:00:00Z)
 		}
 		fmt.Printf("Wrote %s\n", *out)
 	case "redact":
-		people := register()
-		res, err := h.Redact(ctx, people)
+		people, registerID := register()
+		res, err := h.Redact(ctx, people, registerID)
 		if err != nil {
 			fail(err)
 		}

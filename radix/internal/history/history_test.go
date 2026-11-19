@@ -258,7 +258,7 @@ func TestTheRegisterReachesEveryVersion(t *testing.T) {
 	if _, err := h.Record(ctx, s2, RecordOptions{NoRegister: true}); err != nil {
 		t.Fatal(err) // no register was ever applied: recording without one is allowed
 	}
-	if _, err := h.Redact(ctx, people); err != nil {
+	if _, err := h.Redact(ctx, people, "register-1"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.Record(ctx, s2, RecordOptions{NoRegister: true}); err == nil {
@@ -289,13 +289,20 @@ func TestTheRegisterReachesEveryVersion(t *testing.T) {
 	if err != nil || len(persons) != 0 {
 		t.Errorf("his row of module_person is in no version: %+v %v", persons, err)
 	}
-	if done, _, err := h.Sync(ctx, people); err != nil || done {
+	if done, _, err := h.Sync(ctx, people, "register-1"); err != nil || done {
 		t.Errorf("the same register applied again: %v %v", done, err)
+	}
+	// Another radix.db, a fresh one with an empty register above all, is refused.
+	if _, _, err := h.Sync(ctx, nil, "register-2"); err == nil {
+		t.Error("the history took another register")
 	}
 
 	// A snapshot of a Radix without the register names him again: Record takes him out first.
 	s3 := writeSnapshot(t, dir, 3, snap{digest: "d3", changedAt: "2026-11-21T04:00:00Z", rows: strings.Replace(rows1, "'Algebra', 8", "'Algebra', 9", 1)})
-	third, err := h.Record(ctx, s3, RecordOptions{People: people})
+	if _, err := h.Record(ctx, s3, RecordOptions{RegisterID: "register-2"}); err == nil {
+		t.Fatal("a record with another, empty register was taken")
+	}
+	third, err := h.Record(ctx, s3, RecordOptions{People: people, RegisterID: "register-1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,5 +315,29 @@ func TestTheRegisterReachesEveryVersion(t *testing.T) {
 	}
 	if d := dump(t, out); strings.Contains(d, "Mustermann, Max") || strings.Contains(d, "Max Mustermann") || strings.Contains(d, "|Mustermann") {
 		t.Errorf("the state of a snapshot without the register names him:\n%s", d)
+	}
+}
+
+// A state is valid from when it was published (the export's time), not from when its content was
+// first built: a cycle that built it but could not export it does not move it back.
+func TestAStateIsValidFromItsExport(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	h, err := Open(filepath.Join(dir, "history.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+	s1 := writeSnapshot(t, dir, 1, snap{digest: "d1", changedAt: "2026-11-19T04:00:00Z", rows: rows1})
+	exported := time.Date(2026, 11, 19, 6, 30, 0, 0, time.UTC)
+	st, err := h.Record(ctx, s1, RecordOptions{Published: exported})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.ValidFrom.Equal(exported) {
+		t.Errorf("valid from %s, published %s", st.ValidFrom, exported)
+	}
+	if _, err := h.StateAt(ctx, exported.Add(-time.Minute)); err != ErrBefore {
+		t.Errorf("before its export the state was not published: %v", err)
 	}
 }

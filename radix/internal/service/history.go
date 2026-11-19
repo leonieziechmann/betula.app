@@ -47,12 +47,13 @@ func (s *Service) recordHistory(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	registerID := privacy.RegisterID(ctx, s.db.SQL())
 	h, err := history.Open(s.cfg.History)
 	if err != nil {
 		return err
 	}
 	defer h.Close()
-	if done, res, err := h.Sync(ctx, people); err != nil {
+	if done, res, err := h.Sync(ctx, people, registerID); err != nil {
 		return err
 	} else if done {
 		log.Info("privacy register applied to every version of the history", "event", "history.redacted",
@@ -62,12 +63,28 @@ func (s *Service) recordHistory(ctx context.Context) error {
 	if err != nil {
 		return nil // nothing published yet
 	}
-	snap, err := h.Record(ctx, filepath.Join(s.cfg.SnapshotDir, pointer.File), history.RecordOptions{People: people, Now: s.now})
-	if err != nil || snap == nil {
-		return err
+	record := func(file string, published time.Time) error {
+		snap, err := h.Record(ctx, filepath.Join(s.cfg.SnapshotDir, file), history.RecordOptions{
+			People: people, RegisterID: registerID, Published: published, Now: s.now})
+		if err != nil || snap == nil {
+			return err
+		}
+		log.Info("published snapshot recorded in the history", "event", "history.recorded", "state", snap.Seq,
+			"valid_from", snap.ValidFrom.Format(time.RFC3339), "rows_opened", snap.RowsOpened, "rows_closed", snap.RowsClosed,
+			"schema", snap.SchemaVersion, "file", file)
+		return nil
 	}
-	log.Info("published snapshot recorded in the history", "event", "history.recorded", "state", snap.Seq,
-		"valid_from", snap.ValidFrom.Format(time.RFC3339), "rows_opened", snap.RowsOpened, "rows_closed", snap.RowsClosed,
-		"schema", snap.SchemaVersion, "file", pointer.File)
-	return nil
+	// A snapshot published while this stage failed, and replaced since, is kept beside the current
+	// one (the export keeps two): it is recorded first, valid from when its file was written.
+	if last, err := h.Last(ctx); err == nil && last != nil {
+		for _, kept := range catalogdb.KeptSnapshots(s.cfg.SnapshotDir) {
+			if kept.Name != pointer.File && kept.Written.After(last.ValidFrom) {
+				if err := record(kept.Name, kept.Written); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	published, _ := time.Parse(time.RFC3339, pointer.ExportedAt)
+	return record(pointer.File, published)
 }

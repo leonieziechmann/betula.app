@@ -118,6 +118,42 @@ func (db *DB) export(ctx context.Context, dir string) (*Snapshot, error) {
 	return snap, nil
 }
 
+// KeptSnapshot is a snapshot file of a snapshot directory and when it was written.
+type KeptSnapshot struct {
+	Name    string
+	Written time.Time
+}
+
+// KeptSnapshots returns the snapshot files of a directory, oldest first: the current one and the
+// one before it, which the export keeps for readers that hold it open.
+func KeptSnapshots(dir string) []KeptSnapshot {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []KeptSnapshot
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, snapshotPrefix) || !strings.HasSuffix(name, ".db") {
+			continue
+		}
+		if info, err := e.Info(); err == nil {
+			out = append(out, KeptSnapshot{name, info.ModTime().UTC()})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Written.Before(out[j].Written) })
+	return out
+}
+
+// PruneSnapshotsForRegister removes the snapshots made before the privacy register changed when
+// the build that applied it changed nothing that is published (the person was not in it), so that
+// no export follows to do it: an older snapshot kept beside the current one may still name them.
+func (db *DB) PruneSnapshotsForRegister(ctx context.Context, dir string) {
+	if snap, err := ReadSnapshotPointer(dir); err == nil {
+		db.removeSnapshotsBeforeRegister(ctx, dir, snap.File)
+	}
+}
+
 // removeSnapshotsBeforeRegister removes every snapshot but the current one when the current one
 // is the first built with the privacy register as it is now (privacy_meta build_digest, which
 // the build writes, differs from snapshots_digest, which this writes): an older snapshot still

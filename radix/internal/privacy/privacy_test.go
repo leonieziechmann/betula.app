@@ -273,3 +273,122 @@ func TestTheRegister(t *testing.T) {
 		t.Fatal("still in the register")
 	}
 }
+
+func TestMoreFormsOfAName(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"Kontakt: max.mustermann(at)b-tu.de", "Kontakt: [entfernt]"},
+		{"Kontakt: max.mustermann [at] b-tu(dot)de bitte", "Kontakt: [entfernt] bitte"},
+		{"Prof. Max Peter Mustermann liest", "[entfernt] liest"},
+		{"Mustermann M.: Lehrbuch", "[entfernt]: Lehrbuch"},
+		{"Mustermann Max (Hrsg.)", "[entfernt] (Hrsg.)"},
+		{"vgl. M.Mustermann 2020", "vgl. [entfernt] 2020"},
+		// Not him as a full name: a word between the names that no name is, a lower-case word.
+		{"Max und Mustermann", "Max und Mustermann"},
+		{"max programmiert mustermannartig", "max programmiert mustermannartig"},
+	}
+	for _, c := range cases {
+		if got := redactOne(t, maxM, c.in, false); got != c.want {
+			t.Errorf("redact(%q)\n got %q\nwant %q", c.in, got, c.want)
+		}
+	}
+}
+
+// The surname of a person can be a word of an enumeration: a module of Anna Winter is offered in
+// the winter. The surname alone in her own rows never takes a code, and the CHECK constraint holds.
+func TestASurnameIsNeverTakenForACode(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(`
+		CREATE TABLE module (id TEXT PRIMARY KEY, title TEXT NOT NULL, turnus_season TEXT CHECK (turnus_season IN ('winter', 'summer', 'both')), remarks TEXT);
+		CREATE TABLE module_person (module_id TEXT NOT NULL, ord INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (module_id, ord)) WITHOUT ROWID;
+		INSERT INTO module VALUES ('1', 'Statistik', 'winter', 'Jedes Wintersemester; Fragen an Winter');
+		INSERT INTO module_person VALUES ('1', 1, 'Winter, Anna');`); err != nil {
+		t.Fatal(err)
+	}
+	tables, err := CatalogTables(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(ctx, db, tables, []Person{{ID: 1, Surname: "Winter", Given: "Anna"}}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if got := rowsOf(t, db, "SELECT turnus_season || '|' || remarks FROM module"); got[0] != "winter|Jedes Wintersemester; Fragen an [entfernt]" {
+		t.Errorf("module: %q", got)
+	}
+}
+
+const searchSchema = `
+CREATE TABLE module_event (module_id TEXT NOT NULL, event_id TEXT NOT NULL, PRIMARY KEY (module_id, event_id)) WITHOUT ROWID;
+INSERT INTO module_event VALUES ('1', '100'), ('1', '300');
+INSERT INTO event VALUES ('300', 'Übung Informatik I'), ('400', 'Seminar');
+INSERT INTO event_person VALUES ('300', 1, 'Mustermann', NULL), ('400', 1, 'Mustermann', NULL);
+INSERT INTO event_date VALUES (4, '300', 1, 'Mustermann', 'Anmeldung bei Mustermann'), (5, '400', 1, 'Mustermann', NULL);
+`
+
+// The event search writes the persons of an event by their surname alone. In the events of his own
+// modules (module_event) they are him; elsewhere, only where no namesake with another given name
+// stands in the lists.
+func TestTheSurnameAloneOfTheEventSearch(t *testing.T) {
+	ctx := context.Background()
+	people := []Person{{ID: 7, Surname: "Mustermann", Given: "Max"}}
+
+	// Erika Mustermann is in the lists: the surname alone is his only in his own modules' events.
+	db := openMini(t)
+	if _, err := db.Exec(searchSchema); err != nil {
+		t.Fatal(err)
+	}
+	tables, err := CatalogTables(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Apply(ctx, db, tables, people); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{
+		"SELECT event_id || '|' || name FROM event_person ORDER BY event_id":                                                                  {"200|Musterfrau, Erika , Dr.", "400|Mustermann"},
+		"SELECT id || '|' || COALESCE(instructor, 'NULL') || '|' || COALESCE(comment, 'NULL') FROM event_date WHERE id IN (4, 5) ORDER BY id": {"4|NULL|Anmeldung bei [entfernt]", "5|Mustermann|NULL"},
+	}
+	for q, w := range want {
+		if got := rowsOf(t, db, q); strings.Join(got, "\n") != strings.Join(w, "\n") {
+			t.Errorf("with a namesake: %s\n got %q\nwant %q", q, got, w)
+		}
+	}
+	if _, n, err := Find(ctx, db, tables, people, 0); err != nil || n != 0 {
+		t.Errorf("Find after Apply: %d, %v", n, err)
+	}
+
+	// Without the namesake the surname alone in a list or an instructor is him everywhere, and
+	// validate's Find sees what Apply left.
+	db2 := openMini(t)
+	if _, err := db2.Exec(searchSchema + `DELETE FROM module_person WHERE name = 'Mustermann, Erika';`); err != nil {
+		t.Fatal(err)
+	}
+	tables2, _ := CatalogTables(ctx, db2)
+	if _, n, err := Find(ctx, db2, tables2, people, 0); err != nil || n < 6 {
+		t.Errorf("Find before Apply: %d, %v", n, err)
+	}
+	if _, err := Apply(ctx, db2, tables2, people); err != nil {
+		t.Fatal(err)
+	}
+	if got := rowsOf(t, db2, "SELECT COUNT(*) FROM event_person WHERE name LIKE 'Mustermann%'"); got[0] != "0" {
+		t.Errorf("without a namesake, rows of his surname left: %v", got)
+	}
+	if got := rowsOf(t, db2, "SELECT COUNT(*) FROM event_date WHERE instructor = 'Mustermann'"); got[0] != "0" {
+		t.Errorf("without a namesake, instructors of his surname left: %v", got)
+	}
+	if _, n, err := Find(ctx, db2, tables2, people, 0); err != nil || n != 0 {
+		t.Errorf("Find after Apply: %d, %v", n, err)
+	}
+	// Left behind by a step after Apply, the surname alone in an instructor fails validate.
+	if _, err := db2.Exec(`UPDATE event_date SET instructor = 'Mustermann' WHERE id = 5`); err != nil {
+		t.Fatal(err)
+	}
+	if _, n, _ := Find(ctx, db2, tables2, people, 0); n != 1 {
+		t.Errorf("an instructor written after Apply: Find %d", n)
+	}
+}

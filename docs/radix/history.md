@@ -52,13 +52,15 @@ The history's own tables:
 
 | Table | One row per |
 |---|---|
-| `history_snapshot` | recorded state: `seq`, `valid_from` (since when it was the published one: the snapshot's meta `data_changed_at`), `recorded_at`, `content_digest`, `radix_version`, `schema_id`, `source` (the file), `rows_opened`, `rows_closed` |
+| `history_snapshot` | recorded state: `seq`, `valid_from` (since when it was the published one: when it was exported, `current.json` `exported_at`), `recorded_at`, `content_digest`, `radix_version`, `schema_id`, `source` (the file), `rows_opened`, `rows_closed` |
 | `history_schema` | schema: `user_version`, `ddl` (JSON of `sqlite_master`), its digest |
 | `history_table` | table of the snapshots: its copy (`store`) and its columns with type and key |
-| `history_meta` | `format` (1), `privacy_digest` (the register last applied, `docs/radix/privacy.md`) |
+| `history_meta` | `format` (1), `privacy_digest` (the register last applied, `docs/radix/privacy.md`), `register_id` (the register it follows; another is refused) |
 
-A snapshot whose content digest is the newest state's records nothing. A state is valid from its
-`data_changed_at`; one published again after a newer one (a rollback to an older release) is valid
+A snapshot whose content digest is the newest state's records nothing. A state is valid from when it
+was exported (not from `data_changed_at`, the build that first made the content: a cycle whose
+validation or export failed publishes it later); a file recorded without its `current.json` from its
+`data_changed_at`. One published again after a newer one (a rollback to an older release) is valid
 from the time it is recorded, as is one published within the second of the one before.
 
 ## 3. Numbers (2026-11-19)
@@ -90,9 +92,11 @@ radix history redact                                   # apply the privacy regis
 ```
 
 Each takes `--history` (env `RADIX_HISTORY_DB`, default `history.db`) and `--db`, the database whose
-privacy register applies. `record` refuses a time before the newest state (`--valid-from`, for
-snapshots kept elsewhere and recorded later, oldest first), and without a register once one was
-applied (`--no-register` says there is no radix.db at hand). `at` writes a snapshot of that schema
+privacy register applies; a `--db` that does not exist is refused, never made (a fresh one has an
+empty register), and so is another radix.db than the one whose register the history follows.
+`record` refuses a time before the newest state (`--valid-from`, for snapshots kept elsewhere and
+recorded later, oldest first), and without a register once one was applied (`--no-register` says
+there is no radix.db at hand). `at` writes a snapshot of that schema
 that the Folia of that time reads as it read the original.
 
 The full export is SQLite: `history_snapshot` says when each state was published, and the rows of a
@@ -105,9 +109,10 @@ with `history_snapshot` on `_from` and `_to`, the span of a row is two times.
 after the export or in its place, before the semantic stage): it applies the privacy register to every
 version when the register changed since it was last applied (`history.redacted`), and records the
 published snapshot when the newest state is not it (`history.recorded`: `state`, `valid_from`,
-`rows_opened`, `rows_closed`, `schema`). A snapshot published while the stage failed, or before the
-history was enabled, is recorded by the next cycle. Its failure degrades the cycle; what is published
-is intact. Only `run` records: `serve-snapshot` (a colour that does not crawl) leaves the history alone,
+`rows_opened`, `rows_closed`, `schema`). A snapshot published while the stage failed is recorded by the
+next cycle, before the one that replaced it, while its file is kept (the export keeps the current one
+and the one before), valid from when its file was written; one published before the history was
+enabled is its first state. Its failure degrades the cycle; what is published is intact. Only `run` records: `serve-snapshot` (a colour that does not crawl) leaves the history alone,
 and since at most one colour of a site crawls, one Radix writes it.
 
 The stack sets `RADIX_HISTORY_DB=/data/history.db` for every instance (`deploy/stacks/betula.yml`):
@@ -127,6 +132,7 @@ copy while the service writes.
 numbers moving, a column added empty: no new version), every state rebuilt equal to its snapshot, the
 log of a row and of one that went, a schema that grew, the register applied to every version and
 versions it made equal joined, a snapshot of a Radix without the register recorded without the person,
-a record without the register refused once one was applied. `TestRealSnapshots` does the same on real
-snapshots (`HISTORY_SNAPSHOTS=a.db,b.db`, oldest first). `radix/internal/service`: the stage over three
-cycles.
+a record without the register refused once one was applied, and one with another register, a state
+valid from its export. `TestRealSnapshots` does the same on real snapshots
+(`HISTORY_SNAPSHOTS=a.db,b.db`, oldest first). `radix/internal/service`: the stage over five cycles, one
+of them failing, whose snapshot the next records.

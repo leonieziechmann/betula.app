@@ -12,28 +12,49 @@ import (
 // Redact applies the privacy register to every version the history keeps, as the build applies
 // it to the catalog (privacy.Apply): a person's rows of the lists of names go from every state,
 // and their names from every text. Versions that the redaction made equal to the one before or
-// after them become one. It notes the register's digest (history_meta privacy_digest): Record applies it
-// again when the register changed since.
-func (h *History) Redact(ctx context.Context, people []privacy.Person) (privacy.Result, error) {
+// after them become one. It notes the register's digest (history_meta privacy_digest), which Record
+// applies again when the register changed since, and the register it follows (register_id): another
+// is refused.
+func (h *History) Redact(ctx context.Context, people []privacy.Person, registerID string) (privacy.Result, error) {
 	tx, err := h.db.BeginTx(ctx, nil)
 	if err != nil {
 		return privacy.Result{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	if err := checkRegister(ctx, tx, registerID); err != nil {
+		return privacy.Result{}, err
+	}
 	res, err := redactTx(ctx, tx, people)
 	if err != nil {
 		return res, err
+	}
+	if registerID != "" {
+		if err := setMeta(ctx, tx, "register_id", registerID); err != nil {
+			return res, err
+		}
 	}
 	return res, tx.Commit()
 }
 
 // Sync applies the register when it changed since it was last applied, and reports whether it did.
-func (h *History) Sync(ctx context.Context, people []privacy.Person) (bool, privacy.Result, error) {
+func (h *History) Sync(ctx context.Context, people []privacy.Person, registerID string) (bool, privacy.Result, error) {
+	if err := checkRegister(ctx, h.db, registerID); err != nil {
+		return false, privacy.Result{}, err
+	}
 	if readMeta(ctx, h.db, "privacy_digest") == privacy.Digest(people) {
 		return false, privacy.Result{}, nil
 	}
-	res, err := h.Redact(ctx, people)
+	res, err := h.Redact(ctx, people, registerID)
 	return err == nil, res, err
+}
+
+// checkRegister refuses a register other than the one the history follows.
+func checkRegister(ctx context.Context, q privacy.DB, registerID string) error {
+	followed := readMeta(ctx, q, "register_id")
+	if followed != "" && registerID != followed {
+		return fmt.Errorf("history: it follows the privacy register %s, not %q: give it the radix.db whose register it was applied with", followed, registerID)
+	}
+	return nil
 }
 
 // Find reports where the persons are named in any version the history keeps, by the rules of the
@@ -52,11 +73,12 @@ func historyTables(known map[string]*table) []privacy.Table {
 	var tables []privacy.Table
 	for _, t := range known {
 		text := privacy.TextColumns(t.Columns)
-		if len(text) == 0 {
+		link := privacy.IsLink(t.Name)
+		if len(text) == 0 && !link {
 			continue
 		}
 		module, event := privacy.Belongs(t.Name, t.Columns)
-		tables = append(tables, privacy.Table{Name: t.Store, Source: t.Name, Key: []string{"rowid"}, Text: text, Module: module, Event: event})
+		tables = append(tables, privacy.Table{Name: t.Store, Source: t.Name, Key: []string{"rowid"}, Text: text, Module: module, Event: event, Link: link})
 	}
 	sort.Slice(tables, func(i, j int) bool { return tables[i].Name < tables[j].Name })
 	return tables
