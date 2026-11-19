@@ -1,0 +1,188 @@
+# Phloem's image (flake.nix: phloem-image), built for every push to master that changes what it is
+# built from - exactly as deploy/ship-phloem.sh builds it: the same sources (git archive of the
+# paths "phloemPaths" of flake.nix names, and the flake), the same "path:" flake, the same release
+# tag <date>-<short hash>. The result is ONE artifact, betula-phloem-<tag>.tar, kept for a week:
+#
+#   release.json          tag, version, commits, run, and the sha256 of the image file
+#   phloem-image.tar.gz   the docker archive as "nix build" leaves it, for "docker load"
+#
+# Canary's Phloem follows it (owner, 2026-11-19: „mach das mal so, dass canary phloem auch
+# automatisch updated wird, wenn auf git die action fertig hat"): deploy/vps/canary-agent.sh
+# fetches the artifact itself, as it does images.yml's, and brings phloem-canary to it with
+# vps/49-phloem.sh (deploy/README.md section 12). The Phloem of https://betula.app never takes
+# anything from here: it goes by hand, with deploy/ship-phloem.sh.
+#
+# Nothing here reaches the server, and no secret is used; images.yml says why that holds, and the
+# same holds here: the repository is public, pull requests and forks cannot start this, and the job
+# asks for nothing but reading the code. It uses no cache of GitHub's: Phloem builds from
+# cache.nixos.org in a few minutes, and images.yml stays the only workflow that writes one.
+#
+# Actions are pinned to the commit of a release, the same ones images.yml uses (update both).
+name: phloem
+
+on:
+  push:
+    branches: [master]
+    # What the image is built from: phloemPaths in flake.nix, below phloem/ (the first step of the
+    # job checks that every one of them is listed here), the flake, and this file. A push that
+    # changes nothing of it (Folia, Radix, the docs, deploy/) is no new release of Phloem.
+    paths:
+      - .github/workflows/phloem.yml
+      - flake.nix
+      - flake.lock
+      - phloem/go.mod
+      - phloem/go.sum
+      - phloem/cmd/**
+      - phloem/internal/**
+      - phloem/deploy/**
+
+# Nothing by default; the job asks for what it needs.
+permissions: {}
+
+# One build at a time; of several that wait only the newest runs (images.yml says why).
+concurrency:
+  group: phloem-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  phloem:
+    name: phloem-image
+    runs-on: ubuntu-24.04
+    # A Go binary with its tests and an image of a few layers: minutes, not tens of them.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The release tag names the last commit that changed the sources: that needs the history.
+          fetch-depth: 0
+          # Nothing after this step talks to GitHub with the token.
+          persist-credentials: false
+
+      - name: Release tag
+        id: release
+        run: |
+          set -Eeuo pipefail
+          # The paths and the tag of deploy/ship-phloem.sh: the one line "phloemPaths = [ ... ];"
+          # of flake.nix, read as that script reads it, so that the two cannot drift.
+          line="$(sed -n -E 's/^[[:space:]]*phloemPaths = \[(.*)\];[[:space:]]*$/\1/p' flake.nix)"
+          read -r -a module_paths <<<"${line//\"/}"
+          [[ "${#module_paths[@]}" -gt 0 ]] || { echo "::error::flake.nix has no line 'phloemPaths = [ ... ];'"; exit 1; }
+          paths=()
+          for path in "${module_paths[@]}"; do
+            [[ "${path}" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]*$ && "${path}" != *..* ]] || { echo "::error::phloemPaths names '${path}'"; exit 1; }
+            grep -qxF -e "      - phloem/${path}" -e "      - phloem/${path}/**" .github/workflows/phloem.yml ||
+              { echo "::error::phloem/${path} is in phloemPaths (flake.nix) but not under on.push.paths of this workflow"; exit 1; }
+            paths+=("phloem/${path}")
+          done
+          # What the build gets: those, and the flake; the tag is made of the same.
+          paths+=(flake.nix flake.lock)
+          commit="$(git log -1 --format=%h --abbrev=7 HEAD -- "${paths[@]}")"
+          # The date in the commit's own time zone ("format:", not "format-local:"): the same on
+          # the workstation and here.
+          day="$(git log -1 --format=%cd --date=format:%Y-%m-%d HEAD -- "${paths[@]}")"
+          tag="${day}-${commit}"
+          [[ "${tag}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9a-f]{7,40}$ ]] || { echo "::error::'${tag}' is not a release tag"; exit 1; }
+          version="$(sed -n -E 's/^const Version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' phloem/internal/version/version.go)"
+          [[ -n "${version}" ]] || { echo "::error::phloem/internal/version/version.go names no version"; exit 1; }
+          {
+            echo "tag=${tag}"
+            echo "version=${version}"
+            echo "build_commit=$(git log -1 --format=%H HEAD -- "${paths[@]}")"
+            echo "paths=${paths[*]}"
+          } >>"${GITHUB_OUTPUT}"
+          echo "Phloem ${version}, release ${tag}"
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          extra_nix_config: |
+            sandbox = true
+            accept-flake-config = false
+
+      - name: Build
+        env:
+          PATHS: ${{ steps.release.outputs.paths }}
+        run: |
+          set -Eeuo pipefail
+          read -r -a paths <<<"${PATHS}"
+          src="${RUNNER_TEMP}/src"
+          out="${RUNNER_TEMP}/image"
+          mkdir -p "${src}" "${out}"
+          # As deploy/ship-phloem.sh: the commit, not the checkout, byte for byte (LF), built as a
+          # "path:" flake. So a release is the same derivation here and on the workstation, and
+          # the same image: one built there and one built here load as the same image.
+          git -c core.autocrlf=false -c core.eol=lf archive --format=tar HEAD -- "${paths[@]}" | tar -xf - -C "${src}"
+          nix build "path:${src}#phloem-image" --out-link "${RUNNER_TEMP}/result" --print-build-logs
+          cp -L "${RUNNER_TEMP}/result" "${out}/phloem-image.tar.gz"
+          ls -l "${out}"
+
+      - name: Smoke test
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+          loaded="$(docker load -i "${RUNNER_TEMP}/image/phloem-image.tar.gz")"
+          echo "${loaded}"
+          # The name deploy/ship-phloem.sh and the server expect; they give it the release tag.
+          grep -qxF "Loaded image: betula-phloem:latest" <<<"${loaded}" ||
+            { echo "::error::phloem-image.tar.gz does not hold betula-phloem:latest"; exit 1; }
+          # The binary says the version its sources name, and the firewall `phloem start` loads is
+          # in the image (the image has no shell: the binary is all there is to ask).
+          said="$(docker run --rm --network none --cap-drop ALL --read-only betula-phloem:latest version)"
+          echo "${said}"
+          [[ "${said}" == "Phloem ${VERSION}" || "${said}" == "Phloem ${VERSION} (build "* ]] ||
+            { echo "::error::the image says '${said}', the sources Phloem ${VERSION}"; exit 1; }
+          cid="$(docker create betula-phloem:latest)"
+          docker cp "${cid}:/etc/phloem/firewall.nft" "${RUNNER_TEMP}/firewall.nft"
+          docker rm "${cid}" >/dev/null
+          cmp -s "${RUNNER_TEMP}/firewall.nft" phloem/deploy/firewall.nft ||
+            { echo "::error::/etc/phloem/firewall.nft in the image is not phloem/deploy/firewall.nft"; exit 1; }
+
+      - name: Pack
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+          BUILD_COMMIT: ${{ steps.release.outputs.build_commit }}
+        run: |
+          set -Eeuo pipefail
+          cd "${RUNNER_TEMP}/image"
+          sha="$(sha256sum phloem-image.tar.gz | cut -d ' ' -f 1)"
+          jq -n \
+            --arg tag "${TAG}" \
+            --arg version "${VERSION}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg build_commit "${BUILD_COMMIT}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg phloem "${sha}" \
+            '{tag: $tag, version: $version, repository: $repository, commit: $commit, build_commit: $build_commit,
+              run_id: ($run_id | tonumber), run_attempt: ($run_attempt | tonumber),
+              images: {phloem: {file: "phloem-image.tar.gz", sha256: $phloem}}}' >release.json
+          cat release.json
+          # Uncompressed: the image file is gzip already. Owner and modes fixed, so the file says
+          # nothing about this runner.
+          tar --owner=0 --group=0 --numeric-owner --mode=0644 -cf "${RUNNER_TEMP}/betula-phloem-${TAG}.tar" \
+            release.json phloem-image.tar.gz
+          {
+            echo "### Phloem ${VERSION}, release ${TAG}"
+            echo
+            echo "| image | bytes | sha256 |"
+            echo "|---|---|---|"
+            echo "| betula-phloem:${TAG} | $(stat -c %s phloem-image.tar.gz) | \`${sha}\` |"
+            echo
+            echo "Artifact \`betula-phloem-${TAG}.tar\` (kept for a week). The server fetches it by itself and brings phloem-canary to it (deploy/README.md section 12)."
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          # archive: false uploads the file as it is, under its own name: no zip for the server
+          # to unpack, and the digest GitHub keeps is the sha256 of exactly this file.
+          path: ${{ runner.temp }}/betula-phloem-${{ steps.release.outputs.tag }}.tar
+          archive: false
+          retention-days: 7
+          if-no-files-found: error

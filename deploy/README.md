@@ -644,6 +644,29 @@ reach canary" fires. A release is tried three times, 10 and 20 minutes apart; th
 for the next build of master. A release deployed by hand stays until master is built again: the
 agent only acts on a build it has not seen.
 
+Canary's Phloem follows master as well (since 2026-11-19; owner: „mach das mal so, dass canary
+phloem auch automatisch updated wird, wenn auf git die action fertig hat"), from a workflow and an
+artifact of its own, so that a release of Folia restarts no Phloem and a release of Phloem seeds
+no canary:
+
+```
+push to master that changes Phloem ─▶ GitHub Actions  .github/workflows/phloem.yml
+                    nix build .#phloem-image, exactly as ship-phloem.sh (same sources, same tag)
+                    ─▶ artifact betula-phloem-<tag>.tar (release.json + the image), kept a week
+server  the same look of canary-agent.sh poll, before the application's
+   1  a new successful run of phloem.yml for a push to master? its artifact, sha256 checked
+   2  docker load, tag <tag> (as ship-phloem.sh)
+   3  49-phloem.sh phloem-canary <tag>: in place, stop-first (the devices come back within
+      seconds), then what Phloem must not be able to do, and 91-verify-stacks.sh phloem
+```
+
+Only a `phloem-canary` that runs is updated: its first deploy is by hand (section 16), and
+`phloem`, the Phloem of betula.app, is never touched. A FAIL of 49-phloem.sh is a failed attempt
+like any other (three, and the same alert); the release it deployed keeps running, since nothing
+goes back by itself where the database may have migrated further. A change to `stacks/phloem.yml`
+or `stacks/phloem/phloem-canary.env` still goes by hand: `deploy/sync.sh`, then `bash
+/opt/betula/vps/49-phloem.sh phloem-canary`.
+
 ### Branches: develop gathers, master goes to canary
 
 Since 2026-10-01 a finished branch is merged into `develop`, not into master (owner: canary should
@@ -688,11 +711,12 @@ and sessions of Claude Code start from it. `CLAUDE.md` says the same for Claude.
 
 | | |
 |---|---|
-| what serves, what failed, what the next deploy copies | `bash /opt/betula/vps/canary-agent.sh status` |
+| what serves, what failed, what the next deploy copies (and the same of canary's Phloem) | `bash /opt/betula/vps/canary-agent.sh status` |
 | watch a deploy | `journalctl -fu betula-canary.service` |
 | look now, not within two minutes | `sudo systemctl start betula-canary.service` (returns when it is done) |
 | fresh data for the release canary runs | `bash /opt/betula/vps/canary-agent.sh deploy` |
 | back to an older release (the images of the newest three stay) | `bash /opt/betula/vps/canary-agent.sh deploy <tag>`; it stays until master is built again |
+| canary's Phloem back to an older release | `bash /opt/betula/vps/49-phloem.sh phloem-canary <tag>` (`docker image ls betula-phloem`; not before a migration its database has had); it stays until master builds Phloem again |
 | ship to canary by hand, or work on it | `sudo bash /opt/betula/vps/60-canary.sh off` first (a run in progress is finished), `on` afterwards |
 | a release that failed | `journalctl -u betula-canary.service -n 100`: the FATAL line names the step. The colour it left half made stays for a look (`docker service logs`, the `docker run ... build` of 50-app.sh); the next deploy removes it |
 | a new token | step 2 and 4 above; revoke the old one on GitHub |
@@ -730,7 +754,8 @@ database for one `deploy` by hand.
   it for later builds: the job uses four actions, three of them GitHub's own, all pinned. Keep it
   the only writer: a workflow added later that saves a cache on `develop` (on its pushes, on a
   schedule, which runs on the default branch, or for pull requests into it with
-  `pull_request_target`) would write into what every build of master reads.
+  `pull_request_target`) would write into what every build of master reads. `phloem.yml` (canary's
+  Phloem) is held the same way, and uses no cache at all: it reads nothing that another run left.
 - **The repository is public** (since 2026-09-30). Everybody can read the code, the workflow's logs
   and, logged in to GitHub, its artifacts; none of them holds a secret (the workflow has none, and
   the history held no key or token when it went public). Everybody can fork it and open pull
@@ -1325,9 +1350,12 @@ Phloem is the service of Betula Sync (`docs/phloem/phloem.md`, its protocol
 `docs/phloem/protocol.md`): one stack per site, `phloem` for https://betula.app and
 `phloem-canary` for https://canary.betula.app, each with nothing but Traefik on its network
 `<stack>_in` (section 15), a firewall inside its container and its data on a file system of its
-own. It is not part of the canary pipeline: a push to master does not touch it, and Folia offers
-Betula Sync only where its instance says `FOLIA_SYNC=on` and a Phloem serves the host (50-app.sh
-deploys it off otherwise, and says so).
+own. `phloem-canary` follows master (since 2026-11-19, section 12): every push to master that
+changes Phloem is built by `.github/workflows/phloem.yml`, and the canary agent brings the instance
+to it with `49-phloem.sh`, once it runs (its first deploy is by hand, below). A push to master never
+touches `phloem`, which holds the profiles of betula.app. Folia offers Betula Sync only where its
+instance says `FOLIA_SYNC=on` and a Phloem serves the host (50-app.sh deploys it off otherwise,
+and says so).
 
 Once, in this order (the first three are section 15's steps 1 and 2, if they did not run yet):
 
