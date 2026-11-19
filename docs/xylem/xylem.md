@@ -385,10 +385,13 @@ on the internet. It could not reach anything inside the house, nor be reached bu
 Xylem's own dialer holds the same rule in front of it (a push service's name that leads to a
 private address reaches nothing, „The push services"), and sends over IPv4 alone, so that
 nothing Xylem itself does is ever dropped. Every drop that means someone tried something is
-counted; `betula-xylem-guard` (Phloem's guard script with `BETULA_GUARD_KIND=xylem`, every
-minute as root on the host) reads the counters and the rights of the container's processes from
-outside, and the rules of group `betula-xylem` alert: not running, no firewall or a process
-with rights, a counted drop, a feed that does not read for an hour, notifications given up on.
+counted, and IPv6's neighbour discovery, which the kernel sends by itself over `docker_gwbridge`
+(IPv6 since 2026-11), is dropped without being counted (since Xylem 0.3.1: it would set off the
+alarm every hour, as it did Phloem's); `betula-xylem-guard` (Phloem's guard script with
+`BETULA_GUARD_KIND=xylem`, every minute as root on the host) reads the counters and the rights of
+the container's processes from outside, and the rules of group `betula-xylem` alert: not running,
+no firewall or a process with rights, a counted drop, a feed that does not read for an hour,
+notifications given up on.
 
 **`xylem probe`** tries all of that from inside (`vps/49-xylem.sh` runs it after every deploy,
 with Traefik's and the host's addresses as more targets): one JSON line per attempt with what

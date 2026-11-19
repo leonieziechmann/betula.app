@@ -128,7 +128,14 @@ it happened in: betula-phloem-guard (`deploy/vps/files`, on the host every minut
 counters and the rights of each process of the container from outside, and the monitoring alerts
 on any counted packet ("Phloem: its firewall drops connections"). Not counted, on purpose: the
 datagram `start` sends as root to check the firewall (otherwise every start would set off the
-alarm), and packets conntrack cannot place. Docker's NAT rewrites the resolver's port before the
+alarm), packets conntrack cannot place, and IPv6's neighbour discovery (since Phloem 0.5.1). The
+kernels on a link send that by themselves, and with TURN the container is on `docker_gwbridge`,
+which has IPv6 since 2026-11: its kernel asks for a router once an hour for as long as none
+answers (RFC 7559), and the host asks for its address whenever an IPv6 datagram for a published
+port comes in, which Docker DNATs there as it does IPv4. Counted, that set off the alarm every hour
+from 2026-11-12 until 0.5.1. Everything else of IPv6 stays dropped and counted, and since the host
+never learns the container's address, STUN and TURN do not answer over IPv6 on their port (devices
+with IPv6 alone take TURN over TLS on 443). Docker's NAT rewrites the resolver's port before the
 table sees a packet; the file says how the rule copes.
 
 With TURN (`PHLOEM_TURN_HOST` set), `start` loads `phloem/deploy/turn.nft` with it in one
