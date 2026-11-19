@@ -396,7 +396,8 @@ enum Upgrade {
 /// beside it stands what Betula Sync makes better, with „Profil speichern" (owner, 2026-11-08).
 ///
 /// It also keeps the calendars that follow a share current where nothing else does: when the page
-/// is built and when it comes into view again (`Sync::refresh_follows`).
+/// is built and when it comes into view again (`Sync::refresh_follows`); in between, a private
+/// profile asks every 30 s while the page is seen (`sync::browser::start_tab`).
 #[component]
 pub(super) fn LiveOffer(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
