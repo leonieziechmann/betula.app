@@ -16,8 +16,9 @@
 # every start, returning visits too. A browser is its address + user agent. Left out: crawlers by
 # user agent (Google's renderer sends a Nexus 5X agent without "bot") and by Google's addresses,
 # and whatever the filter in front of the sites turned away (RouterName edge-crawlers@file by user
-# agent, edge-crawler-networks@file from the clouds whose crawlers pass for browsers,
-# edge-outside-europe@file from outside Europe: config/traefik/dynamic/crawlers.yml,
+# agent, edge-crawler-fleets@file by the user agents of fleets that pass for browsers,
+# edge-crawler-networks@file from the clouds whose crawlers pass for browsers,
+# edge-outside-europe@file from outside Europe: config/traefik/dynamic/crawlers.yml, fleets.yml,
 # crawler-networks.yml, europe.yml).
 groups:
   - name: visitors-5m

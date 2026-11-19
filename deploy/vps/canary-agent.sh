@@ -38,6 +38,17 @@
 # poll only acts on a build it has not seen: a release deployed by hand (ship.sh, or "deploy" here)
 # stays until master is built again. Working on canary by hand: sudo bash 60-canary.sh off first.
 #
+# Canary's Phloem follows master the same way (owner, 2026-11-19: „mach das mal so, dass canary
+# phloem auch automatisch updated wird, wenn auf git die action fertig hat"), from a workflow and an
+# artifact of its own: .github/workflows/phloem.yml builds betula-phloem-<tag>.tar for every push
+# to master that changes Phloem. poll looks at it first, before the application (a release of
+# Folia may need what a release of Phloem brings; Phloem answers older builds of Folia as before,
+# docs/phloem/protocol.md), with the same checks of the run and the file, and brings phloem-canary
+# to it with vps/49-phloem.sh: one instance, updated in place, no colour and no data of its own to
+# seed. 49-phloem.sh tries afterwards what Phloem must not be able to do; a FAIL there is a failed
+# attempt like any other. Only an instance that runs is updated: its first deploy is by hand
+# (README.md section 16), and the Phloem of https://betula.app is never touched.
+#
 # Environment (all optional):
 #   CANARY_SEED_FROM=<instance>   take the database of this instance instead (not a canary colour)
 #   CANARY_HEALTH_TIMEOUT=600     seconds the new colour has to answer /healthz after its deploy
@@ -71,6 +82,13 @@ ARTIFACT_MAX_BYTES=$((2 * 1024 * 1024 * 1024))
 TAG_PATTERN='^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$'
 ARTIFACT_PATTERN='^betula-images-([A-Za-z0-9][A-Za-z0-9_.-]{0,100})\.tar$'
 SQLITE=/usr/bin/sqlite3
+
+# Canary's Phloem (lib-stacks.sh): its workflow, its instance, its artifact. The image is a few
+# tens of megabytes.
+PHLOEM_WORKFLOW="${CANARY_PHLOEM_WORKFLOW}"
+PHLOEM_STACK="${CANARY_PHLOEM_STACK}"
+PHLOEM_ARTIFACT_PATTERN='^betula-phloem-([A-Za-z0-9][A-Za-z0-9_.-]{0,100})\.tar$'
+PHLOEM_ARTIFACT_MAX_BYTES=$((512 * 1024 * 1024))
 
 # Set by check_setup: the host name both canary colours serve.
 CANARY_HOST=""
@@ -209,20 +227,21 @@ github_get() {
   esac
 }
 
-# latest_run - sets BUILD_RUN to the newest successful run of the workflow for a push to master
-# (empty when there is none yet). Remembers when the token expires (state file token-expires,
-# which 91-verify-stacks.sh reads): GitHub says it in a header of every answer.
+# latest_run WORKFLOW - sets BUILD_RUN to the newest successful run of WORKFLOW (images.yml,
+# phloem.yml) for a push to master (empty when there is none yet). Remembers when the token
+# expires (state file token-expires, which 91-verify-stacks.sh reads): GitHub says it in a header
+# of every answer.
 latest_run() {
-  local expires
+  local workflow=$1 expires
   BUILD_RUN=""
-  github_get "/repos/${REPO}/actions/workflows/${WORKFLOW}/runs?branch=${BRANCH}&event=push&status=success&exclude_pull_requests=true&per_page=20" "${WORK}/runs.json"
+  github_get "/repos/${REPO}/actions/workflows/${workflow}/runs?branch=${BRANCH}&event=push&status=success&exclude_pull_requests=true&per_page=20" "${WORK}/runs.json"
   expires="$(sed -n 's/^github-authentication-token-expiration: *\([0-9][0-9 :+UTC-]*\).*$/\1/Ip' "${WORK}/runs.json.headers" | tr -d '\r' | tail -n 1)"
   if [[ -n "${expires}" && "${expires}" != "$(state_get token-expires)" ]]; then
     state_set token-expires "${expires}"
   fi
   # Everything the answer says is checked again: the run is of this file, in this repository,
   # for a push to master (not a pull request from a fork whose branch is called master).
-  BUILD_RUN="$(jq -r --arg repo "${REPO}" --arg wf ".github/workflows/${WORKFLOW}" --arg branch "${BRANCH}" '
+  BUILD_RUN="$(jq -r --arg repo "${REPO}" --arg wf ".github/workflows/${workflow}" --arg branch "${BRANCH}" '
     [.workflow_runs[]
       | select(.event == "push" and .head_branch == $branch and .status == "completed" and .conclusion == "success"
                and .repository.full_name == $repo and .head_repository.full_name == $repo
@@ -231,19 +250,20 @@ latest_run() {
   [[ -z "${BUILD_RUN}" || "${BUILD_RUN}" =~ ^[0-9]{1,20}$ ]] || die "GitHub named the run '${BUILD_RUN}'"
 }
 
-# run_artifact - the artifact of BUILD_RUN: sets BUILD_TAG, BUILD_ARTIFACT, BUILD_DIGEST and
-# BUILD_BYTES. Returns 1 when it has none (any more: it is kept for a week).
+# run_artifact PATTERN - the artifact of BUILD_RUN whose name matches PATTERN (ARTIFACT_PATTERN,
+# PHLOEM_ARTIFACT_PATTERN; the release tag is its first group): sets BUILD_TAG, BUILD_ARTIFACT,
+# BUILD_DIGEST and BUILD_BYTES. Returns 1 when it has none (any more: it is kept for a week).
 run_artifact() {
-  local line name
+  local pattern=$1 line name
   BUILD_TAG=""
   github_get "/repos/${REPO}/actions/runs/${BUILD_RUN}/artifacts?per_page=100" "${WORK}/artifacts.json"
   # A run that was re-run may hold one per attempt: the newest counts, as for actions/download-artifact.
-  line="$(jq -r --argjson run "${BUILD_RUN}" --arg pattern "${ARTIFACT_PATTERN}" '
+  line="$(jq -r --argjson run "${BUILD_RUN}" --arg pattern "${pattern}" '
     [.artifacts[] | select((.name | test($pattern)) and .expired == false and .workflow_run.id == $run)]
     | max_by(.id) | if . == null then "" else "\(.id) \(.name) \(.size_in_bytes) \(.digest // "")" end' "${WORK}/artifacts.json")"
   [[ -n "${line}" ]] || return 1
   read -r BUILD_ARTIFACT name BUILD_BYTES BUILD_DIGEST <<<"${line}"
-  [[ "${name}" =~ ${ARTIFACT_PATTERN} ]] || die "the artifact is called '${name}'"
+  [[ "${name}" =~ ${pattern} ]] || die "the artifact is called '${name}'"
   BUILD_TAG="${BASH_REMATCH[1]}"
   [[ "${BUILD_TAG}" =~ ${TAG_PATTERN} && "${BUILD_TAG}" != "latest" ]] || die "'${BUILD_TAG}' is not a release tag"
   [[ "${BUILD_ARTIFACT}" =~ ^[0-9]{1,20}$ && "${BUILD_BYTES}" =~ ^[0-9]{1,15}$ ]] || die "GitHub describes the artifact of run ${BUILD_RUN} oddly: ${line}"
@@ -251,15 +271,11 @@ run_artifact() {
   return 0
 }
 
-# fetch_images - download the artifact of the build, check it, load its images and tag them.
-fetch_images() {
-  local answer code url have image loaded
-  step "Images of ${BUILD_TAG} (run ${BUILD_RUN} of ${WORKFLOW})"
-  if images_loaded "${BUILD_TAG}"; then
-    log "betula-radix:${BUILD_TAG} and betula-folia:${BUILD_TAG} are loaded already"
-    return 0
-  fi
-  [[ "${BUILD_BYTES}" -le "${ARTIFACT_MAX_BYTES}" ]] || die "the artifact has ${BUILD_BYTES} bytes: that is not a build of the two images"
+# download_artifact FILE MAX_BYTES - the artifact BUILD_ARTIFACT (run_artifact) into FILE, checked
+# against the sha256 GitHub keeps for it; dies unless it is exactly that file.
+download_artifact() {
+  local file=$1 max=$2 answer code url have
+  [[ "${BUILD_BYTES}" -le "${max}" ]] || die "the artifact has ${BUILD_BYTES} bytes: that is not a build of ours"
   # The API answers with a redirect to a short-lived address of the file. That request goes
   # without the token, and its address (a signature in the query) is handed to curl on stdin.
   answer="$(curl --proto '=https' --tlsv1.2 -sS --max-time 30 -H @"${AUTH_HEADERS}" -o /dev/null \
@@ -269,11 +285,22 @@ fetch_images() {
   [[ "${code}" == "302" ]] || die "GitHub answers ${code:-nothing} instead of a redirect to the artifact ${BUILD_ARTIFACT}"
   [[ "${url}" =~ ^https://[^[:space:]\"\\]+$ ]] || die "GitHub redirects the artifact to something that is not an https address"
   printf 'url = "%s"\n' "${url}" | curl --proto '=https' --tlsv1.2 -sS --fail --max-time 1200 \
-    --max-filesize "${ARTIFACT_MAX_BYTES}" -o "${WORK}/release.tar" -K - ||
+    --max-filesize "${max}" -o "${file}" -K - ||
     die "the download of the artifact ${BUILD_ARTIFACT} failed"
-  have="$(sha256sum "${WORK}/release.tar" | cut -d ' ' -f 1)"
+  have="$(sha256sum "${file}" | cut -d ' ' -f 1)"
   [[ "sha256:${have}" == "${BUILD_DIGEST}" ]] ||
     die "the artifact has the sha256 ${have}, GitHub says ${BUILD_DIGEST#sha256:}: not loading it"
+}
+
+# fetch_images - download the artifact of the build, check it, load its images and tag them.
+fetch_images() {
+  local have image loaded
+  step "Images of ${BUILD_TAG} (run ${BUILD_RUN} of ${WORKFLOW})"
+  if images_loaded "${BUILD_TAG}"; then
+    log "betula-radix:${BUILD_TAG} and betula-folia:${BUILD_TAG} are loaded already"
+    return 0
+  fi
+  download_artifact "${WORK}/release.tar" "${ARTIFACT_MAX_BYTES}"
   log "downloaded betula-images-${BUILD_TAG}.tar ($(du -h "${WORK}/release.tar" | cut -f1)), sha256 as GitHub keeps it"
 
   mkdir -- "${WORK}/release"
@@ -306,6 +333,74 @@ fetch_images() {
   if ! grep -qxF -- "${BUILD_TAG}" <<<"$(state_get loaded)"; then
     printf '%s\n' "${BUILD_TAG}" >>"${STATE_DIR}/loaded"
   fi
+}
+
+# fetch_phloem - the artifact of a build of Phloem, checked as fetch_images checks the application's;
+# its image loaded and given the release tag, as deploy/ship-phloem.sh does.
+fetch_phloem() {
+  local have loaded file dir="${WORK}/phloem"
+  step "Phloem ${BUILD_TAG} (run ${BUILD_RUN} of ${PHLOEM_WORKFLOW})"
+  if docker image inspect "betula-phloem:${BUILD_TAG}" >/dev/null 2>&1; then
+    log "betula-phloem:${BUILD_TAG} is loaded already"
+    return 0
+  fi
+  download_artifact "${WORK}/phloem.tar" "${PHLOEM_ARTIFACT_MAX_BYTES}"
+  log "downloaded betula-phloem-${BUILD_TAG}.tar ($(du -h "${WORK}/phloem.tar" | cut -f1)), sha256 as GitHub keeps it"
+
+  mkdir -- "${dir}"
+  # Only the two names, never the archive's owners or modes.
+  tar -xf "${WORK}/phloem.tar" -C "${dir}" --no-same-owner --no-same-permissions -- \
+    release.json phloem-image.tar.gz ||
+    die "the artifact does not hold release.json and phloem-image.tar.gz"
+  rm -f -- "${WORK}/phloem.tar"
+  for file in release.json phloem-image.tar.gz; do
+    [[ -f "${dir}/${file}" && ! -L "${dir}/${file}" ]] || die "${file} in the artifact is not a plain file"
+  done
+  jq -e --arg tag "${BUILD_TAG}" --arg repo "${REPO}" '.tag == $tag and .repository == $repo' \
+    "${dir}/release.json" >/dev/null || die "release.json names another release or repository: $(head -c 300 "${dir}/release.json")"
+  have="$(sha256sum "${dir}/phloem-image.tar.gz" | cut -d ' ' -f 1)"
+  [[ "${have}" == "$(jq -r '.images.phloem.sha256' "${dir}/release.json")" ]] ||
+    die "phloem-image.tar.gz does not have the sha256 release.json names"
+
+  loaded="$(docker load -i "${dir}/phloem-image.tar.gz")"
+  # The flake names every build "latest"; the tag is given here, and "latest" itself is never
+  # deployed (49-phloem.sh refuses it).
+  [[ "${loaded}" == *"Loaded image: betula-phloem:latest"* ]] ||
+    die "phloem-image.tar.gz did not load as betula-phloem:latest: ${loaded}"
+  docker tag betula-phloem:latest "betula-phloem:${BUILD_TAG}"
+  log "loaded betula-phloem:${BUILD_TAG} (Phloem $(jq -r '.version // "?"' "${dir}/release.json"))"
+  rm -rf -- "${dir}"
+  if ! grep -qxF -- "${BUILD_TAG}" <<<"$(state_get phloem-loaded)"; then
+    printf '%s\n' "${BUILD_TAG}" >>"${STATE_DIR}/phloem-loaded"
+  fi
+}
+
+# remove_old_phloem_images - images of Phloem this agent loaded (state file phloem-loaded) that no
+# service uses (neither phloem-canary nor the Phloem of betula.app), but the newest KEEP_IMAGES of
+# them: those stay for a way back by hand. Images shipped with deploy/ship-phloem.sh are never
+# touched.
+remove_old_phloem_images() {
+  local used tag i
+  local -a loaded=() keep=()
+  mapfile -t loaded < <(state_get phloem-loaded | sed '/^$/d')
+  [[ "${#loaded[@]}" -gt "${KEEP_IMAGES}" ]] || return 0
+  used="$(docker service ls -q | xargs -r docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' | sed 's/@.*//' | sort -u)"
+  for i in "${!loaded[@]}"; do
+    tag="${loaded[${i}]}"
+    if [[ "${i}" -ge $((${#loaded[@]} - KEEP_IMAGES)) ]] || grep -qxF -e "betula-phloem:${tag}" <<<"${used}"; then
+      keep+=("${tag}")
+      continue
+    fi
+    if docker image inspect "betula-phloem:${tag}" >/dev/null 2>&1; then
+      if ! docker image rm "betula-phloem:${tag}" >/dev/null 2>&1; then
+        warn "betula-phloem:${tag} could not be removed (a stopped container may still use it); trying again after the next deploy"
+        keep+=("${tag}")
+        continue
+      fi
+      log "image betula-phloem:${tag} removed (no service uses it)"
+    fi
+  done
+  state_set phloem-loaded "$(printf '%s\n' "${keep[@]}")"
 }
 
 # ---------------------------------------------------------------- the public site's database
@@ -529,11 +624,94 @@ deploy_release() {
 
 # ---------------------------------------------------------------- commands
 
+# poll - Phloem first, then the application. A run that dies in one of them ends this one (the
+# alert fires, README.md section 12); the other is looked at by the next, two minutes later, while
+# the one that failed waits for its next attempt.
 poll() {
-  local seen live_tag failed failed_tag failures last_failure wait_until
   take_lock
   make_auth_headers
-  latest_run
+  poll_phloem
+  poll_app
+}
+
+# poll_phloem - phloem-canary on the newest build of Phloem for master (.github/workflows/
+# phloem.yml), as poll_app keeps the application: only a build it has not seen, three attempts ten
+# minutes apart and longer, and a release deployed by hand stays until master is built again.
+# 49-phloem.sh stops the old task before it starts the new one (one writer on phloem.db: the
+# devices hear 1001 and come back by themselves within seconds), then tries what Phloem must not
+# be able to do. A FAIL there leaves the release running (49-phloem.sh never goes back by itself:
+# a release whose database migrated further cannot), so a failure of the release that runs is
+# tried again, not taken as done.
+poll_phloem() {
+  local seen live_tag failed failed_tag failures=0 last_failure=0 wait_until
+  latest_run "${PHLOEM_WORKFLOW}"
+  if [[ -z "${BUILD_RUN}" ]]; then
+    state_set phloem-last-check "$(now_utc) no successful run of ${PHLOEM_WORKFLOW} for master yet"
+    return 0
+  fi
+  seen="$(state_get phloem-seen-run)"
+  if [[ "${BUILD_RUN}" == "${seen}" ]]; then
+    state_set phloem-last-check "$(now_utc) run ${BUILD_RUN}, handled"
+    return 0
+  fi
+  if ! run_artifact "${PHLOEM_ARTIFACT_PATTERN}"; then
+    log "run ${BUILD_RUN} of ${PHLOEM_WORKFLOW} has no artifact any more (kept for a week): ${PHLOEM_STACK} waits for the next build of master"
+    state_set phloem-last-check "$(now_utc) run ${BUILD_RUN}, no artifact"
+    state_set phloem-seen-run "${BUILD_RUN}"
+    rm -f -- "${STATE_DIR}/phloem-failed"
+    return 0
+  fi
+  state_set phloem-last-check "$(now_utc) run ${BUILD_RUN}: ${BUILD_TAG}"
+  # Its first deploy makes its file systems, its network and its router (README.md section 16):
+  # that is a person's to do, once. From then on it follows master.
+  if ! docker service inspect "${PHLOEM_STACK}_sync" >/dev/null 2>&1; then
+    log "run ${BUILD_RUN} built Phloem ${BUILD_TAG}, but ${PHLOEM_STACK} is not deployed: its first deploy is by hand (README.md section 16)"
+    state_set phloem-seen-run "${BUILD_RUN}"
+    return 0
+  fi
+
+  # The failures counted are those of the newest build; a newer one starts from nothing.
+  failed="$(state_get phloem-failed)"
+  if [[ -n "${failed}" ]]; then
+    read -r failed_tag failures last_failure <<<"${failed}"
+    if [[ "${failed_tag}" != "${BUILD_TAG}" ]]; then
+      rm -f -- "${STATE_DIR}/phloem-failed"
+      failures=0
+      last_failure=0
+    fi
+  fi
+
+  live_tag="$(image_tag "${PHLOEM_STACK}_sync")"
+  if [[ "${live_tag}" == "${BUILD_TAG}" && "${failures}" -eq 0 ]]; then
+    log "run ${BUILD_RUN} built Phloem ${BUILD_TAG}, which ${PHLOEM_STACK} runs already"
+    state_set phloem-seen-run "${BUILD_RUN}"
+    return 0
+  fi
+  if [[ "${failures}" -ge "${MAX_ATTEMPTS}" ]]; then
+    log "Phloem ${BUILD_TAG} failed ${failures} times: not trying it again. ${PHLOEM_STACK} runs ${live_tag:-nothing} and waits for the next build of master (by hand: bash ${BETULA_VPS_DIR}/49-phloem.sh ${PHLOEM_STACK} <tag>)"
+    state_set phloem-seen-run "${BUILD_RUN}"
+    return 0
+  fi
+  wait_until=$((last_failure + failures * RETRY_MINUTES * 60))
+  [[ "$(date +%s)" -ge "${wait_until}" ]] || return 0
+
+  # Counted before the attempt: one that dies (or a reboot in the middle) counts as well.
+  state_set phloem-failed "${BUILD_TAG} $((failures + 1)) $(date +%s)"
+  log "new build of Phloem for master: run ${BUILD_RUN}, release ${BUILD_TAG} (${PHLOEM_STACK} runs ${live_tag:-nothing}); attempt $((failures + 1)) of ${MAX_ATTEMPTS}"
+  require_ubuntu
+  fetch_phloem
+  step "Deploy ${PHLOEM_STACK}: Phloem ${BUILD_TAG} (49-phloem.sh, which then tries what it must not be able to do)"
+  bash "${BETULA_VPS_DIR}/49-phloem.sh" "${PHLOEM_STACK}" "${BUILD_TAG}"
+  rm -f -- "${STATE_DIR}/phloem-failed"
+  state_set phloem-seen-run "${BUILD_RUN}"
+  state_set phloem-deployed "$(now_utc) ${BUILD_TAG}"
+  remove_old_phloem_images
+  log "${PHLOEM_STACK} runs Phloem ${BUILD_TAG}"
+}
+
+poll_app() {
+  local seen live_tag failed failed_tag failures last_failure wait_until
+  latest_run "${WORKFLOW}"
   if [[ -z "${BUILD_RUN}" ]]; then
     state_set last-check "$(now_utc) no successful run of ${WORKFLOW} for master yet"
     return 0
@@ -545,7 +723,7 @@ poll() {
     state_set last-check "$(now_utc) run ${BUILD_RUN}, handled"
     return 0
   fi
-  if ! run_artifact; then
+  if ! run_artifact "${ARTIFACT_PATTERN}"; then
     log "run ${BUILD_RUN} of ${WORKFLOW} has no artifact any more (kept for a week): canary waits for the next build of master"
     state_set last-check "$(now_utc) run ${BUILD_RUN}, no artifact"
     state_set seen-run "${BUILD_RUN}"
@@ -632,6 +810,16 @@ status() {
     printf '%-14s %s\n' "${line}:" "$(state_get "${line}" | tr '\n' ' ')"
   done
   printf 'loaded by this agent (newest last): %s\n' "$(state_get loaded | tr '\n' ' ')"
+  # Phloem of canary (its own workflow, PHLOEM_WORKFLOW).
+  if docker service inspect "${PHLOEM_STACK}_sync" >/dev/null 2>&1; then
+    printf '\n%s runs Phloem %s (follows %s)\n' "${PHLOEM_STACK}" "$(image_tag "${PHLOEM_STACK}_sync")" "${PHLOEM_WORKFLOW}"
+  else
+    printf '\n%s is not deployed (its first deploy is by hand: README.md section 16)\n' "${PHLOEM_STACK}"
+  fi
+  for line in phloem-last-check phloem-seen-run phloem-deployed phloem-failed; do
+    printf '%-18s %s\n' "${line}:" "$(state_get "${line}" | tr '\n' ' ')"
+  done
+  printf 'Phloem loaded by this agent (newest last): %s\n' "$(state_get phloem-loaded | tr '\n' ' ')"
 }
 
 # ---------------------------------------------------------------- main
