@@ -4033,11 +4033,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   study („module, die nicht in Mein studium eingetragen werden zählen nicht zum studium").
   - **The link** carries the groups ticked besides the modules (`SharedPlan::chosen`, appended to
     the code; as many as the code holds), so that a calendar has the friend's week, not every
-    group of it, and since Folia 1.116.0 what the friend hid („What is hidden travels" below).
+    group of it, and since Folia 1.117.0 what the friend hid („What is hidden travels" below).
   - **What is hidden travels** (owner, 2026-11-19: „wenn man jemanden seinen kalender teilt, dann
     sollte da auch die sichtbarkeit mit angezigt werden. Also wenn ich bei mir ein
     modul/veranstaltung ausblende dann sollte das auch bei der person, die das ding aboniert hat
-    ausgeblendet werden. Beide sollen den gleichen kalender sehen."; Folia 1.116.0). Every way of
+    ausgeblendet werden. Beide sollen den gleichen kalender sehen."; Folia 1.117.0). Every way of
     handing the plan on to a person carries what it hides — the events, the Termine, the single
     dates, the kinds switched off before — and the Standort, as the calendar app's ways did
     already: the part that stays current (`LivePart`; until then a person's left it out, `Along`
