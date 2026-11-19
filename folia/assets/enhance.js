@@ -2079,7 +2079,8 @@
   document.addEventListener("betula:sheet-show", (e) => {
     const el = e.target, sheet = phone() ? sheetAround(el) : null;
     // In a phone's page instead (the Stundenplan's saved plans while it is edited): the page brings
-    // it in, clear of the dock over its foot (its `scroll-margin-bottom`).
+    // it in, clear of the dock over its foot (the window's `scroll-padding`, app.css „phone and
+    // tablet").
     if (!sheet && phone()) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     if (!sheet || el === sheet) return;
     const g = glides.get(sheet), at = g ? g.to : sheet.classList.contains("is-full") ? "full" : "half";
@@ -3385,7 +3386,11 @@
     topButton = document.getElementById("to-top");
     if (!topButton) return;
     const far = Boolean(topPage) && topPage.scrollTop > shownOf(topPage);
-    if (topButton.hasAttribute("data-shown") !== far) topButton.toggleAttribute("data-shown", far);
+    if (topButton.hasAttribute("data-shown") === far) return;
+    topButton.toggleAttribute("data-shown", far);
+    // On a phone the window keeps room for it while it shows (app.css `scroll-padding`), which the
+    // control the keyboard just brought above the bar knew nothing of yet: it goes above the button.
+    if (far) keepClear();
   };
   const showTopSoon = () => { if (!topFrame) topFrame = requestAnimationFrame(showTop); };
   document.addEventListener("scroll", showTopSoon, { capture: true, passive: true });
@@ -3897,14 +3902,36 @@
     const after = stops.findIndex((s) => el.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING);
     return (after < 0 ? stops.length : after) - 0.5;
   };
+  // On a phone the window keeps room at its edges for what floats over them, the bars, „Nach oben",
+  // „Mein Studium"'s dots (app.css `scroll-padding`, „phone and tablet"): a control that reaches
+  // into it, or into the room it asks for around itself (`scroll-margin`: a head that sticks over
+  // its rows), is not seen whole, though its middle may be. Not so in what floats itself (a sheet,
+  // a menu): the window's room is not its own.
+  const clearOfEdges = (el) => {
+    if (!phone()) return true;
+    for (let at = el; at && at !== document.body; at = at.parentElement) if (getComputedStyle(at).position === "fixed") return true;
+    const r = el.getBoundingClientRect(), own = getComputedStyle(el), room = getComputedStyle(document.documentElement);
+    return r.top - parseFloat(own.scrollMarginTop) >= parseFloat(room.scrollPaddingTop) - 1
+      && r.bottom + parseFloat(own.scrollMarginBottom) <= innerHeight - parseFloat(room.scrollPaddingBottom) + 1;
+  };
+  // The window's room grew under the control with the keyboard's focus („Nach oben" came): where it
+  // is on the screen and reaches into the room now, it goes in as far as the room asks. Not a focus
+  // of a pointer, nor one scrolled away.
+  const keepClear = () => {
+    const el = document.activeElement;
+    if (!el || el === document.body || !el.matches(":focus-visible") || clearOfEdges(el)) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom > 0 && r.top < innerHeight) el.scrollIntoView({ block: "nearest" });
+  };
   // Focus without the browser's own scroll; what scrolls brings it into view, a row of a list as
   // far as needed.
   const focusOn = (el, how = "nearest") => {
     if (!el) return;
     el.focus({ preventScroll: true });
     if (el.closest("[data-mode]")) inBand(el);
-    // What is seen stays where it is: a scroll moves a virtual list's rows, and the focus with them.
-    else if (!inView(el)) el.scrollIntoView?.({ block: how, inline: "nearest" });
+    // What is seen stays where it is: a scroll moves a virtual list's rows, and the focus with them;
+    // on a phone what is seen only in part goes in as far as the window's room asks.
+    else if (!inView(el) || !clearOfEdges(el)) el.scrollIntoView?.({ block: how, inline: "nearest" });
   };
 
   // Into a group where the keyboard was last in it, also where that went off a virtual list's

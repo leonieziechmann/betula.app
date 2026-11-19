@@ -220,7 +220,8 @@ pub(super) fn StatusRow(ctx: PlanCtx, sum: Memo<String>) -> impl IntoView {
     }
 }
 
-/// The module list's head to the top of the window (under the page's bars, its `scroll-margin`).
+/// The module list's head to the top of the window, under the bar (the window's `scroll-padding`,
+/// app.css „phone and tablet").
 fn to_list() {
     #[cfg(feature = "csr")]
     if let Some(list) = folia_design::stage::select(".sp-list") {
