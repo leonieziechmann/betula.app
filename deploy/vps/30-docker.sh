@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 30-docker.sh - Docker Engine, one-node swarm, the overlay networks of files/networks.conf and
-# docker_gwbridge with IPv6, published-port firewall, prune timer, Phloem's guard timer, the
-# scraper's targets timer.
+# docker_gwbridge with IPv6, published-port firewall, prune timer, the guard timers of Phloem and
+# Xylem, the scraper's targets timer.
 #
 #   sudo bash /opt/betula/vps/30-docker.sh
 #
@@ -535,6 +535,28 @@ install_phloem_guard() {
   log "written every minute: /run/betula/metrics/phloem-guard.prom"
 }
 
+# Xylem's guard is Phloem's script with BETULA_GUARD_KIND=xylem (its unit sets it): installed by
+# install_phloem_guard, which runs first.
+install_xylem_guard() {
+  step "Xylem's guard: its firewall and rights, looked at from outside every minute"
+  local changed=0
+  install_file "${BETULA_FILES_DIR}/betula-xylem-guard.service" /etc/systemd/system/betula-xylem-guard.service 0644
+  changed=$((changed + INSTALL_CHANGED))
+  install_file "${BETULA_FILES_DIR}/betula-xylem-guard.timer" /etc/systemd/system/betula-xylem-guard.timer 0644
+  changed=$((changed + INSTALL_CHANGED))
+  if [[ "${changed}" -gt 0 ]]; then
+    systemctl daemon-reload
+    if unit_active betula-xylem-guard.timer; then
+      systemctl restart betula-xylem-guard.timer
+    fi
+  fi
+  systemctl enable --now betula-xylem-guard.timer >/dev/null 2>&1
+  # Once now, so that the file is there before the monitoring looks.
+  systemctl start betula-xylem-guard.service ||
+    warn "betula-xylem-guard did not run cleanly: journalctl -u betula-xylem-guard.service -n 20"
+  log "written every minute: /run/betula/metrics/xylem-guard.prom"
+}
+
 install_scraper_targets() {
   step "The scraper's targets: the Radix of every instance that runs, every minute"
   local changed=0
@@ -594,6 +616,7 @@ init_swarm
 create_overlay_networks
 install_prune_timer
 install_phloem_guard
+install_xylem_guard
 install_scraper_targets
 check_firewall
 report

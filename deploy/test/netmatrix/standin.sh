@@ -3,8 +3,10 @@
 # HTTP server per port in LISTEN, answering what the scripts and the scrapers ask:
 #   /metrics                  200, Prometheus text format (with the Content-Type Prometheus 3 wants)
 #   /api/status /api/db       401 (closed testing, as Folia with FOLIA_ACCESS_GATE=on)
+#   a path in NOT_FOUND       404 (what Xylem answers loopback alone)
 #   everything else           200, the body names the service (NAME) and the path
-# With STATS_DIR set (Phloem's stand-in) it writes phloem.prom there every 15 s, as Phloem does.
+# With STATS_DIR set (the stand-ins of Phloem and Xylem) it writes <STATS_NAME>.prom there every
+# 15 s, as they do (STATS_NAME: phloem unless set).
 #   standin.sh               start the servers
 #   standin.sh answer        answer one request on stdin/stdout (what nc -e runs)
 set -eu
@@ -30,6 +32,12 @@ if [ "${1:-}" = "answer" ]; then
     *)
       status="200 OK"
       body="${NAME:-standin} ${path}"
+      for gone in ${NOT_FOUND:-}; do
+        if [ "${path}" = "${gone}" ]; then
+          status="404 Not Found"
+          body="not_found"
+        fi
+      done
       ;;
   esac
   printf 'HTTP/1.0 %s\r\nContent-Type: %s\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s\n' \
@@ -41,9 +49,14 @@ for port in ${LISTEN:-8080}; do
   nc -lk -p "${port}" -e /bin/sh "$0" answer &
 done
 if [ -n "${STATS_DIR:-}" ]; then
+  stats="${STATS_NAME:-phloem}"
   while :; do
-    printf '# HELP phloem_up 1 while Phloem serves.\n# TYPE phloem_up gauge\nphloem_up 1\n# TYPE phloem_spaces gauge\nphloem_spaces 0\n' >"${STATS_DIR}/.phloem.prom.tmp"
-    mv -f "${STATS_DIR}/.phloem.prom.tmp" "${STATS_DIR}/phloem.prom"
+    if [ "${stats}" = "phloem" ]; then
+      printf '# HELP phloem_up 1 while Phloem serves.\n# TYPE phloem_up gauge\nphloem_up 1\n# TYPE phloem_spaces gauge\nphloem_spaces 0\n' >"${STATS_DIR}/.${stats}.prom.tmp"
+    else
+      printf '# HELP %s_up 1 while it serves.\n# TYPE %s_up gauge\n%s_up 1\n' "${stats}" "${stats}" "${stats}" >"${STATS_DIR}/.${stats}.prom.tmp"
+    fi
+    mv -f "${STATS_DIR}/.${stats}.prom.tmp" "${STATS_DIR}/${stats}.prom"
     sleep 15
   done
 fi
