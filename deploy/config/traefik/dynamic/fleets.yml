@@ -1,0 +1,60 @@
+# Fleets that pass for browsers get nothing (owner, 2026-11-19: „wie werde ich die ganzen bots los
+# … Ich möchte keine externen dienste, wie cloudflare verwenden" — asked whether to turn these away
+# by their user agents: „Ja, sperren").
+#
+# What came on 2026-11-19 (Traefik's access log, 01:28 to 12:07 UTC): 349,000 requests and 129 GB,
+# almost all of it from fleets that send a browser's user agent from residential addresses, each
+# address about once (54,000 addresses in 39,000 /24 networks for the largest), so that no limit by
+# address has anything to count and the filters by network (crawler-networks.yml, europe.yml) let
+# through what does not come from a cloud or from outside Europe. What they have in common is their
+# user agent, the same few strings on every address:
+#
+# A           ten user agents of late 2023, Chrome 118 to 120 (Edge 119 and 120 among them) and
+#             Firefox 120 and 121 on Windows 10 and macOS, about 5,900 addresses and 14,800 requests
+#             each. It starts the app on a filtered view of the catalog it found in a link
+#             (/en/catalog?form=…&open=…, 70,000 different addresses in 11 hours), so every visit
+#             downloads the catalog (/api/db, 4.85 MB) and the app (2.4 MB): 96 GB. Its first
+#             request was at 06 UTC; the dashboard "Visitors" counted it as people (app starts
+#             grew from under 50 an hour before 2026-11-07 to 4,300).
+# B           Chrome 146, exactly, on Windows 10 (12,850 addresses) and Linux (842): the home page
+#             and every file it names, never the app's own requests; 21 GB, the same curve over the
+#             day as A.
+# Lightpanda  a headless browser for scrapers and agents that says so, 1,265 addresses walking the
+#             catalog the same way as A.
+#
+# A person turned away here has not let Chrome or Firefox update itself for two years (A: none of
+# these versions is supported by its maker any more, and Firefox 120 and 121 were no ESR), or has
+# kept Chrome 146 of 2026-03 on a system that would have updated it (B). That is the price, and it
+# is a small one; the 403 is the same the crawlers get. Chrome 146 on a Mac, any other version of
+# Chrome or Firefox, a phone: served as before. Kept narrow on purpose: these are what the log
+# showed, not every browser of an age; the fleets that send current versions (a list of phones and
+# newer Chromes, a few hundred addresses each) cannot be told apart by a user agent.
+#
+# The same router as crawlers.yml's in all but the rule: above every site (priority 10000), the
+# same exceptions (robots.txt, the calendar feeds, /healthz, /livez), the same answer (403 from
+# crawlers.yml's middleware, its never reached service), and the access log keeps the requests
+# turned away as RouterName "edge-crawler-fleets@file", which the dashboard "Visitors" counts as
+# "crawlers turned away" and leaves out of its visitors, like crawler-networks.yml's
+# (config/monitoring/loki-rules/fake/visitors.yml matches "edge-crawler"). A fleet that changes its
+# strings walks past this file: look at the access log again (the largest user agents by number
+# of addresses), and add or drop a line. Test: deploy/test/crawlers.sh.
+
+http:
+  routers:
+    edge-crawler-fleets:
+      entryPoints:
+        - websecure
+      # Go regular expressions (RE2), each anchored at both ends: the whole user agent, not a part
+      # of it, so that a browser that adds a word of its own is not one of these.
+      rule: >-
+        (HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10_15_7)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/(118|119|120)\.0\.0\.0 Safari/537\.36( Edg/(118|119|120)\.0\.0\.0)?$`)
+        || HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|Macintosh; Intel Mac OS X 10\.15); rv:(120|121)\.0\) Gecko/20100101 Firefox/(120|121)\.0$`)
+        || HeaderRegexp(`User-Agent`, `^Mozilla/5\.0 \((Windows NT 10\.0; Win64; x64|X11; Linux x86_64)\) AppleWebKit/537\.36 \(KHTML, like Gecko\) Chrome/146\.0\.0\.0 Safari/537\.36$`)
+        || HeaderRegexp(`User-Agent`, `^Lightpanda/`))
+        && !Path(`/robots.txt`) && !Path(`/healthz`) && !Path(`/livez`)
+        && !PathRegexp(`^/([a-z]{2}/)?calendar/`)
+      priority: 10000
+      tls: {}
+      middlewares:
+        - edge-crawlers-refuse
+      service: edge-crawlers-nowhere
