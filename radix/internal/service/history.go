@@ -75,11 +75,21 @@ func (s *Service) recordHistory(ctx context.Context) error {
 		return nil
 	}
 	// A snapshot published while this stage failed, and replaced since, is kept beside the current
-	// one (the export keeps two): it is recorded first, valid from when its file was written.
+	// one (the export keeps two): it is recorded first, valid from when its file was written. Newer
+	// than the newest state is what was written after that state's file, or, once its file is gone
+	// (the export removes the oldest first), every file kept; a file older than the history's first
+	// state is never one of them.
 	if last, err := h.Last(ctx); err == nil && last != nil {
-		for _, kept := range catalogdb.KeptSnapshots(s.cfg.SnapshotDir) {
-			if kept.Name != pointer.File && kept.Written.After(last.ValidFrom) {
-				if err := record(kept.Name, kept.Written); err != nil {
+		kept := catalogdb.KeptSnapshots(s.cfg.SnapshotDir)
+		after := time.Time{}
+		for _, k := range kept {
+			if k.Name == last.Source {
+				after = k.Written
+			}
+		}
+		for _, k := range kept {
+			if k.Name != pointer.File && k.Name != last.Source && k.Written.After(after) {
+				if err := record(k.Name, k.Written); err != nil {
 					return err
 				}
 			}
