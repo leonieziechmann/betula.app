@@ -39,6 +39,7 @@ mod exams;
 mod export;
 mod head;
 mod modules;
+mod note;
 mod open;
 mod own;
 // The server lays out no picture (`picture::save` is the browser's).
@@ -83,7 +84,8 @@ use self::exams::ExamsView;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, NothingPlanned, Overlaps, PhoneBand, PhoneSheets, SemesterHead};
 use self::modules::ModuleList;
 use self::open::{OpenPanel, PickSheet};
-use self::own::{OwnForm, OwnNote};
+use self::note::PlanNote;
+use self::own::OwnForm;
 use self::side::{PlanSidebar, SavedPlans};
 use self::termin::{PlanTerminFull, PlanTerminModal};
 use self::week::{DatesView, WeekLoose, WeekView};
@@ -139,10 +141,15 @@ pub(super) struct PlanCtx {
     /// the clock for two things only: the default semester and the week „Termine" scrolls to.
     pub today: Option<Day>,
     /// The note of the last change that answers with „Rückgängig" (a share taken in, a Termin of
-    /// one's own deleted, a calendar or a module of one taken out, „Alle einblenden", what a
-    /// Termin's card did), and what „Rückgängig" takes back (`PlanUndo`: the change alone, not what
-    /// another tab or device changed meanwhile).
+    /// one's own deleted, a calendar made or deleted, a module of one taken in or out, „Alle
+    /// einblenden", what a Termin's card did), and what „Rückgängig" takes back
+    /// (`PlanUndo`: the change alone, not what another tab or device changed meanwhile). Said in the
+    /// page's note (`note::PlanNote`).
     pub undo: RwSignal<Option<(String, PlanUndo)>>,
+    /// What else the page's note says (`PlanCtx::say`: a saved plan loaded or deleted, with its own
+    /// „Rückgängig", a new address copied, a link that opens nothing, a profile saved): `undo` and it
+    /// take each other's place.
+    pub said: RwSignal<Option<note::PlanSaid>>,
     /// The week „Woche" shows: the A week, the B week, or both („A/B"). A view setting of the
     /// page, not stored.
     pub weeks: RwSignal<Weeks>,
@@ -321,6 +328,7 @@ pub fn StudyplanPage() -> impl IntoView {
         source,
         today,
         undo: RwSignal::new(None),
+        said: RwSignal::new(None),
         weeks: RwSignal::new(Weeks::All),
         edit,
         unfolded: RwSignal::new(false),
@@ -343,8 +351,25 @@ pub fn StudyplanPage() -> impl IntoView {
         let profile = plan.map_or(0, Studyplan::profile);
         if before.is_some_and(|before| before != profile) {
             ctx.undo.set(None);
+            ctx.said.set(None);
         }
         profile
+    });
+    // One note at a time (`note.rs`): a change's note takes the place of what else the page said.
+    Effect::new(move |_| {
+        if ctx.undo.with(Option::is_some) && ctx.said.with_untracked(Option::is_some) {
+            ctx.said.set(None);
+        }
+    });
+    // A sheet of a phone opened or closed is a step on: a note that does not last goes with it, one
+    // that lasts is said where the student is now (the sheet's foot, the page's).
+    Effect::new(move |before: Option<Option<head::PhoneSheet>>| {
+        let now = ctx.sheet.get();
+        if before.is_some_and(|before| before != now) && !ctx.note_lasts() {
+            ctx.undo.set(None);
+            ctx.said.set(None);
+        }
+        now
     });
     // „Offen" folds again once the mode is left: the next way in decides anew.
     Effect::new(move |_| {
@@ -514,9 +539,10 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 }
                 .into_any(),
             }}
-            // The form of a Termin of one's own and the note after it (`own.rs`).
+            // The form of a Termin of one's own (`own.rs`), and the page's note of what was just done
+            // (`note.rs`), while no sheet of a phone lies over the page.
             <OwnForm ctx/>
-            <OwnNote ctx/>
+            <PlanNote ctx shown=Signal::derive(move || ctx.sheet.with(Option::is_none))/>
             // „Teilen" (`share_dialog.rs`).
             <share_dialog::ShareDialog ctx/>
             // On a phone the sheets of the head's toolbar: the calendars and „Export" (`head.rs`).

@@ -378,7 +378,7 @@ if (block("edit")) {
     const d = diff(before, await stored(page));
     check(same(d.gone.sort(), [...want.gone].sort()) && same(d.added.sort(), [...want.added].sort()), `${name}: ${JSON.stringify(d)}`);
   };
-  const noNote = async (name) => check(await page.evaluate(() => !allOnPage(".plan-toast-said").some((n) => n.getClientRects().length)), `${name}: a note while editing`);
+  const noNote = async (name) => check(await page.evaluate(() => !allOnPage(".plan-toast-said, .plan-note .mark-toast-said").some((n) => n.getClientRects().length)), `${name}: a note while editing`);
   // The eye on a Termin the week shows: in the same place its crossed eye, a second click brings it back.
   const eye = act("148303-bcd64", "Ausblenden");
   await page.focus(eye);
@@ -413,17 +413,17 @@ if (block("edit")) {
   const bin = act("4000000001-00000", "Löschen");
   await page.focus(bin).catch(() => {});
   await click(page, bin, "the bin of „Arbeit“");
-  await until(page, "the bin", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && /„Arbeit“ gelöscht/.test(onPage(".own-note .plan-toast-said")?.textContent ?? ""), [PLAN]);
+  await until(page, "the bin", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && /„Arbeit“ gelöscht/.test(onPage(".plan-note .mark-toast-said")?.textContent ?? ""), [PLAN]);
   // The keyboard, whose bin went with the Termin, is on „Rückgängig"; and a deletion's note stays
   // until it is put away: a click on a blank part of the sidebar leaves it standing (it took the
   // „Rückgängig" with it once, and a slow double click on a bin lost the Termin).
-  await until(page, "the keyboard on „Rückgängig“ after the bin", () => document.activeElement?.id === "own-note-undo");
+  await until(page, "the keyboard on „Rückgängig“ after the bin", () => document.activeElement?.id === "plan-note-undo");
   const blank = await page.evaluate(() => { const at = { x: 200, y: innerHeight - 140 }; return document.elementFromPoint(at.x, at.y)?.closest("a, button, input, select, label, dialog, .wait-note") ? null : at; });
   check(Boolean(blank), "a blank part of the sidebar to click");
   if (blank) await page.mouse.click(blank.x, blank.y);
   await page.waitForTimeout(700);
-  check(await page.evaluate(() => Boolean(onPage(".own-note .plan-toast-undo") ?? document.querySelector(".own-note .plan-toast-undo"))), "a deletion's note stands after a click elsewhere");
-  await click(page, ".own-note .plan-toast-undo", "„Rückgängig“ of the bin");
+  check(await page.evaluate(() => Boolean(onPage(".plan-note .plan-toast-undo") ?? document.querySelector(".plan-note .plan-toast-undo"))), "a deletion's note stands after a click elsewhere");
+  await click(page, ".plan-note .plan-toast-undo", "„Rückgängig“ of the bin");
   await until(page, "„Rückgängig“ of the bin", ([key, line]) => (localStorage.getItem(key) ?? "").includes(line) && allOnPage(".sp-week a.slot.own").length === 1, [PLAN, ARBEIT]);
   await until(page, "the keyboard on the slot put back", () => document.activeElement?.matches?.(".sp-week a.slot.own") === true);
   // A free stretch: the form of a new Termin, of that day; Esc closes the form and the mode stays. The
@@ -531,9 +531,9 @@ if (block("en")) {
   check((await page.getAttribute(own, "aria-label").catch(() => null)) === "Delete", "the English bin is not „Delete“");
   await page.focus(own).catch(() => {});
   await click(page, own, "the English bin");
-  await until(page, "the bin in English", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && Boolean(onPage(".own-note .plan-toast-undo")), [PLAN]);
+  await until(page, "the bin in English", ([key]) => !(localStorage.getItem(key) ?? "").includes("\tArbeit\t") && Boolean(onPage(".plan-note .plan-toast-undo")), [PLAN]);
   check((await where(page)) === "/en/studyplan?edit=1", `the bin led to ${await where(page)}`);
-  await click(page, ".own-note .plan-toast-undo", "„Undo“");
+  await click(page, ".plan-note .plan-toast-undo", "„Undo“");
   await until(page, "„Undo“", () => allOnPage(".sp-week a.slot.own").length === 1);
   // The card's „Delete".
   await click(page, ".sp-week a.slot.own", "the Termin of one's own");

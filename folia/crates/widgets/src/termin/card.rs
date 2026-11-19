@@ -28,7 +28,7 @@
 use folia_calendar::semester::SemesterKey;
 use folia_design::modal::Placed;
 use folia_design::nav::{Newborn, Room};
-use folia_design::waitnote::WaitNote;
+use folia_design::waitnote::DoneNote;
 use folia_plans::studyplan::{PlanDoc, PlanUndo};
 use folia_stores::collections::Anchor;
 use folia_timetable::choice;
@@ -1245,7 +1245,6 @@ fn HideView(card: Memo<Option<CardPart>>, state: CardState, run: Callback<(CardA
 /// it was done in: with another profile chosen (here or in another tab) there is nothing to undo.
 #[component]
 pub fn TerminNote(plan: Option<Studyplan>, undo: RwSignal<Option<TerminUndo>>) -> impl IntoView {
-    let t = i18n::t();
     let said = Memo::new(move |_| undo.with(|undo| undo.as_ref().map(|undo| undo.said.clone())));
     Effect::new(move |before: Option<u16>| {
         let profile = plan.map_or(0, Studyplan::profile);
@@ -1254,11 +1253,11 @@ pub fn TerminNote(plan: Option<Studyplan>, undo: RwSignal<Option<TerminUndo>>) -
         }
         profile
     });
-    let restore = move |_| {
+    // „Rückgängig": what the card did taken back; the note goes down and away, then lets go.
+    let restore = Callback::new(move |()| {
         let (Some(plan), Some(TerminUndo { undo: done, .. })) = (plan, undo.get_untracked()) else { return };
-        undo.set(None);
         plan.update_after_paint(move |doc| done.restore(doc));
-    };
+    });
     move || {
         said.get().map(|said| {
             // A note that leaves lets go of itself alone, not of a newer one that took its place
@@ -1269,20 +1268,8 @@ pub fn TerminNote(plan: Option<Studyplan>, undo: RwSignal<Option<TerminUndo>>) -
                     undo.set(None);
                 }
             });
-            view! {
-                <WaitNote on_gone=gone class="planning-note own-note">
-                    <div class="plan-toast out">
-                        <div class="plan-toast-main">
-                            <span class="plan-toast-mark" aria-hidden="true"><Icon name="check"/></span>
-                            <span class="plan-toast-said"><span class="plan-toast-said-name">{said}</span></span>
-                        </div>
-                        <div class="plan-toast-end">
-                            <span class="plan-toast-sep" aria-hidden="true"></span>
-                            <button data-haptic="tap" class="plan-toast-undo" type="button" on:click=restore>{t.common.undo}</button>
-                        </div>
-                    </div>
-                </WaitNote>
-            }
+            // The frame of every note of what was just done (`DoneNote`), as the Stundenplan's.
+            view! { <DoneNote on_gone=gone icon="check" said undo=Some(restore) class="plan-note"/> }
         })
     }
 }

@@ -22,7 +22,7 @@
 //! where it will stand, dashed (`draft_slot`).
 //!
 //! „Anlegen" and „Speichern" close the form at once and change the plan after the next frame (R21),
-//! and a note over the page says so with „Rückgängig" (`OwnNote`), as „Löschen" in the Termin's view
+//! and the page's note says so with „Rückgängig" (`note::PlanNote`), as „Löschen" in the Termin's view
 //! does. A Termin of a module of the week stands under its module in the list beside the week
 //! (`modules.rs`, „von dir"); the others are listed after the modules of their calendar (`OwnList`):
 //! a row of the plan's opens its card (`termin=`), one of a calendar of one's own its form while the
@@ -40,7 +40,6 @@ use folia_calendar::semester::SemesterKey;
 use folia_design::modal::{kept, Modal, ModalHead, ModalSize};
 use folia_design::haptic::{self, Haptic};
 use folia_design::ui::Icon;
-use folia_design::waitnote::WaitNote;
 use folia_plans::studyplan::{PlanUndo, MAX_OWN, MAX_OWN_ALL};
 use folia_shell::pending::Pending;
 use folia_timetable::clash::{self, Weeks};
@@ -58,11 +57,9 @@ use super::PlanCtx;
 pub(super) const OWN_NOTE: &str = "Eigener Termin: ";
 
 /// How the note of a Termin of one's own deleted begins: a note that stays until it is put away
-/// (`WaitNote`'s `lasting`), since what the student typed by hand is gone with its „Rückgängig".
+/// (`WaitNote`'s `lasting`, `note.rs`), since what the student typed by hand is gone with its
+/// „Rückgängig".
 pub(super) const OWN_GONE: &str = "Eigener Termin gelöscht: ";
-
-/// The id of the note's „Rückgängig", where the keyboard goes when a deletion took what it was on.
-const OWN_UNDO_ID: &str = "own-note-undo";
 
 /// The latest end the form's start moves it to (minutes): 23:55, the last of its field's steps.
 const LAST_END: u16 = 24 * 60 - 5;
@@ -318,7 +315,7 @@ fn slot_in_focus() -> Option<String> {
 
 /// The keyboard to the first element of the page in front that `selectors` find, in their order,
 /// where it is nowhere (on the page's body, or on what went): never taken from where it is.
-fn focus_where_lost(selectors: &[&str]) {
+pub(super) fn focus_where_lost(selectors: &[&str]) {
     #[cfg(feature = "csr")]
     {
         use leptos::wasm_bindgen::JsCast;
@@ -1743,69 +1740,6 @@ pub(super) fn OwnForm(ctx: PlanCtx) -> impl IntoView {
                 <button class="mini primary" type="submit" form="own-form">{move || if editing.get().is_some() { o.save } else { o.create }}</button>
             </footer>
         </Modal>
-    }
-}
-
-/// The note after „Anlegen", „Speichern" and „Löschen" of a Termin of one's own, over the page
-/// (`WaitNote`, as „Einplanen"'s): what happened, and „Rückgängig", which takes back what was done
-/// and nothing that was changed meanwhile elsewhere (`PlanCtx::undo`, `PlanUndo`).
-#[component]
-pub(super) fn OwnNote(ctx: PlanCtx) -> impl IntoView {
-    let t = i18n::t();
-    // What it says, and whether it is a deletion's, which stays until it is put away.
-    let note = Memo::new(move |_| {
-        ctx.undo.with(|undo| {
-            let (note, _) = undo.as_ref()?;
-            note.strip_prefix(OWN_GONE).map(|said| (said.to_string(), true)).or_else(|| note.strip_prefix(OWN_NOTE).map(|said| (said.to_string(), false)))
-        })
-    });
-    // A new note is a new one: what it says comes and goes with it. What a deletion took comes
-    // back, and the keyboard with it where the note held it (the slot it stood on, else the week).
-    let restore = move |_| {
-        let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
-        let undo = ctx.undo;
-        undo.set(None);
-        plan.update_after_paint(move |doc| before.restore(doc));
-        let back = ctx.back_to.get_value();
-        folia_design::nav::after_paint(move || {
-            request_animation_frame(move || {
-                let back = back.as_deref().into_iter().chain([".sp-week .week a.slot"]).collect::<Vec<_>>();
-                focus_where_lost(&back);
-            });
-        });
-    };
-    move || {
-        note.get().map(|(said, lasting)| {
-            // The keyboard was on what the deletion took (the bin, the card's „Löschen", a form
-            // that closed): it comes to „Rückgängig", never to the page's body — once the Termin
-            // has gone from the week, and once a card or form has closed.
-            if lasting {
-                folia_design::nav::after_paint(|| request_animation_frame(|| focus_where_lost(&[&format!("#{OWN_UNDO_ID}")])));
-                set_timeout(|| focus_where_lost(&[&format!("#{OWN_UNDO_ID}")]), std::time::Duration::from_millis(350));
-            }
-            // A note that leaves lets go of itself alone, not of a newer one that took its place
-            // (the next card's, within the 200 ms the old one takes to go).
-            let mine = said.clone();
-            let gone = Callback::new(move |()| {
-                if note.with_untracked(|now| now.as_ref().map(|(now, _)| now.as_str()) == Some(mine.as_str())) {
-                    ctx.undo.set(None);
-                }
-            });
-            view! {
-                <WaitNote on_gone=gone lasting class="planning-note own-note">
-                    <div class="plan-toast out">
-                        <div class="plan-toast-main">
-                            <span class="plan-toast-mark" aria-hidden="true"><Icon name="check"/></span>
-                            <span class="plan-toast-said"><span class="plan-toast-said-name">{said}</span></span>
-                        </div>
-                        <div class="plan-toast-end">
-                            <span class="plan-toast-sep" aria-hidden="true"></span>
-                            <button data-haptic="tap" class="plan-toast-undo" id=OWN_UNDO_ID type="button" on:click=restore>{t.common.undo}</button>
-                        </div>
-                    </div>
-                </WaitNote>
-            }
-        })
     }
 }
 
