@@ -162,7 +162,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
     the links have set.
     **A choice of a few entries** (a Studienbeginn, a study direction, the plan's semester in
-    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder) is `combobox::Select`
+    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder, and since 1.110.3
+    the fields of a Termin's forms: „Kalender", „Gehört zu", „Art" and „Tag" of one's own,
+    `#own-cal`, `#own-module`, `#own-kind`, `#own-day`, and „Tag" of „Ändern", `#chg-day`; owner,
+    2026-11-19: „Außerdem style bitte die dropdowns richtig im Betula style") is `combobox::Select`
     (owner, 2026-10-16: „Dropdown menus allgemein sind im browser styling passe das mal an, so dass
     das mehr mit der combobox matcht"): the combobox's button and popup without its search field,
     in place of the browser's `<select>`, whose list Windows drew as a blue bar on grey and a phone
@@ -170,7 +173,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     ARIA patterns): ↑ ↓, Pos1, Ende, Bild ↑ ↓ mark an entry, Enter or the space bar takes it, Esc
     closes the popup and nothing else (in a dialog the dialog stays open), letters jump to the entry
     they begin; an entry's detail stands beside it („WiSe 2025/26 · jetzt 3. FS" is „WiSe 2025/26"
-    and „jetzt 3. FS"). On a phone it opens in place, as the combobox does. `small` is the button
+    and „jetzt 3. FS"). On a phone it opens in place, as the combobox does, and brings its list into
+    sight (`nav::show_in_sheet`: a sheet half up comes all up, what scrolls as little as shows it;
+    since 1.110.3, where „Art" of the form opened below the sheet's fold). `small` is the button
     of a bar of tools (34 px, 46 on a phone); the button and its entries carry their value in
     `data-value` (the checks read it, as they read a `select`'s value).
   - **The areas of a program** („Bereich", with a program selected, curriculum only): of the

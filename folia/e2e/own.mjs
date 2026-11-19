@@ -131,11 +131,17 @@ const own = (page) => page.evaluate((key) => (localStorage.getItem(key) ?? "").s
 const text = (page, selector) => page.evaluate((selector) => onPage(selector)?.innerText.replace(/\s+/g, " ").trim() ?? null, selector);
 const note = (page) => page.evaluate(() => onPage(".own-note .plan-toast-said")?.textContent.replace(/\s+/g, " ").trim() ?? "");
 const form = "dialog.own-form[open]";
+// Betula's select (`combobox::Select`, since 2026-11-19 in the Termin's forms): its button, then
+// the entry of that value in the list it opens, as a hand picks it.
+const pick = async (page, button, value) => {
+  await page.click(button);
+  await page.click(`${button} ~ .combo-pop [role="option"][data-value="${value}"]`);
+};
 const wide = { viewport: { width: 1440, height: 900 } };
 // The form's fields, as a hand fills them.
 const fill = async (page, { name, day, from, to, place }) => {
   if (name !== undefined) await page.fill(`${form} #own-what`, name);
-  if (day !== undefined) await page.selectOption(`${form} #own-day`, String(day));
+  if (day !== undefined) await pick(page, `${form} #own-day`, String(day));
   if (from !== undefined) await page.fill(`${form} .own-two input[type="time"] >> nth=0`, from);
   if (to !== undefined) await page.fill(`${form} .own-two input[type="time"] >> nth=1`, to);
   if (place !== undefined) await page.fill(`${form} #own-where`, place);
@@ -217,7 +223,7 @@ if (block("form")) {
   check((await text(page, `${form} .st-dlg-head p`)) === "In „Mein Studiengang“, WiSe 2026/27", `the form's line: ${await text(page, `${form} .st-dlg-head p`)}`);
   const order = await page.evaluate((form) => [...onPage(`${form} .own-body`).children].map((field) => field.querySelector("label, .own-lb")?.textContent ?? field.className), form);
   check(JSON.stringify(order.slice(0, 6)) === JSON.stringify(["Was", "Gehört zu", "Art", "Wann", "Tag", "Zeit"]), `„Gehört zu" and „Art" first, „Wann" above what it changes: ${JSON.stringify(order)}`);
-  check(await page.evaluate((form) => onPage(`${form} #own-kind`)?.value === "" && onPage(`${form} #own-kind option:checked`)?.textContent === "Termin", form), "„Art\" is „Termin\" to begin with");
+  check(await page.evaluate((form) => onPage(`${form} #own-kind`)?.dataset.value === "" && onPage(`${form} #own-kind .combo-value`)?.textContent === "Termin", form), "„Art\" is „Termin\" to begin with");
   await fill(page, { name: "Arbeit", day: 4, from: "13:00", to: "17:00", place: "Café Mosaik" });
   await until(page, "the draft in the week, and that it fits", (form) => {
     const draft = allOnPage(".sp-week .slot.draft");
@@ -252,7 +258,7 @@ if (block("form")) {
   // A click on a free stretch of Wednesday at 16:00 while editing: the form with that day and time.
   at = await spot(page, 3, 16 * 60);
   await page.mouse.click(at.x, at.y);
-  await until(page, "the form of the free stretch", (form) => onPage(`${form} #own-day`)?.value === "3" && onPage(`${form} .own-two input`)?.value === "16:00" && onPage(`${form} #own-form-title`)?.textContent === "Neuer Termin", form);
+  await until(page, "the form of the free stretch", (form) => onPage(`${form} #own-day`)?.dataset.value === "3" && onPage(`${form} .own-two input`)?.value === "16:00" && onPage(`${form} #own-form-title`)?.textContent === "Neuer Termin", form);
   check(await page.evaluate((form) => !onPage(`${form} .own-quicker`), form), "the form of a free stretch says that drawing is quicker");
   await page.keyboard.press("Escape");
   await until(page, "Esc closes the form, the mode stays", () => !onPage("dialog.own-form[open]") && /[?&]edit=1/.test(location.search) && Boolean(onPage(".sp-editbar")));
@@ -289,7 +295,7 @@ if (block("form")) {
   await page.mouse.move(down.x, low.y, { steps: 4 });
   if (shots) await page.screenshot({ path: `${shots}/own-drag.png` });
   await page.mouse.up();
-  await until(page, "the form of the span drawn, the tag gone", (form) => onPage(`${form} #own-day`)?.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:30" && allOnPage(".sp-week .slot.draft").length === 1 && !onPage(".sp-sketch, .sp-sketch-tag"), form);
+  await until(page, "the form of the span drawn, the tag gone", (form) => onPage(`${form} #own-day`)?.dataset.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:30" && allOnPage(".sp-week .slot.draft").length === 1 && !onPage(".sp-sketch, .sp-sketch-tag"), form);
   check(await page.evaluate((form) => !onPage(`${form} .own-quicker`), form), "the form of a span drawn says that drawing is quicker");
   await page.keyboard.press("Escape");
   await until(page, "Esc closes the form of the span", () => !onPage("dialog.own-form[open]") && allOnPage(".sp-week .slot.draft").length === 0 && /[?&]edit=1/.test(location.search));
@@ -369,7 +375,7 @@ if (block("form")) {
   await page.mouse.down();
   await page.mouse.move(flick.x, flick.y + 900);
   await page.mouse.up();
-  await until(page, "a flick past the grid's end draws to its last hour", (form) => onPage(`${form} #own-day`)?.value === "5" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "17:00,19:00", form);
+  await until(page, "a flick past the grid's end draws to its last hour", (form) => onPage(`${form} #own-day`)?.dataset.value === "5" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "17:00,19:00", form);
   await page.keyboard.press("Escape");
   await until(page, "the flick's form closed", () => !onPage("dialog.own-form[open]"));
   // The wheel scrolls the page while the mouse draws: the minutes follow the column where it is now.
@@ -462,7 +468,7 @@ if (block("card")) {
   await until(page, "the day held again, the card stays", ([key, line]) => (localStorage.getItem(key) ?? "").includes(line) && Boolean(onPage("dialog[open] .tm-card [data-action='hide-date']")), [PLAN, ARBEIT]);
   // The pencil: the form with its fields, „Speichern".
   await click(page, "dialog[open] .tm-tools [data-action='own-edit']", "the pencil");
-  await until(page, "its form", (form) => onPage(`${form} #own-form-title`)?.textContent === "„Arbeit“ bearbeiten" && onPage(`${form} #own-where`)?.value === "Café Mosaik" && onPage(`${form} #own-day`)?.value === "4", form);
+  await until(page, "its form", (form) => onPage(`${form} #own-form-title`)?.textContent === "„Arbeit“ bearbeiten" && onPage(`${form} #own-where`)?.value === "Café Mosaik" && onPage(`${form} #own-day`)?.dataset.value === "4", form);
   // Keys typed one by one keep the field and the title: the form is built once as it opens.
   await page.click(`${form} #own-what`);
   await page.keyboard.press("End");
@@ -488,7 +494,7 @@ if (block("module")) {
   const { page, context } = await open(wide, FS1 + `m\t2026W\t${PRAK_BS}\t1790000000\t\n`);
   await until(page, "„Termin eintragen“", (id) => /^keine Termine in QIS/.test(onPage(`.sp-list .sp-mod[data-id='${id}'] .sp-cat-none`)?.textContent.trim() ?? "") && Boolean(onPage(`.sp-list .sp-mod[data-id='${id}'] .sp-cat-none .sp-enter`)), PRAK_BS);
   await click(page, `.sp-list .sp-mod[data-id='${PRAK_BS}'] .sp-cat-none .sp-enter`, "„Termin eintragen\"");
-  await until(page, "the form with the module", ([form, id]) => onPage(`${form} #own-module`)?.value === id, [form, PRAK_BS]);
+  await until(page, "the form with the module", ([form, id]) => onPage(`${form} #own-module`)?.dataset.value === id, [form, PRAK_BS]);
   check(!(await page.evaluate(() => /[?&]edit=1/.test(location.search))), "„Termin eintragen\" entered the mode");
   await fill(page, { day: 4, from: "13:45", to: "15:15" });
   await click(page, `dialog.own-form .st-dlg-foot .primary`, "„Anlegen\"");
@@ -515,8 +521,8 @@ if (block("kind")) {
   const { page, context } = await open(wide, FS1, "/studyplan?edit=1");
   await until(page, "„+ Termin\" under EvS", () => Boolean(onPage(".sp-list .sp-mod[data-id='12104'] .sp-own-add")));
   await click(page, ".sp-list .sp-mod[data-id='12104'] .sp-own-add", "„+ Termin\" under EvS");
-  await until(page, "the form for EvS", (form) => onPage(`${form} #own-module`)?.value === "12104" && onPage(`${form} .st-dlg-head p`)?.textContent === "Für EvS · WiSe 2026/27", form);
-  await page.selectOption(`${form} #own-kind`, "lecture");
+  await until(page, "the form for EvS", (form) => onPage(`${form} #own-module`)?.dataset.value === "12104" && onPage(`${form} .st-dlg-head p`)?.textContent === "Für EvS · WiSe 2026/27", form);
+  await pick(page, `${form} #own-kind`, "lecture");
   await fill(page, { day: 2, from: "16:00", to: "17:30" });
   await until(page, "the draft „VL EvS\"", () => allOnPage(".sp-week .slot.draft").some((slot) => slot.textContent.includes("VL EvS")));
   await click(page, `dialog.own-form .st-dlg-foot .primary`, "„Anlegen\"");
@@ -534,8 +540,8 @@ if (block("kind")) {
   check(v.chip === "EvS" && v.kind === "Vorlesung" && v.mark === "von dir" && v.title === "Entwicklung von Softwaresystemen", `its card: ${JSON.stringify(v)}`);
   // „Art" back to „Termin": the slot says the module, the line loses its kind.
   await click(page, "dialog[open] .tm-tools [data-action='own-edit']", "the pencil");
-  await until(page, "its form", (form) => onPage(`${form} #own-kind`)?.value === "lecture", form);
-  await page.selectOption(`${form} #own-kind`, "");
+  await until(page, "its form", (form) => onPage(`${form} #own-kind`)?.dataset.value === "lecture", form);
+  await pick(page, `${form} #own-kind`, "");
   await click(page, `dialog.own-form .st-dlg-foot .primary`, "„Speichern\"");
   await until(page, "without a kind", ([key]) => (localStorage.getItem(key) ?? "").split("\n").filter((line) => line.startsWith("t\t")).join() === "t\t1\t0\t2026W\tw\t2\t16:00-17:30\t\t\t12104\t\t\t" && allOnPage(".sp-week a.slot.own").some((slot) => slot.querySelector(".l")?.textContent.trim() === "EvS"), [PLAN]);
   check(await page.evaluate(() => window.__marker === 1), "the page loaded again");
@@ -562,18 +568,18 @@ if (block("lena")) {
   await click(page, "#sp-edit-toggle", "„Bearbeiten\"");
   await until(page, "Lena's „+ Termin\" while editing", () => Boolean(onPage(".sp-cal-mods .sp-own-add")));
   await click(page, ".sp-cal-mods .sp-own-add", "Lena's „+ Termin\"");
-  await until(page, "the form for Lena", (form) => onPage(`${form} #own-cal`)?.value === "1" && onPage(`${form} .st-dlg-head p`)?.textContent === "In „Lena“, WiSe 2026/27", form);
+  await until(page, "the form for Lena", (form) => onPage(`${form} #own-cal`)?.dataset.value === "1" && onPage(`${form} .st-dlg-head p`)?.textContent === "In „Lena“, WiSe 2026/27", form);
   // The line under the title follows „Kalender".
-  await page.selectOption(`${form} #own-cal`, "0");
+  await pick(page, `${form} #own-cal`, "0");
   await until(page, "the line follows „Kalender“", (form) => onPage(`${form} .st-dlg-head p`)?.textContent === "In „Mein Studiengang“, WiSe 2026/27", form);
-  await page.selectOption(`${form} #own-cal`, "1");
+  await pick(page, `${form} #own-cal`, "1");
   await fill(page, { name: "Arbeit", day: 3, from: "13:00", to: "17:00" });
   await until(page, "what it counts for", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit Lena", form);
   // From one calendar of one's own to another the line names the other one, as the line under the
   // title does (it kept Lena's name: a closure that read what `calendar` makes before it, R16).
-  await page.selectOption(`${form} #own-cal`, "2");
+  await pick(page, `${form} #own-cal`, "2");
   await until(page, "the line follows „Kalender“ from Lena to the WG", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit WG" && onPage(`${form} .st-dlg-head p`)?.textContent === "In „WG“, WiSe 2026/27", form);
-  await page.selectOption(`${form} #own-cal`, "1");
+  await pick(page, `${form} #own-cal`, "1");
   await until(page, "and back to Lena", (form) => onPage(`${form} .own-fit.ok`)?.textContent === "Zählt für „Gemeinsam frei“ mit Lena", form);
   await click(page, `dialog.own-form .st-dlg-foot .primary`, "„Anlegen\"");
   await until(page, "in Lena's calendar", ([key]) => (localStorage.getItem(key) ?? "").includes("t\t1\t1\t2026W\tw\t3\t13:00-17:00\t\t\t\tArbeit\t\t\n") && onPage(".sp-cal-mods .sp-own button.sp-row.own")?.textContent.includes("Arbeit"), [PLAN]);
@@ -611,7 +617,7 @@ if (block("phone")) {
   at = await spot(page, 3, 16 * 60);
   const target = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.className ?? "", [at.x, at.y]);
   await hold(page, at);
-  await until(page, `a finger held opens the form for Wednesday (on ${target})`, (form) => onPage(`${form} #own-day`)?.value === "3" && onPage(`${form} .own-two input`)?.value === "16:00", form);
+  await until(page, `a finger held opens the form for Wednesday (on ${target})`, (form) => onPage(`${form} #own-day`)?.dataset.value === "3" && onPage(`${form} .own-two input`)?.value === "16:00", form);
   await page.keyboard.press("Escape");
   await until(page, "the form closed", () => !onPage("dialog.own-form[open]"));
   // A real finger, as the owner defined it (2026-11-18: „Das soll so sein, dass man lange gedrückt
@@ -656,7 +662,7 @@ if (block("phone")) {
   // the shift of lifting (the block „a real finger" below), and this finger's last move was now.
   await page.waitForTimeout(250);
   await touch("touchEnd");
-  await until(page, "the form of the span a finger drew, the tag gone", (form) => onPage(`${form} #own-day`)?.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:15" && !onPage(".sp-sketch-tag"), form);
+  await until(page, "the form of the span a finger drew, the tag gone", (form) => onPage(`${form} #own-day`)?.dataset.value === "3" && allOnPage(`${form} .own-two input`).map((input) => input.value).join() === "16:00,17:15" && !onPage(".sp-sketch-tag"), form);
   check(JSON.stringify(await own(page)) === JSON.stringify(stored), "the lift stored a Termin before „Anlegen\"");
   await page.keyboard.press("Escape");
   await until(page, "the form closed again", () => !onPage("dialog.own-form[open]"));

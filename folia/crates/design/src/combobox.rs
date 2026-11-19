@@ -520,7 +520,16 @@ pub fn Select(
         let start = at.or_else(|| items.with_untracked(|items| items.iter().position(|item| item.id == selected))).filter(|row| *row < MAX_SHOWN).unwrap_or(0);
         active.set(start);
         let option = option_id(start);
-        request_animation_frame(move || nav::reveal_in_list(&option, true));
+        let popup = format!("{id}-pop");
+        request_animation_frame(move || {
+            nav::reveal_in_list(&option, true);
+            // On a phone it opens in place, under its button: a sheet half up hid it below its
+            // foot (the form of a Termin, „Art"), so the sheet comes all up and what scrolls brings
+            // it in, as the keyboard brings a combobox's field.
+            if nav::is_phone() {
+                nav::show_in_sheet(&popup);
+            }
+        });
     };
     let hide = move || {
         if is_open(open) {
@@ -668,7 +677,7 @@ pub fn Select(
                     })
                 };
                 view! {
-                    <div class="combo-pop" on:mousedown=keep_focus>
+                    <div class="combo-pop" id=format!("{id}-pop") on:mousedown=keep_focus>
                         <ul class="combo-list scroll" id=list_id.clone() role="listbox" aria-label=label>{entries}</ul>
                         <div class="combo-foot"><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.combobox.key_move}" "<kbd>"Enter"</kbd>" "{t.combobox.key_take}" "<kbd>"Esc"</kbd>" "{t.combobox.key_close}</div>
                     </div>

@@ -69,6 +69,7 @@ use folia_timetable::views::{kind_short, short_title, type_text};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
+use folia_design::combobox::{ComboItem, Select};
 use folia_design::format;
 use folia_design::modal::{Modal, ModalSize, Sheet};
 use folia_design::haptic::TapTick;
@@ -1308,13 +1309,14 @@ fn ChangeView(ctx: TerminCtx, shown: Memo<Option<Shown>>, editing: RwSignal<Opti
                         </div>
                     </div>
                     <div class="chg-fld" class:changed=differs(|draft, qis| draft.weekday != qis.weekday)>
-                        <label for="chg-day">{t.termin.change_day}</label>
-                        <select id="chg-day" on:change=move |ev| { let value = event_target_value(&ev).parse::<u8>().unwrap_or(1); set(Box::new(move |draft| draft.weekday = value)); }>
-                            {(1..=7_u8).map(|day| {
-                                let name = locale.texts().weekday(i64::from(day)).unwrap_or_default();
-                                view! { <option value=day.to_string() selected=move || draft.with(|draft| draft.as_ref().is_some_and(|draft| draft.weekday == day))>{name}</option> }
-                            }).collect_view()}
-                        </select>
+                        <span class="chg-lb">{t.termin.change_day}</span>
+                        <Select
+                            id="chg-day"
+                            label=t.termin.change_day
+                            items=Signal::derive(move || (1..=7_u8).map(|day| ComboItem::new(day.to_string(), locale.texts().weekday(i64::from(day)).unwrap_or_default(), "", 0)).collect::<Vec<_>>())
+                            selected=Signal::derive(move || draft.with(|draft| draft.as_ref().map(|draft| draft.weekday.to_string()).unwrap_or_default()))
+                            on_select=Callback::new(move |value: String| { let value = value.parse::<u8>().unwrap_or(1); set(Box::new(move |draft| draft.weekday = value)); })
+                        />
                     </div>
                     <div class="chg-fld" class:changed=differs(|draft, qis| minutes(draft.from.trim()) != Some(qis.from) || minutes(draft.to.trim()) != Some(qis.to))>
                         <span class="chg-lb">{t.termin.change_time}</span>

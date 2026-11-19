@@ -49,6 +49,12 @@ const FS1 = ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1
 const INFORMATIK = "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2026W\n";
 const dialog = "dialog[open] .tm-dialog";
 const wide = { viewport: { width: 1440, height: 900 } };
+// Betula's select (`combobox::Select`, since 2026-11-19 in the Termin's forms): its button, then
+// the entry of that value in the list it opens, as a hand picks it.
+const pick = async (page, button, value) => {
+  await page.click(button);
+  await page.click(`${button} ~ .combo-pop [role="option"][data-value="${value}"]`);
+};
 
 const open = async (options, plan, path = "/studyplan") => {
   const context = await browser.newContext(options);
@@ -140,7 +146,7 @@ let tuesday = "";
   await page.click(`${dialog} [data-action="change"]`);
   await until(page, "„Ändern“ again", (dialog) => Boolean(onPage(`${dialog} #tm-change`)), dialog);
   await page.click(`${dialog} #tm-change .chg-seg > button >> nth=0`);
-  await page.selectOption(`${dialog} #chg-day`, "4");
+  await pick(page, `${dialog} #chg-day`, "4");
   await page.fill(`${dialog} #tm-change .chg-two input[type="time"] >> nth=0`, "10:00");
   await page.fill(`${dialog} #tm-change .chg-two input[type="time"] >> nth=1`, "11:30");
   await until(page, "what one date on Thursday meets", (dialog) => Boolean(onPage(`${dialog} #tm-change .own-fit`)), dialog);
@@ -173,7 +179,7 @@ let tuesday = "";
   await page.click(`${dialog} .tm-tools [data-action="more"]`);
   await page.click(`${dialog} .tm-menu [data-action="makeup"]`);
   await until(page, "the form of a Termin of one's own", () => Boolean(onPage("dialog.own-form[open]")));
-  const made = await page.evaluate(() => ({ what: onPage("dialog.own-form[open] #own-what")?.value, kind: onPage("dialog.own-form[open] #own-kind")?.value, module: onPage("dialog.own-form[open] #own-module")?.value, title: onPage("dialog.own-form[open] #own-form-title")?.textContent }));
+  const made = await page.evaluate(() => ({ what: onPage("dialog.own-form[open] #own-what")?.value, kind: onPage("dialog.own-form[open] #own-kind")?.dataset.value, module: onPage("dialog.own-form[open] #own-module")?.dataset.value, title: onPage("dialog.own-form[open] #own-form-title")?.textContent }));
   check(made.what === "" && made.kind === "lecture" && made.module === "12104" && made.title === "Neuer Termin", `the make-up's form: ${JSON.stringify(made)}`);
   await page.click("dialog.own-form .st-dlg-foot .primary");
   await until(page, "the make-up made: a date of its own with its kind, „VL EvS“ in the week", ([plan, day]) => {
