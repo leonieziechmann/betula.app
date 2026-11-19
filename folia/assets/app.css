@@ -1793,10 +1793,16 @@ button.action:hover { background: var(--panel-3); }
 /* The navigation's keys (chrome.rs `NavKey`, enhance.js): while the keys that lead to the tabs are
    held (Alt, or Ctrl and Alt), each tab shows them in full beside its mark, „Alt + 1", inverted
    over the page as a tooltip stands; the words before the digit are the system's (`--nav-keys`).
-   The rail stands over the page meanwhile (its sidebar is above it otherwise). */
+   The rail stands over all of the page meanwhile, a page held in front while it loads too (its
+   skeleton, `.pending-page`, 30) and the mode's tag (30); never lower than it stands otherwise
+   (24 on a wide screen, over the crown's leaves, 22, and the bar, 23): until Folia 1.110.1 it was
+   20, so that the leaves lay over the logo while the keys were held and a skeleton over their
+   labels (owner, 2026-11-19: „Die blätter werden über dem btu logo sichtbar, wenn man alt gedrückt
+   hält" — „wenn skeletons gezeigt werden, dann sind die tooltips/shortcuts visalizations dahinter
+   verschwunden"). */
 .nav-key { display: none; }
 .nav-key::before { content: var(--nav-keys, ""); }
-:root[data-nav-keys] .rail { z-index: 20; }
+:root[data-nav-keys] .rail { z-index: 31; }
 :root[data-nav-keys] .nav-key { position: absolute; left: calc(100% + 10px); top: 50%; display: block; padding: 4px 7px; white-space: nowrap; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 11.5px; line-height: 1.25; transform: translateY(-50%); animation: nav-key-in .1s ease-out; }
 @keyframes nav-key-in { from { opacity: 0; } }
 @media (max-width: 900px) {
