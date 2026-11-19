@@ -321,7 +321,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   day or „ab 07:30" in its box, and what lies wholly after it is named under its day („+ ABWL1
   17:30"; wholly before the frame, which begins at 08:00 at the latest, nothing is). A hard clash
   is red where the plan meets the card, and the card carries the „!"; the Termin open beside the
-  week lifts, framed a step inside its edge in the colour of its words (R26; until Folia 1.111.0 a
+  week lifts, framed a step inside its edge in the colour of its words (R26; until Folia 1.113.0 a
   ring at a distance). A line under the week, only with the plan beside it,
   names what of this the week holds („Pflicht" or „Pflicht und deine Gruppe", „Einzeltermine",
   „Wahl, eine der Gruppen", „Zusatz, freiwillig", „Darunter: dein Stundenplan"). Over the week,
@@ -352,7 +352,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   Termin and of a Termin changed by hand white on a full card. What editing adds (until 1.100.0 „Alle
   Termine") stays faint and dashed, never with the red of a clash; the Termin whose card is open lifts
   and is framed a step inside its edge in the colour of its words (a faint one a solid frame of 2 px
-  at its edge; R26, until Folia 1.111.0 a ring at a distance). On a wide page the
+  at its edge; R26, until Folia 1.113.0 a ring at a distance). On a wide page the
   week stands without a box, as a module's week (a phone's weeks keep theirs, which the carousel
   carries). In the list beside the week a module's key is full in its tone as its cards (`.sp-key`),
   a visit's ringed, a calendar's ringed in its colour, one's own full with its white mark; „Offen"
@@ -7344,7 +7344,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   der wirklich immer und immer wieder in betula auftaucht sind abgeschnittene borders. Das hat zwei
   ursachen. Zum einen wie hier, wo der zindex nicht passt und dann zum anderen, weil der parent
   container die border abschneidet. Bitte löse das problem nachhaltig und entwickle vlt ein border
-  system, wenn notwendig"; Folia 1.111.0). A frame is the line that marks an element: the
+  system, wenn notwendig"; Folia 1.113.0). A frame is the line that marks an element: the
   keyboard's focus (`:focus-visible`), what is current, chosen or open (`aria-current`,
   `aria-checked`, the slot of the Termin open beside the week), what the pointer is on, where a
   drop lands, what the keyboard's search found. It lies inside the element's own edge, never
@@ -7377,7 +7377,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
     week; the dark of `--invert` on what is chosen or current (a chip „mit", „Gemerkt", the current
     view and tab, the rail's current tab); the red of a choice „ohne". Betula's mark takes its
     leaf's colour (`--logo-leaf`), which stands out from its tile in either theme. The slot of the
-    Termin open beside the week lifts and is framed so too (until 1.111.0 a ring at a distance,
+    Termin open beside the week lifts and is framed so too (until 1.113.0 a ring at a distance,
     which the slot beside it could cover).
   - An element whose content lies on a layer of its own (a positioned child with a ground of its
     own) is covered there by it, frame and all: the frame goes on that child (the rail's tab on
@@ -7392,7 +7392,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
     list's heads, a summary, the breadcrumbs, the profile page's foot, a plan's names of modules),
     a link in a line of text (`:where(p, td, th, dd, …) > a:not([class])`, on every line it runs
     over), the radio and words of the setup's fifth box —, 4 px of padding and the same negative
-    margin give the frame its room: it stands where the ring around it stood until 1.111.0, off
+    margin give the frame its room: it stands where the ring around it stood until 1.113.0, off
     the letters, and nothing moves.
   - Not frames, and so they may lie around an element: a gap in the ground around a badge
     (`.nav-count`), a soft glow (`.dot`), a pad under the pointer (`.st-wb-ts:hover`), the lift of

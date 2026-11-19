@@ -295,7 +295,7 @@ table { border-collapse: collapse; width: 100%; }
    Gesamtplan's next semester covered the head before it —, and a parent that scrolls or clips cut
    it off at its edge — the box of the heads cut off their feet. Inside, the frame is the element's
    own: what lies beside the element does not reach it, and what clips the element clips its frame
-   only where it clips the element too. Until Folia 1.111.0 the focus was a ring 2 px around every
+   only where it clips the element too. Until Folia 1.113.0 the focus was a ring 2 px around every
    control, and 26 rules had moved it inside for their own elements, one at a time.
    A frame is an outline, which the browser draws over the element's content (a shadow inside is
    drawn under it, under a child with a ground of its own), `--frame-w` wide at the edge, in
@@ -314,7 +314,7 @@ table { border-collapse: collapse; width: 100%; }
 :focus-visible { outline: var(--frame-w) solid var(--frame); outline-offset: calc(-1 * (var(--frame-w) + var(--frame-in))); }
 /* A control of words alone reaches its edge with them: it makes 4 px of room in itself, padding
    taken back by the same margin, so that its frame stands off its letters where the ring around it
-   stood until 1.111.0 (`.st-link`, a list's heads, a summary, the breadcrumbs). So does a link in a
+   stood until 1.113.0 (`.st-link`, a list's heads, a summary, the breadcrumbs). So does a link in a
    line of text, on every line it runs over. */
 :where(p, td, th, dd, small, address, figcaption, .photo-credit) > a:not([class]) { margin: -4px; padding: 4px; border-radius: var(--r-ctl); -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
@@ -2016,7 +2016,7 @@ a.slot { text-decoration: none; }
    a red frame with the slot it clashes with keeps its own look. */
 .slot.clash:not(.framed) { box-shadow: inset 0 0 0 2px var(--no), var(--lift); }
 /* The slot of what is open beside the grid: it lifts, and a frame a step inside its edge in the
-   colour of its words (until Folia 1.111.0 a ring at a distance, which the next slot or the edge of
+   colour of its words (until Folia 1.113.0 a ring at a distance, which the next slot or the edge of
    the week could cut). */
 .slot[aria-current="true"] { --lift: var(--lift-shadow); z-index: 2; outline: var(--frame-w) solid currentColor; outline-offset: calc(-2 * var(--frame-w)); }
 /* The courses of a module held at two campuses or more (module.rs, courses.rs; owner, 2026-10-19:
